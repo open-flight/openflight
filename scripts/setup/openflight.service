@@ -2,6 +2,12 @@
 Description=OpenFlight Golf Launch Monitor
 After=network.target graphical.target
 Wants=graphical.target
+# A launcher that fails during preparation exits within a second. Without a
+# limit systemd retried it every 5 s indefinitely, and each attempt's cleanup
+# killed the desktop session's kiosk. Five failures in five minutes stops the
+# loop; `sudo systemctl reset-failed openflight` re-arms it after a fix.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,6 +17,9 @@ Environment=DISPLAY=:0
 ExecStart=/home/coleman/openflight/scripts/start-kiosk.sh
 Restart=on-failure
 RestartSec=5
+# Exit 3 means another OpenFlight instance already owns the kiosk (see
+# acquire_instance_lock in scripts/start-kiosk.sh); retrying cannot help.
+RestartPreventExitStatus=3
 
 [Install]
 WantedBy=graphical.target

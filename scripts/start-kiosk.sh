@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # OpenFlight Kiosk Startup Script
-# Starts the radar server and launches Chromium in kiosk mode
+# Starts the radar server and launches the Electron kiosk shell
 #
 
 set -e
@@ -44,6 +44,7 @@ STARTUP_DISMISS_FILE=""
 STARTUP_LOG_PATH="${OPENFLIGHT_STARTUP_LOG:-$HOME/openflight_sessions/terminal_logs/}"
 SPLASH_PID=""
 BROWSER_PID=""
+BROWSER_PGID=""
 BROWSER_LAUNCHED=false
 SERVER_PID=""
 # Rolling buffer mode is the only mode (streaming mode removed)
@@ -505,28 +506,8 @@ error() {
     echo -e "${RED}[OpenFlight]${NC} $1"
 }
 
-launch_kiosk_browser() {
-    local url="$1"
-    local chrome_flags="--kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --password-store=basic"
-
-    log "Launching kiosk browser..."
-    if command -v chromium-browser &> /dev/null; then
-        DISPLAY=:0 chromium-browser $chrome_flags "$url" &
-    elif command -v chromium &> /dev/null; then
-        DISPLAY=:0 chromium $chrome_flags "$url" &
-    elif command -v google-chrome &> /dev/null; then
-        DISPLAY=:0 google-chrome $chrome_flags "$url" &
-    elif command -v firefox &> /dev/null; then
-        DISPLAY=:0 firefox --kiosk "$url" &
-    else
-        warn "No supported browser found. Open $url manually."
-        warn "Supported browsers: chromium-browser, chromium, google-chrome, firefox"
-        return 1
-    fi
-
-    BROWSER_PID=$!
-    BROWSER_LAUNCHED=true
-}
+# shellcheck source=kiosk-browser.sh
+source "$SCRIPT_DIR/kiosk-browser.sh"
 
 stop_startup_splash_server() {
     if [ -n "$SPLASH_PID" ] && kill -0 "$SPLASH_PID" 2>/dev/null; then
@@ -617,6 +598,7 @@ show_startup_failure() {
     local preserve_existing="${5:-false}"
 
     error "$message"
+    error "  $recovery"
     if [ -n "$STARTUP_STATUS_FILE" ] && [ -f "$STARTUP_STATUS_FILE" ]; then
         local status_args=(
             fail "$STARTUP_STATUS_FILE"
@@ -700,13 +682,50 @@ cleanup() {
     log "Shutting down..."
     shutdown_server
     stop_startup_splash_server
-    if [ -n "$BROWSER_PID" ]; then
-        kill "$BROWSER_PID" 2>/dev/null || true
-    fi
-    # Chromium forks child processes that survive kill — clean them all
-    pkill -f "chromium.*--kiosk" 2>/dev/null || true
-    pkill -f "chrome.*--kiosk" 2>/dev/null || true
+    stop_kiosk_browser
     exit "$exit_code"
+}
+
+acquire_instance_lock() {
+    # One kiosk per web port. The default lives in /tmp rather than
+    # XDG_RUNTIME_DIR because openflight.service and a desktop session have
+    # different runtime dirs, and it was exactly that pair fighting over the
+    # screen: a failing boot service ran cleanup every 5 s and killed the
+    # desktop session's Electron each time.
+    local lock_file="${OPENFLIGHT_KIOSK_LOCK_FILE:-/tmp/openflight-kiosk-${PORT}.lock}"
+
+    if ! command -v flock >/dev/null 2>&1; then
+        warn "flock unavailable; cannot guard against a second OpenFlight instance"
+        return 0
+    fi
+    # Probe in a subshell: a failed redirection on `exec` would abort the script.
+    if ! ( : >>"$lock_file" ) 2>/dev/null; then
+        warn "Cannot open $lock_file; continuing without the single-instance guard"
+        return 0
+    fi
+    exec {INSTANCE_LOCK_FD}>>"$lock_file"
+    if ! flock -n "$INSTANCE_LOCK_FD"; then
+        error "OpenFlight is already running (lock held on $lock_file)."
+        error "  Stop the other instance first. If it is the boot service: sudo systemctl stop openflight"
+        # Exit 3 is listed in openflight.service's RestartPreventExitStatus so
+        # systemd does not retry every 5 s while someone else owns the kiosk.
+        exit 3
+    fi
+}
+
+ensure_uv_on_path() {
+    # systemd starts the service with a minimal PATH that omits the user-local
+    # install dirs astral's installer uses, so `uv` looked missing at boot.
+    if command -v uv >/dev/null 2>&1; then
+        return 0
+    fi
+    local candidate
+    for candidate in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+        if [ -x "$candidate/uv" ]; then
+            export PATH="$candidate:$PATH"
+            return 0
+        fi
+    done
 }
 
 configure_kld7_latency() {
@@ -982,15 +1001,22 @@ if [ "$DRY_RUN" = true ]; then
     exit 0
 fi
 
+acquire_instance_lock
+
+# shellcheck source=ensure-kiosk-ui.sh
+source "$SCRIPT_DIR/ensure-kiosk-ui.sh"
+ensure_kiosk_ui
+
 start_startup_splash
 
 # Ensure the environment is in sync (uv recreates/repairs .venv as needed,
 # so a moved project dir self-heals instead of failing with "command not found")
+ensure_uv_on_path
 if ! command -v uv >/dev/null 2>&1; then
     show_startup_failure \
         "server" \
         "OpenFlight preparation failed" \
-        "The uv command is unavailable. Ask a technician to repair the OpenFlight installation."
+        "The uv command is unavailable (checked PATH, ~/.local/bin and ~/.cargo/bin). Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"
 fi
 
 UV_SYNC_ARGS=(--quiet)
@@ -1019,20 +1045,6 @@ if ! uv sync "${UV_SYNC_ARGS[@]}"; then
 fi
 
 configure_kld7_latency
-
-# Check if UI is built
-if [ ! -d "ui/dist" ]; then
-    warn "UI not built. Building now..."
-    cd ui
-    if ! npm install || ! npm run build; then
-        cd ..
-        show_startup_failure \
-            "server" \
-            "OpenFlight interface build failed" \
-            "Check the terminal log or network connection, then relaunch OpenFlight."
-    fi
-    cd ..
-fi
 
 # Start Grafana Alloy for log shipping (if installed and credentials configured)
 if command -v alloy &> /dev/null || systemctl is-enabled alloy &> /dev/null 2>&1; then

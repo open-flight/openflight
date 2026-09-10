@@ -1,7 +1,13 @@
 """Tests for the kiosk entry script flag wiring."""
 
+import os
+import re
+import shlex
 import shutil
+import signal
+import stat
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -422,19 +428,35 @@ def test_startup_splash_passes_status_file_to_server():
 def test_launcher_reports_distinct_failures_and_waits_for_dismissal():
     repo_root = Path(__file__).resolve().parents[1]
     script = (repo_root / "scripts/start-kiosk.sh").read_text(encoding="utf-8")
+    ensure_ui = (repo_root / "scripts/ensure-kiosk-ui.sh").read_text(encoding="utf-8")
 
     assert "show_startup_failure()" in script
     assert '"OpenFlight preparation failed"' in script
     assert '"server"' in script
     assert 'while [ ! -f "$STARTUP_DISMISS_FILE" ]' in script
     assert 'uv sync "${UV_SYNC_ARGS[@]}"' in script
-    assert "npm run build" in script
+    assert "ensure_kiosk_ui" in script
+    assert "npm run build" in ensure_ui
 
 
 def test_start_kiosk_script_has_valid_shell_syntax():
     repo_root = Path(__file__).resolve().parents[1]
     subprocess.run(
         ["bash", "-n", "scripts/start-kiosk.sh"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["bash", "-n", "scripts/ensure-kiosk-ui.sh"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["bash", "-n", "scripts/kiosk-browser.sh"],
         cwd=repo_root,
         check=True,
         capture_output=True,
@@ -552,3 +574,482 @@ def test_iwr6843_horizontal_phase_reference_is_forwarded():
 def test_iwr6843_horizontal_phase_reference_is_omitted_by_default():
     command = _dry_run("--iwr6843").stdout.strip()
     assert "--iwr6843-horizontal-phase-reference-rad" not in command
+
+
+def test_kiosk_shell_scripts_use_unix_newlines():
+    repo_root = Path(__file__).resolve().parents[1]
+    for relative in (
+        "scripts/start-kiosk.sh",
+        "scripts/ensure-kiosk-ui.sh",
+        "scripts/kiosk-browser.sh",
+        "scripts/require-node.sh",
+    ):
+        data = (repo_root / relative).read_bytes()
+        assert b"\r" not in data, f"{relative} must use LF newlines so sourced path checks match on the Pi"
+
+
+def test_ui_is_ensured_before_the_kiosk_browser_launches():
+    script = _read_script()
+    ensure_call = script.index("\nensure_kiosk_ui\n")
+    splash_call = script.index("\nstart_startup_splash\n")
+    assert ensure_call < splash_call
+
+
+def _read_script() -> str:
+    return (Path(__file__).resolve().parents[1] / "scripts/start-kiosk.sh").read_text(
+        encoding="utf-8"
+    )
+
+
+def _read_kiosk_browser_helper() -> str:
+    return (Path(__file__).resolve().parents[1] / "scripts/kiosk-browser.sh").read_text(
+        encoding="utf-8"
+    )
+
+
+def _launcher_function() -> str:
+    helper = _read_kiosk_browser_helper()
+    return helper[helper.index("launch_kiosk_browser() {") : helper.index("stop_kiosk_browser() {")]
+
+
+def test_launch_kiosk_browser_prefers_the_electron_shell():
+    """The pinned Electron runtime must be tried before any system browser."""
+    launcher = _launcher_function()
+
+    electron_idx = launcher.index('if [ -x "$electron_bin" ]; then')
+    chromium_browser_idx = launcher.index("command -v chromium-browser")
+    chromium_idx = launcher.index("command -v chromium &> /dev/null")
+
+    assert electron_idx < chromium_browser_idx < chromium_idx
+    assert 'local electron_bin="$PROJECT_DIR/ui/node_modules/.bin/electron"' in launcher
+    assert '"$electron_bin" "$PROJECT_DIR/ui"' in launcher
+
+
+def test_launch_kiosk_browser_still_falls_back_without_electron():
+    """A Pi that hasn't run `npm install` yet must not lose its kiosk entirely."""
+    launcher = _launcher_function()
+
+    assert "chromium-browser --kiosk" in launcher
+    assert "chromium --kiosk" in launcher
+    assert "No Electron kiosk shell and no fallback browser found" in launcher
+
+
+def test_cleanup_stops_only_the_browser_it_launched():
+    """A path-matching pkill killed Electron windows owned by *other* launcher instances.
+
+    A crash-looping systemd unit ran cleanup every 5 s and each pass killed the
+    desktop session's kiosk (Chromium then died with "GPU process isn't usable").
+    """
+    script = _read_script()
+    helper = _read_kiosk_browser_helper()
+    cleanup_fn = script[script.index("cleanup() {") : script.index("configure_kld7_latency() {")]
+
+    assert "pkill" not in script
+    assert "pkill" not in helper
+    assert 'source "$SCRIPT_DIR/kiosk-browser.sh"' in script
+    assert "stop_kiosk_browser" in cleanup_fn
+
+
+def test_ui_build_check_does_not_block_startup_on_missing_electron():
+    """A built UI must still start when Electron cannot be installed."""
+    script = _read_script()
+
+    assert 'source "$SCRIPT_DIR/ensure-kiosk-ui.sh"' in script
+    assert "ensure_kiosk_ui" in script
+    assert 'if [ ! -d "ui/dist" ] || [ ! -x "ui/node_modules/.bin/electron" ]; then' not in script
+
+
+def _bash_path(path: Path) -> str:
+    resolved = str(path.resolve())
+    if os.name != "nt":
+        return resolved
+    converted = subprocess.run(
+        ["bash", "-lc", f"wslpath -u {shlex.quote(resolved.replace(chr(92), '/'))}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    mapped = converted.stdout.strip()
+    if converted.returncode == 0 and mapped:
+        return mapped
+    posix = Path(resolved).as_posix()
+    return f"/{posix[0].lower()}{posix[2:]}"
+
+
+def _write_executable(path: Path, contents: str) -> None:
+    path.write_text(contents, encoding="utf-8", newline="\n")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _run_ensure_kiosk_ui(
+    tmp_path: Path,
+    *,
+    node_version: str,
+    has_dist: bool,
+    npm_exit: int,
+) -> subprocess.CompletedProcess[str]:
+    repo_scripts = Path(__file__).resolve().parents[1] / "scripts"
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    for name in ("ensure-kiosk-ui.sh", "require-node.sh"):
+        text = (repo_scripts / name).read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        (scripts_dir / name).write_bytes(text.encode("utf-8"))
+    project_dir = tmp_path / "project"
+    ui_dir = project_dir / "ui"
+    ui_dir.mkdir(parents=True)
+    if has_dist:
+        (ui_dir / "dist").mkdir()
+        (ui_dir / "dist" / "index.html").write_text("<html></html>\n", encoding="utf-8")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    npm_called = tmp_path / "npm-called"
+    _write_executable(
+        bin_dir / "node",
+        f"#!/usr/bin/env bash\necho 'v{node_version}'\n",
+    )
+    _write_executable(
+        bin_dir / "npm",
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                f"printf '%s\\n' \"$*\" >> {_bash_path(npm_called)}",
+                f"exit {npm_exit}",
+                "",
+            ]
+        ),
+    )
+
+    harness = tmp_path / "run-ensure.sh"
+    _write_executable(
+        harness,
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                'PROJECT_DIR="$1"',
+                'SCRIPT_DIR="$2"',
+                'BIN_DIR="$3"',
+                'chmod +x "$BIN_DIR"/* || true',
+                'export PATH="$BIN_DIR:$PATH"',
+                "log() { printf 'LOG %s\\n' \"$1\"; }",
+                "warn() { printf 'WARN %s\\n' \"$1\"; }",
+                "show_startup_failure() {",
+                '  printf \'FAILURE component=%s message=%s\\n\' "$1" "$2"',
+                "  exit 42",
+                "}",
+                '# shellcheck source=/dev/null',
+                'source "$SCRIPT_DIR/ensure-kiosk-ui.sh"',
+                "ensure_kiosk_ui",
+                "printf 'CONTINUED\\n'",
+                "",
+            ]
+        ),
+    )
+
+    return subprocess.run(
+        [
+            "bash",
+            _bash_path(harness),
+            _bash_path(project_dir),
+            _bash_path(scripts_dir),
+            _bash_path(bin_dir),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_existing_ui_continues_when_node_is_too_old_to_install_electron(tmp_path):
+    """A Pi with a built UI and Node 20 must keep using Chromium instead of dying at startup."""
+    result = _run_ensure_kiosk_ui(
+        tmp_path,
+        node_version="20.19.0",
+        has_dist=True,
+        npm_exit=1,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "CONTINUED" in result.stdout
+    assert "FAILURE" not in combined
+    assert not (tmp_path / "npm-called").exists()
+
+
+def test_existing_ui_continues_when_electron_npm_install_fails(tmp_path):
+    """Offline or failed Electron install must not block a unit that already has ui/dist."""
+    result = _run_ensure_kiosk_ui(
+        tmp_path,
+        node_version="22.12.0",
+        has_dist=True,
+        npm_exit=1,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "CONTINUED" in result.stdout
+    assert "FAILURE" not in combined
+    assert (tmp_path / "npm-called").exists()
+
+
+def test_missing_ui_still_fails_when_node_is_too_old(tmp_path):
+    result = _run_ensure_kiosk_ui(
+        tmp_path,
+        node_version="20.19.0",
+        has_dist=False,
+        npm_exit=0,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 42, combined
+    assert "FAILURE" in combined
+    assert "CONTINUED" not in result.stdout
+
+
+# --- Browser process-tree ownership -----------------------------------------
+
+
+def _is_alive(pid: int) -> bool:
+    """True while the process exists and is not a zombie."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    status = Path(f"/proc/{pid}/status")
+    if status.exists():
+        for line in status.read_text(encoding="utf-8").splitlines():
+            if line.startswith("State:"):
+                return "Z" not in line.split()[1]
+    return True
+
+
+def _wait_until_dead(pids: list[int], timeout_s: float = 5.0) -> list[int]:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        survivors = [pid for pid in pids if _is_alive(pid)]
+        if not survivors:
+            return []
+        time.sleep(0.05)
+    return [pid for pid in pids if _is_alive(pid)]
+
+
+def _make_fake_electron(project_dir: Path) -> Path:
+    """A stand-in Electron: a main process that forks a lingering child, like Chromium does."""
+    bin_dir = project_dir / "ui" / "node_modules" / ".bin"
+    bin_dir.mkdir(parents=True)
+    fake = bin_dir / "electron"
+    _write_executable(
+        fake,
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "sleep 300 &",
+                "child=$!",
+                'printf \'%s %s\\n\' "$$" "$child" >> "$OPENFLIGHT_TEST_PID_LOG"',
+                'wait "$child"',
+                "",
+            ]
+        ),
+    )
+    return fake
+
+
+def _read_pid_log(path: Path) -> list[int]:
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if path.exists() and path.read_text(encoding="utf-8").strip():
+            return [int(token) for token in path.read_text(encoding="utf-8").split()]
+        time.sleep(0.05)
+    raise AssertionError(f"fake electron never recorded its pids in {path}")
+
+
+@pytest.mark.skipif(
+    shutil.which("setsid") is None or os.name == "nt",
+    reason="process-group ownership needs setsid (util-linux)",
+)
+def test_stop_kiosk_browser_kills_the_launched_tree_and_spares_other_instances(tmp_path):
+    """Stopping must take the whole tree we started and nothing we did not start."""
+    repo_root = Path(__file__).resolve().parents[1]
+    project_dir = tmp_path / "project"
+    fake_electron = _make_fake_electron(project_dir)
+    ours_log = tmp_path / "ours.pids"
+    theirs_log = tmp_path / "theirs.pids"
+
+    # Another launcher's kiosk (same binary path) that must survive our cleanup.
+    other = subprocess.Popen(
+        ["bash", str(fake_electron)],
+        env={**os.environ, "OPENFLIGHT_TEST_PID_LOG": str(theirs_log)},
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        their_pids = _read_pid_log(theirs_log)
+
+        harness = tmp_path / "run-browser.sh"
+        _write_executable(
+            harness,
+            "\n".join(
+                [
+                    "#!/usr/bin/env bash",
+                    "set -u",
+                    'PROJECT_DIR="$1"',
+                    'SCRIPT_DIR="$2"',
+                    'BROWSER_PID=""',
+                    'BROWSER_PGID=""',
+                    "BROWSER_LAUNCHED=false",
+                    "log() { printf 'LOG %s\\n' \"$1\"; }",
+                    "warn() { printf 'WARN %s\\n' \"$1\"; }",
+                    "# shellcheck source=/dev/null",
+                    'source "$SCRIPT_DIR/kiosk-browser.sh"',
+                    'launch_kiosk_browser "http://127.0.0.1:1/"',
+                    'printf \'LAUNCHED pid=%s pgid=%s\\n\' "$BROWSER_PID" "$BROWSER_PGID"',
+                    "sleep 0.5",
+                    "stop_kiosk_browser",
+                    "printf 'STOPPED\\n'",
+                    "",
+                ]
+            ),
+        )
+        result = subprocess.run(
+            ["bash", str(harness), str(project_dir), str(repo_root / "scripts")],
+            env={**os.environ, "OPENFLIGHT_TEST_PID_LOG": str(ours_log)},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        combined = result.stdout + result.stderr
+        assert result.returncode == 0, combined
+        assert "STOPPED" in result.stdout, combined
+
+        our_pids = _read_pid_log(ours_log)
+        assert _wait_until_dead(our_pids) == [], f"launched tree survived cleanup: {combined}"
+        assert other.poll() is None, "cleanup killed a kiosk it did not launch"
+        assert all(_is_alive(pid) for pid in their_pids), (
+            "cleanup killed another instance's children"
+        )
+    finally:
+        try:
+            os.killpg(other.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        other.wait(timeout=5)
+
+
+def test_launch_kiosk_browser_puts_every_browser_in_its_own_process_group():
+    """Electron and the Chromium fallbacks must be stoppable as one group, not by pattern."""
+    launcher = _launcher_function()
+    helper = _read_kiosk_browser_helper()
+
+    assert "setsid" in helper
+    assert "BROWSER_PGID" in helper
+    # Every branch launches through the same wrapper so none can regress to a bare `&`.
+    assert launcher.count("_launch_kiosk_process ") == 3
+    assert " &\n" not in launcher
+
+
+# --- Single-instance guard --------------------------------------------------
+
+
+def _hold_lock(path: Path):
+    fcntl = pytest.importorskip("fcntl")
+    handle = open(path, "w", encoding="utf-8")  # noqa: SIM115 - closed by the caller
+    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return handle
+
+
+@pytest.mark.skipif(shutil.which("flock") is None, reason="instance guard needs flock (util-linux)")
+def test_second_launcher_instance_exits_without_running_cleanup(tmp_path):
+    """While another instance owns the kiosk, a new one must not build, launch, or kill anything."""
+    repo_root = Path(__file__).resolve().parents[1]
+    lock_path = tmp_path / "kiosk.lock"
+    holder = _hold_lock(lock_path)
+    try:
+        result = subprocess.run(
+            ["bash", "scripts/start-kiosk.sh", "--mock"],
+            cwd=repo_root,
+            env={**os.environ, "OPENFLIGHT_KIOSK_LOCK_FILE": str(lock_path)},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    finally:
+        holder.close()
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 3, combined
+    assert "already running" in combined
+    assert str(lock_path) in combined
+    assert "Shutting down" not in combined
+    assert "Building" not in combined
+
+
+@pytest.mark.skipif(shutil.which("flock") is None, reason="instance guard needs flock (util-linux)")
+def test_dry_run_ignores_the_instance_lock(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    lock_path = tmp_path / "kiosk.lock"
+    holder = _hold_lock(lock_path)
+    try:
+        result = subprocess.run(
+            ["bash", "scripts/start-kiosk.sh", "--mock", "--dry-run"],
+            cwd=repo_root,
+            env={**os.environ, "OPENFLIGHT_KIOSK_LOCK_FILE": str(lock_path)},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    finally:
+        holder.close()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip().startswith("openflight-server")
+
+
+def test_instance_lock_is_taken_after_dry_run_and_before_any_side_effect():
+    script = _read_script()
+
+    dry_run_idx = script.index('if [ "$DRY_RUN" = true ]; then')
+    lock_idx = script.index("\nacquire_instance_lock\n")
+    ensure_idx = script.index("\nensure_kiosk_ui\n")
+    splash_idx = script.index("\nstart_startup_splash\n")
+
+    assert dry_run_idx < lock_idx < ensure_idx < splash_idx
+    guard = script[script.index("acquire_instance_lock() {") : lock_idx]
+    assert "flock -n" in guard
+    assert "exit 3" in guard
+    # The default path must not depend on XDG_RUNTIME_DIR: a system service and
+    # a desktop session have different runtime dirs but must share one lock.
+    assert "OPENFLIGHT_KIOSK_LOCK_FILE:-/tmp/openflight-kiosk-${PORT}.lock" in guard
+
+
+# --- Running under systemd --------------------------------------------------
+
+
+def test_uv_is_found_in_user_install_dirs_before_the_preparation_check():
+    """systemd's PATH omits ~/.local/bin, which is where astral's installer puts uv."""
+    script = _read_script()
+
+    resolve_idx = script.index("\nensure_uv_on_path\n")
+    check_idx = script.index("if ! command -v uv >/dev/null 2>&1; then")
+    assert resolve_idx < check_idx
+
+    resolver = script[script.index("ensure_uv_on_path() {") : resolve_idx]
+    assert '"$HOME/.local/bin"' in resolver
+    assert '"$HOME/.cargo/bin"' in resolver
+
+
+def test_startup_failure_prints_the_recovery_hint_to_the_terminal():
+    """journalctl only showed "preparation failed"; the reason lived in the splash JSON."""
+    script = _read_script()
+    failure_fn = script[
+        script.index("show_startup_failure() {") : script.index("# Mount tilt has no safe default")
+    ]
+
+    assert re.search(r'error ".*\$recovery"', failure_fn), failure_fn

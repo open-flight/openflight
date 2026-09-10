@@ -323,6 +323,7 @@ Build it locally with `make docs` (serves at `localhost:8000`).
 - **[Parts List](docs/get-started/parts.md)** — What to buy
 - **[Sound Trigger Wiring](docs/build/sound-trigger.md)** — How to wire the sound trigger
 - **[Raspberry Pi Setup](docs/setup/raspberry-pi.md)** — Full setup guide
+- **[Electron Kiosk Shell](docs/electron-kiosk-shell.md)** — Why the kiosk runs in Electron and how self-updating could work later
 - **[Battery Monitoring](docs/using/battery.md)** — Provider architecture, UI states, and shared Pi support
 - **[Geekworm X1202/X1206 Operator Guide](docs/build/battery.md)** — Batteries, Pi setup, native telemetry, and warnings
 - **[IWR6843 Operator Guide](docs/iwr6843/index.md)** — Wire, flash, mount, aim, and calibrate the angle radar
