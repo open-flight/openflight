@@ -15,7 +15,6 @@ interface PanelFooterProps {
   currentView: PanelView;
   onChangeView: (view: PanelView) => void;
   onOpenMenu: () => void;
-  onShutdown: () => void;
   menuOpen: boolean;
   shotCount: number;
   cameraStreaming: boolean;
@@ -34,7 +33,7 @@ const VIEWS_WITH_UNITS: ReadonlySet<PanelView> = new Set(['live', 'stats', 'shot
 
 /**
  * Bottom bar: menu button, divider-separated panel tabs, and view meta on the
- * right. Panel actions live in `PanelHeader`.
+ * right. Panel actions and shutdown live in `PanelHeader`.
  *
  * The mockup footer shows four tabs; Profiles and Debug are extra working
  * screens. Burying either behind a gesture makes them unreachable on the kiosk.
@@ -43,7 +42,6 @@ export function PanelFooter({
   currentView,
   onChangeView,
   onOpenMenu,
-  onShutdown,
   menuOpen,
   shotCount,
   cameraStreaming,
@@ -110,22 +108,12 @@ export function PanelFooter({
         />
       </div>
 
-      <div className="panel-footer__meta">
-        {showUnits ? <span className="panel-footer__units">{unitsLabel}</span> : null}
-        {powerStatus ? <PowerExperience status={powerStatus} variant="chrome" /> : null}
-        <button
-          type="button"
-          className="panel-footer__power"
-          onClick={onShutdown}
-          aria-label={t('menu.shutdown')}
-          title={t('menu.shutdown')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-            <line x1="12" y1="2" x2="12" y2="12" />
-          </svg>
-        </button>
-      </div>
+      {showUnits || powerStatus ? (
+        <div className="panel-footer__meta">
+          {showUnits ? <span className="panel-footer__units">{unitsLabel}</span> : null}
+          {powerStatus ? <PowerExperience status={powerStatus} variant="chrome" /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Shot } from '../../types/shot';
+import { useLiveViewStore } from '../../stores/useLiveViewStore';
 import { LivePanel } from './LivePanel';
 
 /** React SSR splits interpolated text with comment markers; drop them. */
@@ -43,8 +44,10 @@ function render(
   shot: Shot | null,
   shots: Shot[] = shot ? [shot] : [],
   selectedMetricId: string | null = null,
-  isNewShot = false
+  isNewShot = false,
+  mode: 'tiles' | 'timed' | 'sticky' = 'tiles'
 ) {
+  useLiveViewStore.setState({ mode, durationMs: 10000 });
   return text(
     renderToString(
       <LivePanel
@@ -81,6 +84,19 @@ describe('LivePanel', () => {
     expect(css).toMatch(/\.live-panel__grid \.metric-card__value-row \{[^}]*gap: 0\.12em/);
     expect(css).toMatch(/\.live-panel__grid \.metric-card__value-row \{[^}]*overflow: hidden/);
     expect(css).not.toMatch(/\.live-panel__grid \.metric-card__value \{[^}]*font-size: clamp\(\d+px/);
+  });
+
+  it('wraps live confidence labels the same way as long subtitles', () => {
+    const css = readFileSync(fileURLToPath(new URL('./panel.css', import.meta.url)), 'utf8');
+
+    expect(css).toMatch(
+      /\.live-panel__grid \.metric-card__subtext,\s*\.live-panel__grid \.metric-card__confidence-label \{[^}]*white-space: normal/
+    );
+    expect(css).toMatch(
+      /\.live-panel__grid \.metric-card__subtext,\s*\.live-panel__grid \.metric-card__confidence-label \{[^}]*overflow-wrap: anywhere/
+    );
+    expect(css).toMatch(/\.live-panel__grid \.metric-card__confidence \{[^}]*flex-wrap: wrap/);
+    expect(css).toMatch(/\.live-panel__grid \.metric-card__confidence-label \{[^}]*min-width: 0/);
   });
 
   it('shares one live number size across tiles instead of shrinking per card', () => {
@@ -128,8 +144,8 @@ describe('LivePanel', () => {
     expect(html).toMatch(/metric-card--selected[\s\S]*?>Ball speed</);
   });
 
-  it('keeps every metric visible after a new shot', () => {
-    const html = render(makeShot(), undefined, 'spin', true);
+  it('keeps every metric visible after a new shot in tiles mode', () => {
+    const html = render(makeShot(), undefined, 'spin', true, 'tiles');
 
     expect(html).not.toContain('live-panel__spotlight');
     expect(html).toContain('live-panel__grid--of-10');
@@ -137,11 +153,47 @@ describe('LivePanel', () => {
     expect(html).toContain('shot-flash');
   });
 
+  it('overlays the selected metric after a new shot in timed mode', () => {
+    const html = render(makeShot(), undefined, 'spin', true, 'timed');
+
+    expect(html).toContain('live-panel__spotlight');
+    expect(html).toContain('shot-flash');
+    expect(html).toContain('aria-label="Hide shot overlay"');
+    expect(html).toContain('>2,650<');
+    expect(html).toContain('live-panel__grid--of-10');
+    expect(html.match(/metric-card--interactive/g)).toHaveLength(10);
+  });
+
+  it('plays the shot flash above the single-metric overlay', () => {
+    const css = readFileSync(fileURLToPath(new URL('./panel.css', import.meta.url)), 'utf8');
+    const spotlight = css.match(/\.live-panel__spotlight \{[^}]*z-index:\s*(\d+)/);
+    const flash = css.match(/\.shot-flash \{[^}]*z-index:\s*(\d+)/);
+
+    expect(spotlight?.[1]).toBeTruthy();
+    expect(flash?.[1]).toBeTruthy();
+    expect(Number(flash?.[1])).toBeGreaterThan(Number(spotlight?.[1]));
+  });
+
+  it('overlays the selected metric after a new shot in sticky mode', () => {
+    const html = render(makeShot(), undefined, 'spin', true, 'sticky');
+
+    expect(html).toContain('live-panel__spotlight');
+    expect(html).toContain('shot-flash');
+    expect(html).toContain('live-panel__grid--of-10');
+  });
+
   it('does not show the spotlight for a restored session shot', () => {
-    const html = render(makeShot(), undefined, null, false);
+    const html = render(makeShot(), undefined, null, false, 'timed');
 
     expect(html).not.toContain('live-panel__spotlight');
     expect(html).not.toContain('shot-flash');
+  });
+
+  it('does not show the spotlight on ready in timed mode', () => {
+    const html = render(null, [], null, false, 'timed');
+
+    expect(html).toContain('Ready');
+    expect(html).not.toContain('live-panel__spotlight');
   });
 
   it('marks estimated tiles with an icon instead of provenance copy', () => {
@@ -150,6 +202,42 @@ describe('LivePanel', () => {
     expect(html).toContain('metric-card__estimated');
     expect(html).not.toContain('>estimated<');
     expect(html).not.toContain('>radar<');
+  });
+
+  it('marks experimental tiles with the flask icon from live metrics', () => {
+    const html = render(
+      makeShot({
+        club_angle_deg: null,
+        club_path_deg: null,
+        experimental_fused_attack_angle_deg: -4.2,
+        experimental_fused_club_path_deg: 3.1,
+        experimental_fused_status: 'approach_mixed',
+        launch_angle_horizontal_source: 'camera_assisted_experimental',
+      })
+    );
+
+    expect(html).toContain('metric-card__experimental');
+    expect(html).toContain('metric-card__experimental-label">Experimental<');
+  });
+
+  it('shows the experimental mark on the timed spotlight, not only on tiles', () => {
+    const html = render(
+      makeShot({
+        club_path_deg: null,
+        experimental_fused_club_path_deg: 3.1,
+        experimental_fused_club_path_confidence: 'high',
+        experimental_fused_status: 'approach_mixed',
+      }),
+      undefined,
+      'club_path',
+      true,
+      'timed'
+    );
+    const spotlight = html.match(/class="live-panel__spotlight"[\s\S]*?<\/button>/)?.[0] ?? '';
+
+    expect(spotlight).toContain('live-panel__spotlight');
+    expect(spotlight).toContain('metric-card__experimental');
+    expect(spotlight).toContain('metric-card__experimental-label">Experimental<');
   });
 
   it('makes every tile a pressable button so it can be selected', () => {

@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   full horizontal speed, overstating attack angle on any shot with club path.
 
 ### Added
+- **First-run setup.** A new kiosk walks through language, units, theme, and
+  Live view (tiles, timed large preview, or hold preview) before the first
+  shot. Choices persist and remain in the footer menu. Live can show the
+  selected metric full-screen after a new shot; tap or the chosen duration
+  returns to the tile grid. Shut down was removed from the menu sheet; use
+  the header power button.
 - **Profiles replace players.** Shots are now attributed to a server-owned profile
   (a person *or* a place) with a stable id, persisted to
   `~/.config/openflight/profiles.json` (override with `OPENFLIGHT_PROFILES_PATH`
@@ -40,10 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Instrument-panel kiosk UI.** The dashboard is a tabbed shell (Live, Stats,
   Shots, Camera, Profiles, Debug) instead of the previous stacked shot and stats
   views. Tap a Live metric to pin it top-left while keeping all ten metrics
-  visible. The footer logo opens units, dark/light theme, language, simulator,
-  and ball-detection status; a persistent footer power button opens the shutdown
-  confirmation. Club (or training implement) selection is a Live header action.
-  See the [UI README](https://github.com/jewbetcha/openflight/blob/main/ui/README.md).
+  visible. The footer logo opens units, dark/light theme, language, and live
+  view; simulator and ball-detection status live in the header status menu. A
+  persistent header power button opens the shutdown confirmation. Club (or
+  training implement) selection is a Live header action.
 - **Kiosk languages.** English, Spanish, French, and Portuguese. Choice is
   stored in `localStorage` (`openflight.locale:v1`).
 - **Dark and light themes.** Toggle in the footer menu; stored as

@@ -152,6 +152,13 @@
   color: var(--color-text);
 }
 
+.panel-header__status-sims {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
 .panel-header__title {
   font-weight: 700;
   font-size: 0.6875rem;
@@ -193,6 +200,47 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+}
+
+.panel-header__actions > .panel-header__divider {
+  height: 18px;
+}
+
+.panel-header__power {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+  flex: 0 0 var(--panel-control-height, 32px);
+  width: var(--panel-control-height, 32px);
+  height: var(--panel-control-height, 32px);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.panel-header__power::after {
+  content: '';
+  position: absolute;
+  inset: calc((44px - var(--panel-control-height, 32px)) / -2);
+}
+
+.panel-header__power:hover,
+.panel-header__power:focus-visible {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.panel-header__power svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .panel-header__actions .panel-action {
@@ -365,40 +413,6 @@
   border-right: 1px solid var(--color-border);
 }
 
-.panel-footer__meta > .power-status--chrome {
-  padding-right: 0.9vw;
-  border-right: 1px solid var(--color-border);
-}
-
-.panel-footer__power {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.panel-footer__power:hover,
-.panel-footer__power:focus-visible {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.panel-footer__power svg {
-  width: 1.05rem;
-  height: 1.05rem;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 /* Shutdown confirmation is app chrome, so it lives with the panel shell. */
 .shutdown-overlay {
   position: fixed;
@@ -534,10 +548,82 @@
   min-height: 0;
 }
 
+.live-panel__spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 2rem;
+  border: none;
+  background: var(--color-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.live-panel__spotlight-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-weight: 700;
+  font-size: 1.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.live-panel__spotlight .metric-card__estimated svg {
+  width: 1.75rem;
+  height: 1.125rem;
+}
+
+.live-panel__spotlight .metric-card__experimental svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.live-panel__spotlight-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.live-panel__spotlight-value {
+  font-weight: 700;
+  font-size: clamp(6rem, 42vh, 20rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.live-panel__spotlight-unit {
+  font-weight: 500;
+  font-size: clamp(1.5rem, 6vh, 3rem);
+  color: var(--color-text-muted);
+}
+
+.live-panel__spotlight-subtext {
+  margin-top: 1rem;
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
 .shot-flash {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  /* Above the timed/hold metric overlay so a new shot still flashes. */
+  z-index: 3;
   pointer-events: none;
   animation: shot-impact 0.65s ease-out forwards;
 }
@@ -624,12 +710,14 @@
 
 .live-panel__grid .metric-card__label,
 .live-panel__grid .metric-card__meta,
-.live-panel__grid .metric-card__subtext {
+.live-panel__grid .metric-card__subtext,
+.live-panel__grid .metric-card__confidence-label {
   min-width: 0;
   max-width: 100%;
 }
 
-.live-panel__grid .metric-card__subtext {
+.live-panel__grid .metric-card__subtext,
+.live-panel__grid .metric-card__confidence-label {
   display: block;
   font-size: clamp(0.6875rem, 1.2vw, 0.75rem);
   line-height: 1.15;
@@ -640,8 +728,13 @@
 }
 
 .live-panel__grid .metric-card__confidence {
+  flex-wrap: wrap;
   min-width: 0;
   max-width: 100%;
+}
+
+.live-panel__grid .metric-card__confidence-label {
+  flex: 1 1 0;
 }
 
 .live-panel__grid .metric-card__value-row {
@@ -1153,6 +1246,7 @@
   width: 320px;
   max-height: calc(100% - 86px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--color-surface);
   border: 0px;
   border-radius: var(--radius);
@@ -1161,11 +1255,24 @@
   flex-direction: column;
   gap: 16px;
   z-index: 21;
+  /* Own the gesture so Pi mouse-drags scroll instead of tapping segments. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.menu-sheet .segmented-control__button {
+  touch-action: none;
+}
+
+.menu-sheet__select {
+  touch-action: none;
 }
 
 .menu-sheet__section {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   gap: 8px;
 }
 

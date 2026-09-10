@@ -4,9 +4,11 @@ import { computeSwingSpeedStats, filterShotsByProfile } from '../../types/shot';
 import { useUnitPreference } from '../../state/useUnitPreference';
 import { useI18n } from '../../i18n/useI18n';
 import { useSharedFitFontSize } from '../../hooks/useFitFontSize';
-import { MetricCard } from '../ui/MetricCard';
+import { useLiveViewStore } from '../../stores/useLiveViewStore';
+import { EstimatedMark, ExperimentalMark, MetricCard } from '../ui/MetricCard';
 import { PanelHeader } from './PanelHeader';
 import { buildLiveMetrics, pinSelectedMetric } from './liveMetrics';
+import { useShotSpotlight } from './useShotSpotlight';
 
 interface LivePanelProps {
   shot: Shot | null;
@@ -49,6 +51,9 @@ export function LivePanel({
 }: LivePanelProps) {
   const { locale, t } = useI18n();
   const { unitSystem } = useUnitPreference();
+  useLiveViewStore((state) => state.mode);
+  useLiveViewStore((state) => state.durationMs);
+  const { mode, durationMs } = useLiveViewStore.getState();
   const profileShots = useMemo(() => filterShotsByProfile(shots, profileId), [shots, profileId]);
   const displayedShot = profileShots[profileShots.length - 1] ?? null;
   const isProfileNewShot = Boolean(isNewShot && shot && displayedShot && shot.timestamp === displayedShot.timestamp);
@@ -66,6 +71,7 @@ export function LivePanel({
     [displayedShot, unitSystem, swingStats, selectedMetricId, locale]
   );
   const selected = metrics[0] ?? null;
+  const { open: spotlightOpen, dismiss } = useShotSpotlight(mode, durationMs, isProfileNewShot);
   const gridRef = useSharedFitFontSize(
     metrics.length > 0,
     metrics.map((metric) => `${metric.value}:${metric.unit ?? ''}`).join('|')
@@ -99,6 +105,20 @@ export function LivePanel({
       <div className="panel__body live-panel__body">
         {ballWarning}
         {isProfileNewShot ? <div className="shot-flash" /> : null}
+        {spotlightOpen && selected ? (
+          <button type="button" className="live-panel__spotlight" aria-label={t('live.hideOverlay')} onClick={dismiss}>
+            <span className="live-panel__spotlight-label">
+              {selected.label} · {clubLabel}
+              {selected.estimated ? <EstimatedMark /> : null}
+              {selected.experimental ? <ExperimentalMark /> : null}
+            </span>
+            <div className="live-panel__spotlight-value-row">
+              <span className="live-panel__spotlight-value">{selected.value}</span>
+              {selected.unit ? <span className="live-panel__spotlight-unit">{selected.unit}</span> : null}
+            </div>
+            {selected.subtext ? <span className="live-panel__spotlight-subtext">{selected.subtext}</span> : null}
+          </button>
+        ) : null}
         <div ref={gridRef} className={`live-panel__grid live-panel__grid--of-${metrics.length}`}>
           {metrics.map((metric) => (
             <MetricCard
@@ -108,6 +128,7 @@ export function LivePanel({
               unit={metric.unit}
               subtext={metric.subtext}
               estimated={metric.estimated}
+              experimental={metric.experimental}
               confidence={metric.confidence}
               confidenceLabel={metric.confidenceLabel}
               labelPosition="above"

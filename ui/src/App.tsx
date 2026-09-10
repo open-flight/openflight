@@ -7,10 +7,12 @@ import { useCameraStore } from './stores/useCameraStore';
 import { useDebugStore } from './stores/useDebugStore';
 import { useProfileStore } from './stores/useProfileStore';
 import { useHeroMetricStore } from './stores/useHeroMetricStore';
+import { useOnboardingStore } from './stores/useOnboardingStore';
 import { useCameraReplayController } from './hooks/useCameraReplayController';
 import { socketService } from './services/socketService';
 import { DebugPanel } from './components/DebugPanel';
 import { DisplayMode } from './components/DisplayMode';
+import { OnboardingFlow } from './components/onboarding';
 import { SimShotBadges } from './components/SimShotBadges';
 import { ShotProcessingArea } from './components/ShotProcessingArea';
 import { ShutdownDialog, type ShutdownState } from './components/ShutdownDialog';
@@ -104,16 +106,22 @@ function AppContent() {
     }))
   );
 
+  // Hook subscribe so complete() re-renders on the client. Gate with getState()
+  // because renderToString uses Zustand's initial snapshot, not later setState.
+  useOnboardingStore((state) => state.completed);
+  const onboardingCompleted = useOnboardingStore.getState().completed;
+  useSystemStore((state) => state.shutdownDialogOpen);
+  const shutdownDialogOpen = useSystemStore.getState().shutdownDialogOpen;
   const [currentView, setCurrentView] = useState<PanelView>('live');
   const [selectedClub, setSelectedClub] = useState('driver');
   const [selectedTrainingImplement, setSelectedTrainingImplement] = useState('driver');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showShutdown, setShowShutdown] = useState(false);
   const [shutdownState, setShutdownState] = useState<ShutdownState>('confirm');
-  // Open on every app load so the user confirms their club before the first
-  // shot; dismissing keeps the default. The /display route returns early below,
-  // so this never appears in the passive TV view.
-  const [pickerOpen, setPickerOpen] = useState(true);
+  // Open on later launches after onboarding so the club is confirmed before
+  // the first shot; first-run starts closed because the wizard replaces the
+  // shell. The /display route returns early below, so this never appears in
+  // the passive TV view.
+  const [pickerOpen, setPickerOpen] = useState(() => useOnboardingStore.getState().completed);
   const [profileDialog, setProfileDialog] = useState<{ mode: 'add' | 'rename'; target: Profile | null } | null>(null);
   const [profileDialogName, setProfileDialogName] = useState('');
   const [clearSessionOpen, setClearSessionOpen] = useState(false);
@@ -219,7 +227,7 @@ function AppContent() {
   };
 
   const closeShutdown = () => {
-    setShowShutdown(false);
+    useSystemStore.getState().closeShutdownDialog();
     setShutdownState('confirm');
   };
 
@@ -231,6 +239,10 @@ function AppContent() {
 
   if (isDisplayRoute) {
     return <DisplayMode connected={connected} cameraStatus={cameraStatus} latestShot={latestShot} shots={shots} />;
+  }
+
+  if (!onboardingCompleted) {
+    return <OnboardingFlow onFinished={() => setPickerOpen(false)} />;
   }
 
   const changeClubAction = (
@@ -281,7 +293,7 @@ function AppContent() {
         </div>
       )}
 
-      {showShutdown ? (
+      {shutdownDialogOpen ? (
         <ShutdownDialog state={shutdownState} onConfirm={handleShutdown} onCancel={closeShutdown} />
       ) : null}
 
@@ -397,16 +409,7 @@ function AppContent() {
        * Overlays sit outside <main> so they cover the footer too, matching how
        * 6a draws them over the whole card.
        */}
-      {menuOpen ? (
-        <MenuSheet
-          onClose={() => setMenuOpen(false)}
-          onShutdown={() => {
-            setMenuOpen(false);
-            setShutdownState('confirm');
-            setShowShutdown(true);
-          }}
-        />
-      ) : null}
+      {menuOpen ? <MenuSheet onClose={() => setMenuOpen(false)} /> : null}
 
       {profileDialog ? (
         <ProfileNameDialog
@@ -447,10 +450,6 @@ function AppContent() {
         ballDetected={cameraStatus.ball_detected}
         debugRecording={debugMode}
         brand={isLaunchDaddyMode ? <LaunchDaddyBrand /> : undefined}
-        onShutdown={() => {
-          setShutdownState('confirm');
-          setShowShutdown(true);
-        }}
       />
     </div>
   );

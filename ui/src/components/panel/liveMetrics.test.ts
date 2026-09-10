@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setActiveLocale } from '../../i18n';
 import type { Shot, SwingSpeedStats } from '../../types/shot';
 import {
   buildLiveMetrics,
@@ -51,6 +52,10 @@ function byId(metrics: LiveMetric[], id: string): LiveMetric {
 }
 
 describe('buildLiveMetrics', () => {
+  afterEach(() => {
+    setActiveLocale('en');
+  });
+
   it('returns a fixed ten metrics for a ball-strike shot, including club AoA', () => {
     const metrics = buildLiveMetrics(makeShot(), 'imperial', emptySwingStats);
 
@@ -171,17 +176,19 @@ describe('buildLiveMetrics', () => {
     expect(byId(metrics, 'club_aoa')).toMatchObject({
       value: '-4.2',
       unit: '°',
-      subtext: 'camera fused',
+      subtext: 'Fused',
       confidence: 'medium',
-      confidenceLabel: 'experimental',
+      experimental: true,
     });
     expect(byId(metrics, 'club_path')).toMatchObject({
       value: '+3.1',
       unit: '°',
-      subtext: 'camera fused',
+      subtext: 'Fused',
       confidence: 'high',
-      confidenceLabel: 'experimental',
+      experimental: true,
     });
+    expect(byId(metrics, 'club_aoa').confidenceLabel).toBeUndefined();
+    expect(byId(metrics, 'club_path').confidenceLabel).toBeUndefined();
   });
 
   it('keeps camera-fusion rejection status but hides superseded radar candidates', () => {
@@ -200,12 +207,14 @@ describe('buildLiveMetrics', () => {
     expect(byId(metrics, 'club_aoa')).toMatchObject({
       value: NO_VALUE,
       subtext: 'rejected: no impact',
-      confidence: 'experimental',
+      confidence: null,
+      experimental: true,
     });
     expect(byId(metrics, 'club_path')).toMatchObject({
       value: NO_VALUE,
       subtext: 'rejected: no impact',
-      confidence: 'experimental',
+      confidence: null,
+      experimental: true,
     });
   });
 
@@ -217,9 +226,29 @@ describe('buildLiveMetrics', () => {
     );
 
     expect(byId(metrics, 'launch_h')).toMatchObject({
-      subtext: 'camera assisted',
-      confidenceLabel: 'experimental',
+      subtext: 'Camera',
+      experimental: true,
     });
+  });
+
+  it('translates camera provenance in the active locale', () => {
+    setActiveLocale('es');
+    const metrics = buildLiveMetrics(
+      makeShot({
+        club_angle_deg: null,
+        club_path_deg: null,
+        launch_angle_horizontal_source: 'camera_assisted_experimental',
+        experimental_fused_attack_angle_deg: -4.2,
+        experimental_fused_club_path_deg: 3.1,
+        experimental_fused_status: 'approach_mixed',
+      }),
+      'imperial',
+      emptySwingStats
+    );
+
+    expect(byId(metrics, 'launch_h').subtext).toBe('Cámara');
+    expect(byId(metrics, 'club_path').subtext).toBe('Fusión');
+    expect(byId(metrics, 'club_aoa').subtext).toBe('Fusión');
   });
 
   it('marks estimated launch and spin with a flag, not provenance subtext', () => {

@@ -20,7 +20,6 @@ function render(
       ballDetected={false}
       debugRecording={false}
       powerStatus={powerStatus}
-      onShutdown={() => {}}
     />
   ).replace(/<!-- -->/g, '');
 }
@@ -58,14 +57,14 @@ describe('PanelFooter', () => {
     }
   });
 
-  it('hides units and battery on Profiles, Camera, and Debug while keeping shutdown visible', () => {
+  it('hides units, battery, and shutdown on Profiles, Camera, and Debug', () => {
     for (const view of ['profiles', 'camera', 'debug'] as const) {
       const html = render(view, 4, null);
 
-      expect(html).toContain('panel-footer__meta');
+      expect(html).not.toContain('panel-footer__meta');
       expect(html).not.toContain('mph / yds');
       expect(html).not.toContain('power-status');
-      expect(html).toContain('panel-footer__power');
+      expect(html).not.toContain('panel-footer__power');
     }
   });
 
@@ -96,12 +95,12 @@ describe('PanelFooter', () => {
     expect(html).toContain('41%');
   });
 
-  it('keeps the shutdown power control visible on every panel without battery telemetry', () => {
+  it('does not keep shutdown in the footer on any panel', () => {
     for (const view of ['live', 'stats', 'shots', 'camera', 'profiles', 'debug'] as const) {
       const html = render(view, 0, null);
 
-      expect(html).toContain('panel-footer__power');
-      expect(html).toContain('aria-label="Shut down"');
+      expect(html).not.toContain('panel-footer__power');
+      expect(html).not.toContain('aria-label="Shut down"');
     }
   });
 

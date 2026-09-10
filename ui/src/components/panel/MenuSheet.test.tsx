@@ -1,11 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { MenuSheet } from './MenuSheet';
 import { useSystemStore } from '../../stores/useSystemStore';
+import { useLiveViewStore } from '../../stores/useLiveViewStore';
 import type { PowerStatus } from '../../types/power';
 
 function renderMenu() {
-  return renderToString(<MenuSheet onClose={() => {}} onShutdown={() => {}} />);
+  return renderToString(<MenuSheet onClose={() => {}} />);
 }
 
 describe('MenuSheet profiles', () => {
@@ -52,5 +55,52 @@ describe('MenuSheet battery', () => {
     expect(html).not.toContain('64%');
 
     useSystemStore.setState({ powerStatus: null });
+  });
+});
+
+describe('MenuSheet live view', () => {
+  it('offers live view modes and hides duration unless timed', () => {
+    useLiveViewStore.setState({ mode: 'tiles', durationMs: 10000 });
+    const html = renderMenu();
+
+    expect(html).toContain('menu-sheet__section-title">Live view');
+    expect(html).toContain('>Tiles<');
+    expect(html).toContain('>Timed<');
+    expect(html).toContain('>Hold<');
+    expect(html).not.toContain('>5s<');
+  });
+
+  it('does not show system, ball detection, or simulators', () => {
+    const html = renderMenu();
+
+    expect(html).not.toContain('menu-sheet__section-title">System');
+    expect(html).not.toContain('Ball detection');
+    expect(html).not.toContain('Simulators');
+  });
+
+  it('shows duration chips when timed is selected', () => {
+    useLiveViewStore.setState({ mode: 'timed', durationMs: 10000 });
+    const html = renderMenu();
+
+    expect(html).toContain('>5s<');
+    expect(html).toContain('>10s<');
+    expect(html).toContain('>15s<');
+  });
+
+  it('owns vertical drag scrolling so Timed duration chips can be reached', () => {
+    const src = readFileSync(fileURLToPath(new URL('./MenuSheet.tsx', import.meta.url)), 'utf8');
+    const css = readFileSync(fileURLToPath(new URL('./panel.css', import.meta.url)), 'utf8');
+
+    expect(src).toContain('useDragScroll');
+    expect(css).toMatch(/\.menu-sheet \{[^}]*touch-action:\s*none/);
+    expect(css).toMatch(/\.menu-sheet \.segmented-control__button \{[^}]*touch-action:\s*none/);
+  });
+});
+
+describe('MenuSheet shutdown', () => {
+  it('does not offer shut down in the sheet', () => {
+    const html = renderMenu();
+    expect(html).not.toContain('menu-sheet__shutdown');
+    expect(html).not.toContain('Shut down');
   });
 });

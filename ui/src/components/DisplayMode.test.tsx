@@ -61,7 +61,31 @@ describe('DisplayMode', () => {
       <DisplayMode connected cameraStatus={cameraStatus} latestShot={rejectedShot} shots={[rejectedShot]} />
     );
 
-    expect(html).toContain('experimental · rejected: no club track');
-    expect(html).toContain('experimental · rejected: no pre impact frames');
+    expect(html).toContain('metric-card__experimental');
+    expect(html).toContain('rejected: no club track');
+    expect(html).toContain('rejected: no pre impact frames');
+    expect(html).not.toContain('experimental ·');
+  });
+
+  it('marks camera-fused and camera-assisted metrics with short copy and an icon', () => {
+    const fusedShot: Shot = {
+      ...shot,
+      club_angle_deg: null,
+      club_path_deg: null,
+      launch_angle_horizontal_source: 'camera_assisted_experimental',
+      experimental_fused_attack_angle_deg: -4.2,
+      experimental_fused_club_path_deg: 3.1,
+      experimental_fused_status: 'approach_mixed',
+    };
+
+    const html = renderToString(
+      <DisplayMode connected cameraStatus={cameraStatus} latestShot={fusedShot} shots={[fusedShot]} />
+    );
+
+    expect(html).toContain('metric-card__experimental');
+    expect(html).toMatch(/metric-card__subtext[^>]*>Fused</);
+    expect(html).toMatch(/metric-card__subtext[^>]*>Camera</);
+    expect(html).not.toContain('camera fused');
+    expect(html).not.toContain('camera assisted');
   });
 });

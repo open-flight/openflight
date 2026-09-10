@@ -1,12 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setActiveLocale } from '../../i18n';
 import { MetricCard } from './MetricCard';
 
 const css = readFileSync(fileURLToPath(new URL('./MetricCard.css', import.meta.url)), 'utf8');
 
 describe('MetricCard', () => {
+  afterEach(() => {
+    setActiveLocale('en');
+  });
+
   it('renders value, unit, and label', () => {
     const html = renderToString(<MetricCard value="92.0" unit="mph" label="Ball Speed" />);
     expect(html).toContain('92.0');
@@ -23,20 +28,28 @@ describe('MetricCard', () => {
     expect(html).toContain('metric-card--hero');
   });
 
-  it('labels experimental spin without confidence dots', () => {
+  it('marks experimental with an icon instead of caption text', () => {
     const html = renderToString(<MetricCard value="8,750" unit="rpm" label="Spin Rate" confidence="experimental" />);
-    expect(html).toContain('metric-card__confidence--experimental');
+    expect(html).toContain('metric-card__experimental');
+    expect(html).toContain('metric-card__experimental-label">Experimental<');
     expect(html).not.toContain('metric-card__confidence-dots');
+    expect(html).not.toContain('metric-card__confidence--experimental');
+    expect(html).not.toMatch(/metric-card__confidence-label">experimental</i);
   });
 
-  it('keeps measured confidence dots while labeling camera-fused data experimental', () => {
-    const html = renderToString(
-      <MetricCard value="3.1" unit="°" label="Club path" confidence="high" confidenceLabel="experimental" />
-    );
+  it('keeps measured confidence dots while marking camera-fused data experimental', () => {
+    const html = renderToString(<MetricCard value="3.1" unit="°" label="Club path" confidence="high" experimental />);
 
     expect(html).toContain('metric-card__confidence--high');
     expect(html).toContain('metric-card__confidence-dots');
-    expect(html).toContain('metric-card__confidence-label">experimental<');
+    expect(html).toContain('metric-card__experimental');
+    expect(html).not.toMatch(/metric-card__confidence-label">experimental</i);
+  });
+
+  it('translates the experimental icon label', () => {
+    setActiveLocale('fr');
+    const html = renderToString(<MetricCard value="8,750" unit="rpm" label="Spin Rate" experimental />);
+    expect(html).toContain('metric-card__experimental-label">Expérimental<');
   });
 
   it('shows an estimated mark on the title, not beside the value', () => {
