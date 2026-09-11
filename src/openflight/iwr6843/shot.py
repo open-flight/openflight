@@ -323,7 +323,7 @@ def process_dump(
     raw: bytes,
     cal: Calibration,
     *,
-    coherent_loops: int = 4,
+    coherent_loops: int = 4,  # pylint: disable=unused-argument
     two_ray: bool = True,
     net_range_m: float | None = None,
     club: str | None = None,
@@ -335,7 +335,9 @@ def process_dump(
 ) -> ShotMeasurement:
     """Full pipeline on one dump's bytes.
 
-    ``coherent_loops`` trades point count for per-point SNR (see doa);
+    ``coherent_loops`` is accepted for backward-compatibility with callers;
+    two-ray snapshots and angle points freeze ``coherent_loops=1`` per the
+    winning 2026-07-13 calibration.
     ``two_ray`` adds the height-hypothesis estimator (the headline since
     2026-07-15); ``club`` selects the TrackMan-scored per-class two-ray
     configuration (free text, e.g. "7i", "SandWedge"; None = default).

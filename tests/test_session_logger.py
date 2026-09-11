@@ -859,3 +859,28 @@ def test_power_status_writes_structured_session_entry(tmp_path):
     assert entry["state"] == "on_battery"
     assert entry["battery_percent"] == 42.5
     assert entry["external_power"] is False
+
+
+def test_session_logger_import_does_not_trigger_kld7_deprecation():
+    """Importing session_logger must not trigger the kld7 DeprecationWarning.
+
+    Runs in a subprocess with ``-W error::DeprecationWarning`` so any
+    DeprecationWarning becomes a hard failure.
+    """
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-W",
+            "error::DeprecationWarning",
+            "-c",
+            "from openflight.session_logger import RADC_PAYLOAD_BYTES",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"session_logger import raised DeprecationWarning:\n{result.stderr}"
+    )

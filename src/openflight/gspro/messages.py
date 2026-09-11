@@ -7,6 +7,8 @@ from typing import Optional
 
 @dataclass
 class BallData:
+    """Ball launch conditions for OpenConnectV1."""
+
     Speed: float = 0.0
     SpinAxis: float = 0.0
     TotalSpin: float = 0.0
@@ -19,6 +21,8 @@ class BallData:
 
 @dataclass
 class ClubData:
+    """Club delivery conditions for OpenConnectV1."""
+
     Speed: float = 0.0
     AngleOfAttack: float = 0.0
     FaceToTarget: float = 0.0
@@ -33,6 +37,8 @@ class ClubData:
 
 @dataclass
 class ShotDataOptions:
+    """Payload flags specifying payload content and device status."""
+
     ContainsBallData: bool = True
     ContainsClubData: bool = False
     LaunchMonitorIsReady: bool = True
@@ -42,6 +48,8 @@ class ShotDataOptions:
 
 @dataclass
 class ShotPayload:
+    """Top-level OpenConnectV1 shot or heartbeat payload."""
+
     DeviceID: str
     Units: str
     ShotNumber: int
@@ -53,16 +61,20 @@ class ShotPayload:
 
 @dataclass
 class GSProResponse:
+    """Parsed OpenConnectV1 inbound response envelope."""
+
     Code: int
     Message: str = ""
     Player: Optional[dict] = None
 
 
 def serialize_payload(payload: ShotPayload) -> bytes:
+    """Serialize a ShotPayload to compact UTF-8 encoded JSON bytes."""
     return json.dumps(asdict(payload), separators=(",", ":")).encode("utf-8")
 
 
 def build_heartbeat(device_id: str, units: str, shot_number: int) -> bytes:
+    """Construct and serialize a heartbeat payload for OpenConnectV1."""
     payload = ShotPayload(
         DeviceID=device_id,
         Units=units,

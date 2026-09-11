@@ -38,11 +38,20 @@ class Codec(Protocol):
 
     name: str
 
-    def build_shot(self, resolved) -> bytes: ...
-    def parse_inbound(self, frame: bytes) -> List[InboundEvent]: ...
-    def heartbeat_bytes(self) -> Optional[bytes]: ...
-    def on_connect_bytes(self) -> Optional[bytes]: ...
-    def fields_for_target(self) -> List[str]: ...
+    def build_shot(self, resolved) -> bytes:
+        """Encode a resolved shot into wire-format payload bytes."""
+
+    def parse_inbound(self, frame: bytes) -> List[InboundEvent]:
+        """Parse raw frame bytes into zero or more inbound simulator events."""
+
+    def heartbeat_bytes(self) -> Optional[bytes]:
+        """Return heartbeat payload bytes if this protocol requires periodic keepalive."""
+
+    def on_connect_bytes(self) -> Optional[bytes]:
+        """Return greeting or handshake payload bytes to send immediately on connect."""
+
+    def fields_for_target(self) -> List[str]:
+        """Return the target parameter fields supported by this simulator."""
 
 
 def find_json_end(buf: bytes) -> Optional[int]:
@@ -126,15 +135,18 @@ class TcpSimClient:
 
     @property
     def state(self) -> ConnectionState:
+        """Current connection lifecycle state."""
         with self._state_lock:
             return self._state
 
     def is_connected(self) -> bool:
+        """Return True if the underlying socket is currently connected."""
         return self.state == ConnectionState.CONNECTED
 
     # --- start / stop ---------------------------------------------------------
 
     def start(self) -> None:
+        """Start the background connection worker and optional heartbeat thread."""
         if self._conn_thread is not None and self._conn_thread.is_alive():
             return
         self._stop_event.clear()
@@ -154,6 +166,7 @@ class TcpSimClient:
             self._hb_thread.start()
 
     def stop(self) -> None:
+        """Stop background worker threads and close the active socket."""
         self._stop_event.set()
         self._close_socket()
         for t in (self._conn_thread, self._hb_thread):
@@ -166,6 +179,7 @@ class TcpSimClient:
     # --- send -----------------------------------------------------------------
 
     def send_raw(self, data: bytes) -> None:
+        """Send raw bytes across the connected socket."""
         with self._sock_lock:
             if self._sock is None:
                 # ConnectionError (an OSError subclass) rather than RuntimeError so

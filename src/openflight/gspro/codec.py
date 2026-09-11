@@ -54,6 +54,7 @@ class GSProCodec:
         self.units = units
 
     def build_shot(self, resolved: ResolvedShot) -> bytes:
+        """Encode a resolved shot into an OpenConnectV1 JSON payload."""
         has_club_speed = resolved.club_speed_mph is not None
         payload = ShotPayload(
             DeviceID=self.device_id,
@@ -85,6 +86,7 @@ class GSProCodec:
         return serialize_payload(payload)
 
     def parse_inbound(self, frame: bytes) -> List[InboundEvent]:
+        """Parse an inbound OpenConnectV1 response frame into domain events."""
         resp = parse_response(frame)  # raises ValueError on malformed JSON
         if resp.Code == 201 and resp.Player:
             return [
@@ -102,10 +104,13 @@ class GSProCodec:
         return []
 
     def heartbeat_bytes(self) -> Optional[bytes]:
+        """Return serialized OpenConnectV1 heartbeat bytes."""
         return build_heartbeat(self.device_id, self.units, shot_number=0)
 
     def on_connect_bytes(self) -> Optional[bytes]:
+        """Return on-connect handshake payload (None for OpenConnectV1)."""
         return None
 
     def fields_for_target(self) -> List[str]:
+        """Return fields targeted by this simulator."""
         return list(_GSPRO_FIELDS)

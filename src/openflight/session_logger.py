@@ -15,8 +15,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import __version__
-from .kld7.radc import RADC_PAYLOAD_BYTES
 from .ops243 import SpeedReading
+
+# Expected byte length of a valid K-LD7 RADC payload.  Duplicated here
+# (canonical value lives in kld7.radc) to avoid importing the deprecated
+# kld7 package, whose __init__ emits a DeprecationWarning on every import.
+RADC_PAYLOAD_BYTES = 3072
 
 # Version of the session JSONL format itself. Bump on breaking changes to
 # entry structure; additive changes (new fields, new entry types) do not

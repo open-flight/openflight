@@ -59,16 +59,20 @@ class SimConnector:
             self._on_inbound_user(self.name, event)
 
     def start(self) -> None:
+        """Start the background simulator transport client."""
         self._client.start()
 
     def stop(self) -> None:
+        """Stop the background simulator transport client."""
         self._client.stop()
 
     def is_connected(self) -> bool:
+        """Return True if the underlying simulator connection is connected."""
         return self._client.is_connected()
 
     @property
     def state(self):
+        """Current connection state of the simulator client."""
         return self._client.state
 
     def send_shot(self, resolved: ResolvedShot) -> None:

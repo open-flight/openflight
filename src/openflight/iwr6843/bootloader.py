@@ -41,19 +41,15 @@ class SerialTransport(Protocol):
 
     def read(self, size: int) -> bytes:
         """Read up to ``size`` bytes."""
-        ...
 
     def write(self, data: bytes) -> int:
         """Write bytes and return the count accepted."""
-        ...
 
     def send_break(self, duration: float = 0.25) -> None:
         """Assert the UART break condition."""
-        ...
 
     def reset_input_buffer(self) -> None:
         """Discard unread input."""
-        ...
 
 
 class BootloaderError(RuntimeError):

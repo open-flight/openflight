@@ -318,8 +318,10 @@ def find_ball(
         times, bins, loops_idx = times[keep], bins[keep], loops_idx[keep]
     tol = 1.2 if geo.n_samples >= 128 else 0.8
     rng = np.random.default_rng(seed)
-    best = None  # most inliers at any speed
-    best_fast = None  # most inliers among fast candidates
+    best: tuple[int, float, float, float, float, float] | None = None  # most inliers at any speed
+    best_fast: tuple[int, float, float, float, float, float] | None = (
+        None  # most inliers among fast candidates
+    )
     for _ in range(iterations):
         i, j = rng.choice(times.size, 2, replace=False)
         d_t = times[i] - times[j]
@@ -333,8 +335,10 @@ def find_ball(
         n_new = int(inliers.sum())
         if n_new < 8:
             continue
-        beats_best = best is None or n_new > best[0]
-        beats_fast = slope * res >= min_ball_ms and (best_fast is None or n_new > best_fast[0])
+        beats_best = best is None or n_new > best[0]  # pylint: disable=unsubscriptable-object
+        beats_fast = slope * res >= min_ball_ms and (
+            best_fast is None or n_new > best_fast[0]  # pylint: disable=unsubscriptable-object
+        )
         if not (beats_best or beats_fast):
             continue
         design = np.vstack([times[inliers], np.ones(n_new)]).T
@@ -346,7 +350,9 @@ def find_ball(
         cand = (n_new, sl2, ic2, rms, float(times[inliers].min()), float(times[inliers].max()))
         if beats_best:
             best = cand
-        if sl2 * res >= min_ball_ms and (best_fast is None or n_new > best_fast[0]):
+        if sl2 * res >= min_ball_ms and (
+            best_fast is None or n_new > best_fast[0]  # pylint: disable=unsubscriptable-object
+        ):
             best_fast = cand
     if best is None:
         return None

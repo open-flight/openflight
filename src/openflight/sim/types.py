@@ -153,6 +153,7 @@ class PlayerState:
     )
 
     def next_shot_number(self) -> int:
+        """Increment and return the next sequential shot counter atomically."""
         with self._lock:
             self.shot_counter += 1
             return self.shot_counter
