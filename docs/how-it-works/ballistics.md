@@ -25,14 +25,17 @@ The coefficients depend on the **spin parameter** $S_p = r\omega / v$ — the
 ratio of surface speed to translational speed:
 
 $$
-C_d = C_{d,\text{base}} + k_d S_p
+C_d = a + b\,S_p + c\,S_p^2
 \qquad
-C_l = \frac{C_{l,\text{sat}} \, S_p}{C_{l,\text{half}} + S_p}
+C_l = \max\!\left(0,\; d + e\,S_p + f\,S_p^2\right)
 $$
 
-Drag rises linearly with spin. Lift follows a Hill-type saturating form: it
-approaches a ceiling as spin increases rather than growing without bound, which
-is what the wind-tunnel data shows.
+Both are second-order polynomials in $S_p$, the form **Ferguson, McNally &
+McPhee (2022)** fitted to 1040 measured shots; the coefficients are their
+published values. Lift rises with spin, peaks near $S_p \approx 0.52$ and then
+falls, which is what the measured data shows and what a saturating form cannot
+represent. Above $S_p = 0.75$, the top of the fitted range, both curves are held
+at their end value rather than extrapolated.
 
 These parametric forms are consistent with **Bearman & Harvey (1976)** and
 **Kensrud & Smith (2018)** for dimpled balls past the drag crisis
@@ -54,10 +57,9 @@ matters across a six-second flight.
 | `BALL_MASS_KG` | 0.04593 | USGA **maximum**-conforming ball, 45.93 g |
 | `BALL_RADIUS_M` | 0.02135 | 42.7 mm diameter |
 | `AIR_DENSITY_STD` | 1.225 kg/m³ | Sea level, 15 °C ISA |
-| `CD_BASE` | 0.205 | Drag at zero spin |
-| `CD_SPIN_COEFF` | 0.18 | Linear drag rise with $S_p$ |
-| `CL_SATURATION` | 0.32 | Lift ceiling |
-| `CL_HALF_SP` | 0.15 | $S_p$ at half the lift ceiling |
+| `CD_POLY` | (0.1304, 0.9287, -0.8259) | $C_d$ polynomial $(a, b, c)$ |
+| `CL_POLY` | (0.0504, 1.2031, -1.1490) | $C_l$ polynomial $(d, e, f)$ |
+| `SP_FIT_MAX` | 0.75 | Top of the fitted $S_p$ range; curves held beyond it |
 | `SPIN_DECAY_RATE` | 0.04 /s | ≈4 %/s |
 | `GRAVITY` | 9.81 m/s² | |
 | `DT_SECONDS` | 0.002 | 500 Hz integration |
