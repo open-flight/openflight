@@ -5,6 +5,7 @@ import './SimStatus.css';
 const DISPLAY_NAMES: Record<string, string> = {
   gspro: 'GSPro',
   opengolfsim: 'OpenGolfSim',
+  partee: 'PAR-TEE',
 };
 
 // Map a connection state to a visual severity bucket.

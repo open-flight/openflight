@@ -150,6 +150,12 @@ def test_build_connector_opengolfsim_uses_shared_codec_named_ogs():
     assert c.name == "opengolfsim"
 
 
+def test_build_connector_partee_uses_shared_codec_named_partee():
+    c = build_connector(ConnectorConfig(type="partee", host="192.168.1.70", port=921))
+    assert isinstance(c.codec, GSProCodec)
+    assert c.name == "partee"
+
+
 def test_build_connector_unknown_type_raises():
     with pytest.raises(ValueError):
         build_connector(ConnectorConfig(type="nope", port=1))

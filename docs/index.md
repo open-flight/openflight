@@ -68,7 +68,8 @@ work.
 ## Once it's running
 
 - **[Simulator connectors](using/simulator/index.md)** — stream shots to
-  [GSPro](using/simulator/gspro.md), [OpenGolfSim](using/simulator/opengolfsim.md), and others.
+  [GSPro](using/simulator/gspro.md), [OpenGolfSim](using/simulator/opengolfsim.md),
+  [PAR-TEE](using/simulator/partee.md), and others.
 - **[Swing speed training](using/swing-speed.md)** — club-only mode for air
   swings and speed sticks. No ball strike, no sound trigger.
 - **[Cloud sync](using/cloud-sync.md)** — push filtered sessions to FlightWeb.

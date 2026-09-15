@@ -4459,7 +4459,7 @@ def main():
     parser.add_argument(
         "--sim",
         action="store_true",
-        help="Enable simulator connectors from config/sim.json (GSPro / OpenGolfSim). "
+        help="Enable simulator connectors from config/sim.json (GSPro / OpenGolfSim / PAR-TEE). "
         "Off by default.",
     )
     _add_ballistics_arguments(parser)

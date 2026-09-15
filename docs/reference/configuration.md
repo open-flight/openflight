@@ -39,7 +39,7 @@ cp config/sim.example.json config/sim.json
 
 | Key | Meaning |
 | --- | --- |
-| `type` | Connector to use — `opengolfsim`, `gspro`, … |
+| `type` | Connector to use — `opengolfsim`, `gspro`, `partee` |
 | `enabled` | Whether this connector is active |
 | `host`, `port` | Where the simulator is listening |
 | `device_id` | Identifier the simulator displays |

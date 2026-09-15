@@ -47,6 +47,11 @@ def test_opengolfsim_default_port(tmp_path):
     assert load_sim_config(config_path=p)[0].port == 3111
 
 
+def test_partee_default_port(tmp_path):
+    p = _write(tmp_path, {"connectors": [{"type": "partee", "enabled": True}]})
+    assert load_sim_config(config_path=p)[0].port == 921
+
+
 def test_explicit_port_overrides_default(tmp_path):
     p = _write(tmp_path, {"connectors": [
         {"type": "opengolfsim", "enabled": True, "host": "192.168.1.9", "port": 9000},

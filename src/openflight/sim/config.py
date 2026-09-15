@@ -3,9 +3,10 @@
 A single file lists every connector; the server streams to all that are
 ``enabled`` — but only when the sim feature is turned on at launch (``--sim``).
 
-A connector's ``type`` is the *product*: gspro (OpenConnect V1 on 921) or
-opengolfsim (reached via its Developer API on 3111, which speaks OpenConnect).
-Both ride the shared OpenConnect codec; they differ only in name + default port.
+A connector's ``type`` is the *product*: gspro (OpenConnect V1 on 921),
+opengolfsim (reached via its Developer API on 3111, which speaks OpenConnect),
+or partee (the PAR-TEE phone app, which listens for OpenConnect on 921).
+All ride the shared OpenConnect codec; they differ only in name + default port.
 """
 
 import json
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = Path("config/sim.json")
 
-KNOWN_TYPES: Tuple[str, ...] = ("gspro", "opengolfsim")
+KNOWN_TYPES: Tuple[str, ...] = ("gspro", "opengolfsim", "partee")
 
 # Per-type defaults applied when a field is absent from the file.
 _DEFAULTS: Dict[str, dict] = {
@@ -30,6 +31,12 @@ _DEFAULTS: Dict[str, dict] = {
     },
     "opengolfsim": {
         "port": 3111,
+        "units": "Yards",
+        "device_id": "OpenFlight",
+        "heartbeat_interval_s": 5.0,
+    },
+    "partee": {
+        "port": 921,
         "units": "Yards",
         "device_id": "OpenFlight",
         "heartbeat_interval_s": 5.0,

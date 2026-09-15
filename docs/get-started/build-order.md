@@ -87,7 +87,7 @@ Any order, once the above works.
 | Inclinometer | [LIS3DH](../build/inclinometer.md) | Compensates enclosure tilt so the IWR6843 angle stays honest if the unit is bumped |
 | Battery | [Geekworm X1202/X1206](../build/battery.md) | Portable operation with real telemetry and low-battery warnings |
 | Enclosure | [IARC v3 case](../build/enclosure.md) | Printed housing for the whole assembly |
-| Simulators | [Connectors](../using/simulator/index.md) | Stream shots to GSPro, OpenGolfSim, E6 |
+| Simulators | [Connectors](../using/simulator/index.md) | Stream shots to GSPro, OpenGolfSim, PAR-TEE, E6 |
 | Cloud sync | [Cloud sync](../using/cloud-sync.md) | Push filtered sessions to FlightWeb |
 | Log shipping | [Observability](../using/observability.md) | Query sessions in Grafana Cloud |
 

@@ -10,6 +10,7 @@ Supported simulators:
 
 - [GSPro](gspro.md) (OpenConnectV1)
 - [OpenGolfSim](opengolfsim.md)
+- [PAR-TEE](partee.md)
 
 This document explains how the connector layer works and how to add a new
 simulator. For setting up a specific simulator, see its page above.
@@ -27,13 +28,15 @@ simulator. For setting up a specific simulator, see its page above.
        // Club sync needs the scripts/setup/opengolfsim patch; see opengolfsim.md.
        { "type": "opengolfsim", "enabled": true, "host": "127.0.0.1", "port": 3111 },
        // GSPro
-       { "type": "gspro", "enabled": false, "host": "192.168.1.50", "port": 921 }
+       { "type": "gspro", "enabled": false, "host": "192.168.1.50", "port": 921 },
+       // PAR-TEE (iPhone/iPad) on the phone's Wi-Fi address; see partee.md.
+       { "type": "partee", "enabled": false, "host": "192.168.1.70", "port": 921 }
      ]
    }
    ```
-   A connector's `type` is the *product*. Both ride the shared OpenConnect V1
-   codec — they differ only in name and default port (GSPro 921, OpenGolfSim's
-   Developer API 3111).
+   A connector's `type` is the *product*. All three ride the shared OpenConnect
+   V1 codec and differ only in name and default port (GSPro 921, OpenGolfSim's
+   Developer API 3111, PAR-TEE 921).
 2. **Enable the feature at launch with `--sim`** (off by default). Connectors
    marked `enabled` in the file then come up:
    ```bash

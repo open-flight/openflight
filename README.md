@@ -331,7 +331,7 @@ Build it locally with `make docs` (serves at `localhost:8000`).
 - **[IWR6843 Firmware Developer Guide](docs/development/firmware.md)** — Build the firmware from source (not needed to flash the prebuilt image)
 - **[Enclosure & Case](docs/build/enclosure.md)** — The printed IARC v3 case
 - **[Hardware Diagnostic](docs/setup/raspberry-pi.md)** — Pi setup, auto-start, and troubleshooting
-- **[Simulator Connectors](docs/using/simulator/index.md)** — Stream shots to GSPro, OpenGolfSim, and others
+- **[Simulator Connectors](docs/using/simulator/index.md)** — Stream shots to GSPro, OpenGolfSim, PAR-TEE, and others
 - **[Cloud Sync](docs/using/cloud-sync.md)** — Push filtered sessions to FlightWeb
 - **[Rolling Buffer & Spin Detection](docs/how-it-works/rolling-buffer.md)** — Production capture and experimental spin details
 - **[Dechirped-Sideband Spin Replay](docs/development/spin-replay.md)** — Next-gen spin estimator test bench

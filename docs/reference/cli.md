@@ -128,7 +128,7 @@ Outbound connectors and battery status.
 | Flag | Type / default | Description |
 | --- | --- | --- |
 | `--battery` | — | Show battery and external-power status using the selected provider |
-| `--sim` | flag | Enable simulator connectors from config/sim.json (GSPro / OpenGolfSim). Off by default. |
+| `--sim` | flag | Enable simulator connectors from config/sim.json (GSPro / OpenGolfSim / PAR-TEE). Off by default. |
 
 ## High-speed camera capture
 

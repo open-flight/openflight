@@ -64,6 +64,7 @@ nav = [
       "using/simulator/index.md",
       "using/simulator/gspro.md",
       "using/simulator/opengolfsim.md",
+      "using/simulator/partee.md",
     ] },
     "using/cloud-sync.md",
     "using/battery.md",
