@@ -120,7 +120,7 @@ def test_panel_patch_uses_external_power_for_charge_icon():
 
 
 def test_operator_guide_links_models_and_distinguishes_batteries():
-    guide = OPERATOR_GUIDE.read_text(encoding="ascii")
+    guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
 
     assert "https://geekworm.com/products/x1202" in guide
     assert "https://geekworm.com/products/x1206" in guide
@@ -131,7 +131,7 @@ def test_operator_guide_links_models_and_distinguishes_batteries():
 
 
 def test_battery_guide_documents_provider_interface_and_cli():
-    guide = BATTERY_GUIDE.read_text(encoding="ascii")
+    guide = BATTERY_GUIDE.read_text(encoding="utf-8")
 
     assert "--battery geekworm" in guide
     assert "PowerReader" in guide

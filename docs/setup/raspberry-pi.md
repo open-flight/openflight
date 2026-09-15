@@ -15,7 +15,7 @@ Make sure you have all the hardware. See the **[Parts List](../get-started/parts
 - SparkFun SEN-14262 sound detector (wired per the [Sound Trigger Wiring Guide](../build/sound-trigger.md))
 
 **Optional:**
-- TI IWR6843LEVM + data cable — measured launch angle and experimental club path; see the [IWR6843 Operator Guide](../iwr6843/index.md)
+- TI IWR6843LEVM + data-capable micro-USB cable — measured launch angle and experimental club path; see the [IWR6843 Operator Guide](../iwr6843/index.md)
 - Geekworm X1202 or X1206 UPS HAT — portable Pi 5 power using four separately purchased 18650 or 21700 cells; see the [battery monitoring overview](../using/battery.md) and [Geekworm operator guide](../build/battery.md)
 - InnoMaker OV9281 global-shutter camera (~$30) — experimental vision work; see [Camera and YOLO Experiments](../development/camera-yolo.md)
 
