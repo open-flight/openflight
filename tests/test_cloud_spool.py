@@ -29,8 +29,10 @@ class TestDiscovery:
         a = _session(tmp_path, "session_a.jsonl")
         b = _session(tmp_path, "session_b.jsonl")
         c = _session(tmp_path, "session_c.jsonl")
+        d = _session(tmp_path, "session_d.jsonl")
         spool.mark_pushed(b, session_id="id-b", shot_count=3)
         spool.mark_parked(c, reason="quota_exceeded", attempts=20, last_error="402")
+        spool.mark_skipped(d, reason="no_shots", shot_count=0)
         pending = {p.name for p in spool.pending_sessions(tmp_path)}
         assert pending == {"session_a.jsonl"}
         assert a  # referenced
@@ -66,6 +68,25 @@ class TestParkedMarker:
         assert data["attempts"] == 1
         assert data["last_error"] == "422"
         assert spool.is_parked(path)
+
+
+class TestSkippedMarker:
+    def test_mark_skipped_creates_sidecar(self, tmp_path):
+        path = _session(tmp_path)
+        spool.mark_skipped(path, reason="no_shots", shot_count=0)
+        marker = tmp_path / (path.name + ".skipped")
+        assert marker.exists()
+        data = json.loads(marker.read_text())
+        assert data["reason"] == "no_shots"
+        assert data["shot_count"] == 0
+        assert spool.is_skipped(path)
+
+    def test_mark_skipped_clears_attempt_state(self, tmp_path):
+        path = _session(tmp_path)
+        spool.record_failure(path, "5xx")
+        spool.mark_skipped(path, reason="no_shots", shot_count=0)
+        assert spool.read_attempts(path) == 0
+        assert not (tmp_path / (path.name + ".state")).exists()
 
 
 class TestAttemptCounter:
@@ -117,13 +138,16 @@ class TestClearMarkers:
         path = _session(tmp_path)
         spool.mark_pushed(path, "id", 1)
         spool.mark_parked(path, reason="r", attempts=2, last_error="e")
+        spool.mark_skipped(path, reason="no_shots", shot_count=0)
         spool.record_failure(path, "e")  # writes .state
         cleared = spool.clear_markers(path)
         assert spool.PARKED_SUFFIX in cleared
+        assert spool.SKIPPED_SUFFIX in cleared
         assert spool.STATE_SUFFIX in cleared
         assert spool.PUSHED_SUFFIX not in cleared
         assert spool.is_pushed(path)
         assert not spool.is_parked(path)
+        assert not spool.is_skipped(path)
 
     def test_include_pushed_clears_everything(self, tmp_path):
         path = _session(tmp_path)
@@ -151,9 +175,11 @@ class TestStatusSummary:
         c = _session(tmp_path, "session_c.jsonl")
         spool.mark_pushed(a, session_id="a", shot_count=1)
         spool.mark_parked(b, reason="r", attempts=20, last_error="402")
+        spool.mark_skipped(c, reason="no_shots", shot_count=0)
         assert c
         summary = spool.summarize(tmp_path)
         assert summary["pushed"] == 1
         assert summary["parked"] == 1
-        assert summary["pending"] == 1
+        assert summary["skipped"] == 1
+        assert summary["pending"] == 0
         assert summary["total"] == 3

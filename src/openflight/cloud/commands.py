@@ -128,6 +128,7 @@ def cmd_push(
         "offline": False,
         "needs_relink": False,
         "dry_run": dry_run,
+        "skipped_empty": 0,
     }
 
     if not dry_run and not config.is_active():
@@ -158,9 +159,21 @@ def cmd_push(
         # keep the (tiny) shot lines. Loading it whole would risk OOM on a Pi.
         result = filtering.filter_session_file(path, config.device_id)
         session_id = result.session_id
+        shot_count = result.kept_type_counts.get("shot_detected", 0)
+        session_ended = result.kept_type_counts.get("session_end", 0) > 0
 
         if dry_run:
             _describe_dry_run(path.name, session_id, result, out)
+            continue
+
+        if shot_count == 0:
+            if session_ended:
+                spool.mark_skipped(path, reason="no_shots", shot_count=0)
+                summary["skipped_empty"] += 1
+                out(f"{path.name}: skipped (0 shots).")
+            else:
+                summary["deferred"] += 1
+                out(f"{path.name}: waiting for shots before upload.")
             continue
 
         try:
