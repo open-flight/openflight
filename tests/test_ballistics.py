@@ -6,9 +6,17 @@ from datetime import datetime
 import pytest
 
 from openflight.ballistics import (
+    BALL_RADIUS_M,
+    CD_POLY,
+    CL_POLY,
     CLUB_TYPICAL_SPIN_RPM,
+    MPH_TO_MPS,
+    SP_FIT_MAX,
     SPIN_DECAY_RATE,
     LaunchConditions,
+    _cd,
+    _cl,
+    _poly,
     resolve_launch,
     simulate,
 )
@@ -177,3 +185,80 @@ class TestSimulate:
     def test_total_distance_includes_rollout(self):
         traj = simulate(_driver())
         assert traj.total_yards > traj.carry_yards
+
+
+class TestAeroCoefficientSafeguards:
+    """Guards on the Cd/Cl quadratics outside their fitted range.
+
+    The Ferguson coefficients are fitted over Sp <= SP_FIT_MAX. Extrapolated
+    past it both parabolas turn over and cross zero (Cl above Sp ~1.09, Cd
+    above ~1.25), which would mean lift pulling the ball down and drag
+    *accelerating* it. Sp is recomputed every integration step from
+    r*omega/v, and v decays faster than spin, so a normal lob wedge reaches
+    Sp ~1.5 near apex - inside the negative-drag region. Holding both curves
+    at their end value is the guard; these tests are what make its removal
+    fail.
+    """
+
+    def test_zero_spin_produces_no_lift(self):
+        assert _cl(0.0) == 0.0
+
+    def test_lift_never_negative_above_fit_range(self):
+        # Raw Cl(1.5) is about -0.73; clamped it must not pull the ball down.
+        for sp in (SP_FIT_MAX, 1.0, 1.5, 3.0):
+            assert _cl(sp) >= 0.0, f"Cl({sp}) = {_cl(sp):.4f} is negative"
+
+    def test_drag_stays_positive_above_fit_range(self):
+        # Raw Cd crosses zero near Sp 1.25; negative drag is unphysical.
+        for sp in (SP_FIT_MAX, 1.3, 1.5, 3.0):
+            assert _cd(sp) > 0.0, f"Cd({sp}) = {_cd(sp):.4f} is not positive"
+
+    def test_both_curves_held_flat_above_fit_range(self):
+        # Beyond the fitted range the value is pinned to the endpoint, so the
+        # curves are constant there rather than continuing to fall.
+        for sp in (1.0, 1.5, 3.0):
+            assert _cd(sp) == pytest.approx(_cd(SP_FIT_MAX))
+            assert _cl(sp) == pytest.approx(_cl(SP_FIT_MAX))
+
+    def test_curves_unclamped_inside_fit_range(self):
+        # The guard must not disturb the fitted region it sits above.
+        for sp in (0.1, 0.25, 0.5):
+            assert _cd(sp) == pytest.approx(_poly(CD_POLY, sp))
+            assert _cl(sp) == pytest.approx(_poly(CL_POLY, sp))
+
+    def test_lob_wedge_reaches_clamped_region_in_flight(self):
+        """A real lob wedge drives Sp past the fitted range in flight.
+
+        This is why the clamp is not hypothetical: 55 mph / 40 deg /
+        10000 rpm peaks near Sp 1.5, where the raw parabola gives
+        Cd = -0.35 and Cl = -0.73. The clamp is what holds that at the
+        Sp 0.75 endpoint instead.
+
+        Note this asserts reachability, not the clamp's presence: removing
+        the clamp *lowers* peak Sp (less drag keeps the ball faster), so it
+        cannot serve as a red control. The coefficient tests above do that.
+        """
+        cond = LaunchConditions(
+            ball_speed_mph=55.0,
+            launch_angle_v=40.0,
+            launch_angle_h=0.0,
+            spin_rpm=10000,
+            spin_axis_deg=0.0,
+            spin_source="measured",
+        )
+        traj = simulate(cond)
+
+        # Recorded points are downsampled, so this is a lower bound on the
+        # true peak - which only makes the assertion stricter.
+        peak_sp = max(
+            BALL_RADIUS_M * (p.spin_rpm * 2 * math.pi / 60.0) / (p.speed_mph * MPH_TO_MPS)
+            for p in traj.points
+            if p.speed_mph > 1e-6
+        )
+        assert peak_sp > SP_FIT_MAX, (
+            f"lob wedge peak Sp {peak_sp:.2f} no longer exceeds {SP_FIT_MAX}; "
+            f"the clamp would be untested by any realistic shot"
+        )
+        assert 30.0 < traj.carry_yards < 90.0, (
+            f"lob wedge carry {traj.carry_yards:.1f} yd is not plausible"
+        )

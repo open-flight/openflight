@@ -1,11 +1,9 @@
-"""Tune the four aerodynamic coefficients in
+"""Tune the six polynomial aerodynamic coefficients in
 :mod:`openflight.ballistics` against TrackMan-measured carry.
 
-Parameters swept:
-    CD_BASE          — drag coefficient at zero spin
-    CD_SPIN_COEFF    — slope of Cd(Sp) (linear in spin parameter)
-    CL_SATURATION    — Cl asymptote at high Sp
-    CL_HALF_SP       — Sp at which Cl reaches CL_SATURATION/2
+Parameters swept (Cd = a + b*Sp + c*Sp^2, Cl = d + e*Sp + f*Sp^2):
+    CD_POLY = (a, b, c)
+    CL_POLY = (d, e, f)
 
 Method: scipy.optimize.differential_evolution (global) followed by
 Nelder-Mead refinement. Loss is overall RMSE on the TrackMan-inputs
@@ -77,23 +75,21 @@ from validate_ballistics import (  # noqa: E402
 # dimpled golf balls in the post-drag-crisis regime; narrow enough that
 # differential evolution converges in a few minutes.
 PARAM_BOUNDS: List[Tuple[float, float]] = [
-    (0.16, 0.28),   # CD_BASE
-    (0.00, 0.40),   # CD_SPIN_COEFF
-    (0.18, 0.42),   # CL_SATURATION
-    (0.03, 0.35),   # CL_HALF_SP
+    (0.08, 0.30),  # Cd a: drag at zero spin
+    (0.00, 1.80),  # Cd b
+    (-1.80, 0.00),  # Cd c
+    (0.00, 0.15),  # Cl d
+    (0.40, 2.20),  # Cl e
+    (-2.20, -0.30),  # Cl f: negative so lift peaks and turns over
 ]
-PARAM_NAMES = ["CD_BASE", "CD_SPIN_COEFF", "CL_SATURATION", "CL_HALF_SP"]
-DEFAULT_COEFFS = (
-    bl.CD_BASE,
-    bl.CD_SPIN_COEFF,
-    bl.CL_SATURATION,
-    bl.CL_HALF_SP,
-)
+PARAM_NAMES = ["cd_a", "cd_b", "cd_c", "cl_d", "cl_e", "cl_f"]
+Coeffs = Tuple[float, ...]
+DEFAULT_COEFFS: Coeffs = (*bl.CD_POLY, *bl.CL_POLY)
 
 
 @dataclass
 class FitResult:
-    coeffs: Tuple[float, float, float, float]
+    coeffs: Coeffs
     rmse: float
     preds: List[float]
 
@@ -123,16 +119,16 @@ def _filter_shots(shots: List[TMShot]) -> List[TMShot]:
 
 def simulate_with_coeffs(
     shots: List[TMShot],
-    coeffs: Tuple[float, float, float, float],
+    coeffs: Coeffs,
 ) -> List[float]:
     """Monkey-patch the ballistics module constants, run simulate() for
     every shot, restore the originals on exit.
 
-    Relies on ``ballistics._cd`` and ``ballistics._cl`` resolving the
-    constants at call time from the module's global namespace.
+    Relies on ``ballistics._cd`` and ``ballistics._cl`` resolving
+    ``CD_POLY``/``CL_POLY`` at call time from the module's global namespace.
     """
-    saved = (bl.CD_BASE, bl.CD_SPIN_COEFF, bl.CL_SATURATION, bl.CL_HALF_SP)
-    bl.CD_BASE, bl.CD_SPIN_COEFF, bl.CL_SATURATION, bl.CL_HALF_SP = coeffs
+    saved = (bl.CD_POLY, bl.CL_POLY)
+    bl.CD_POLY, bl.CL_POLY = tuple(coeffs[:3]), tuple(coeffs[3:])
     try:
         results = []
         for s in shots:
@@ -140,11 +136,11 @@ def simulate_with_coeffs(
             results.append(traj.carry_yards)
         return results
     finally:
-        bl.CD_BASE, bl.CD_SPIN_COEFF, bl.CL_SATURATION, bl.CL_HALF_SP = saved
+        bl.CD_POLY, bl.CL_POLY = saved
 
 
 def make_loss(shots: List[TMShot], measured: np.ndarray):
-    """Closure that the optimizer can call with a 4-vector."""
+    """Closure that the optimizer can call with a 6-vector."""
     def _loss(x: np.ndarray) -> float:
         preds = simulate_with_coeffs(shots, tuple(x))
         return float(np.sqrt(np.mean((np.asarray(preds) - measured) ** 2)))
@@ -154,7 +150,7 @@ def make_loss(shots: List[TMShot], measured: np.ndarray):
 def evaluate(
     shots: List[TMShot],
     measured: np.ndarray,
-    coeffs: Tuple[float, float, float, float],
+    coeffs: Coeffs,
 ) -> FitResult:
     preds = simulate_with_coeffs(shots, coeffs)
     rmse = float(np.sqrt(np.mean((np.asarray(preds) - measured) ** 2)))
@@ -258,7 +254,7 @@ def write_scatter(
     preds_default: List[float],
     preds_fit: List[float],
     out_path: Path,
-    fit_coeffs: Tuple[float, float, float, float],
+    fit_coeffs: Coeffs,
 ) -> None:
     import matplotlib
 
@@ -318,10 +314,9 @@ def write_scatter(
         ax.legend(loc="best", fontsize=8)
 
     fig.suptitle(
-        f"Default vs fit (fit: CD_BASE={fit_coeffs[0]:.4f}, "
-        f"CD_SPIN_COEFF={fit_coeffs[1]:.4f}, "
-        f"CL_SATURATION={fit_coeffs[2]:.4f}, "
-        f"CL_HALF_SP={fit_coeffs[3]:.4f})",
+        "Default vs fit (fit: "
+        + ", ".join(f"{n}={v:.4f}" for n, v in zip(PARAM_NAMES, fit_coeffs))
+        + ")",
         fontsize=11,
     )
     fig.tight_layout()
@@ -464,10 +459,12 @@ def main(argv=None) -> int:
 
     fit_lines = [
         "Optimal coefficients (TM-inputs, RMSE objective):",
-        f"  CD_BASE        = {best_x[0]:.5f}   (default {DEFAULT_COEFFS[0]:.5f})",
-        f"  CD_SPIN_COEFF  = {best_x[1]:.5f}   (default {DEFAULT_COEFFS[1]:.5f})",
-        f"  CL_SATURATION  = {best_x[2]:.5f}   (default {DEFAULT_COEFFS[2]:.5f})",
-        f"  CL_HALF_SP     = {best_x[3]:.5f}   (default {DEFAULT_COEFFS[3]:.5f})",
+        *(
+            f"  {name:<5} = {fit:>9.5f}   (default {default:>9.5f})"
+            for name, fit, default in zip(PARAM_NAMES, best_x, DEFAULT_COEFFS)
+        ),
+        f"  CD_POLY = ({best_x[0]:.4f}, {best_x[1]:.4f}, {best_x[2]:.4f})",
+        f"  CL_POLY = ({best_x[3]:.4f}, {best_x[4]:.4f}, {best_x[5]:.4f})",
         "",
         f"Baseline RMSE: {baseline.rmse:.3f} yd",
         f"Fit RMSE:      {fit.rmse:.3f} yd",
@@ -533,8 +530,7 @@ def main(argv=None) -> int:
             loso_lines.append(
                 f"{ho_disp:24s}  {len(test_shots):>6d}  {sub_fit_rmse:>9.3f}  "
                 f"{test_rmse:>10.3f}  {test_bias:>+10.3f}  "
-                f"({sub_best[0]:.3f}, {sub_best[1]:.3f}, "
-                f"{sub_best[2]:.3f}, {sub_best[3]:.3f})"
+                "(" + ", ".join(f"{v:.3f}" for v in sub_best) + ")"
             )
         fit_lines.extend(loso_lines)
     elif args.loso:

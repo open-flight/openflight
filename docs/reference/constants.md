@@ -91,10 +91,9 @@ references.
 | `BALL_MASS_KG` | 0.04593 |
 | `BALL_RADIUS_M` | 0.02135 |
 | `AIR_DENSITY_STD` | 1.225 |
-| `CD_BASE` | 0.205 |
-| `CD_SPIN_COEFF` | 0.18 |
-| `CL_SATURATION` | 0.32 |
-| `CL_HALF_SP` | 0.15 |
+| `CD_POLY` | (0.1304, 0.9287, -0.8259) |
+| `CL_POLY` | (0.0504, 1.2031, -1.1490) |
+| `SP_FIT_MAX` | 0.75 |
 | `SPIN_DECAY_RATE` | 0.04 |
 | `GRAVITY` | 9.81 |
 | `DT_SECONDS` | 0.002 |

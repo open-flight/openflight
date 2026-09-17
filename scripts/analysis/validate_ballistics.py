@@ -73,6 +73,10 @@ from openflight.launch_monitor import SPIN_CONFIDENCE_HIGH, ClubType  # noqa: E4
 # → 1.1839 kg/m³. We round to 1.184 for the input.
 TM_FLAT_AIR_DENSITY = 1.184
 
+# TrackMan reports apex ("Max Height - Height") in feet while its distance
+# columns are yards. The model returns apex in yards, so convert to compare.
+YD_TO_FT = 3.0
+
 # Club-name → ClubType map. The comparison CSV uses normalized names like
 # "driver", "7-iron", "pw"; the raw TM CSV uses "7 Iron", "Driver", "PW".
 _CLUB_MAP: Dict[str, ClubType] = {
@@ -150,6 +154,10 @@ class TMShot:
     carry_yards: Optional[float]
     timestamp: str
     session: str = ""  # session label (typically derived from the source filename)
+    # TrackMan reports apex as "Max Height - Height" in FEET, unlike the
+    # yard-denominated distance columns. Kept in feet end to end so the
+    # numbers stay comparable to the raw export.
+    apex_feet: Optional[float] = None
 
 
 def _default_session_label(path: Path) -> str:
@@ -200,6 +208,7 @@ def load_trackman(path: Path, session: Optional[str] = None) -> List[TMShot]:
                 carry_yards=_to_float(row.get("Carry Flat - Length")),
                 timestamp=row.get("Date", "") or "",
                 session=session_label,
+                apex_feet=_to_float(row.get("Max Height - Height")),
             ))
     return shots
 
@@ -283,6 +292,11 @@ class ValidationRow:
     measured_carry_yards: float
     model_carry_yards: float
     delta_yards: float  # model - measured
+    # Apex, in FEET, and only where the source carries it (the paired
+    # comparison CSV does not). None means "not measured", never zero.
+    measured_apex_feet: Optional[float] = None
+    model_apex_feet: Optional[float] = None
+    delta_apex_feet: Optional[float] = None
 
 
 def _has_required_inputs(*vals) -> bool:
@@ -311,6 +325,8 @@ def validate_tm_inputs(
             spin_source="measured",
         )
         traj = simulate(conditions, air_density=air_density)
+        # apex_yards is a height in yards; TrackMan's column is feet.
+        model_apex_feet = traj.apex_yards * YD_TO_FT
         session_tag = s.session or "default"
         out.append(ValidationRow(
             source="tm",
@@ -326,6 +342,11 @@ def validate_tm_inputs(
             measured_carry_yards=s.carry_yards,
             model_carry_yards=traj.carry_yards,
             delta_yards=traj.carry_yards - s.carry_yards,
+            measured_apex_feet=s.apex_feet,
+            model_apex_feet=model_apex_feet,
+            delta_apex_feet=(
+                None if s.apex_feet is None else model_apex_feet - s.apex_feet
+            ),
         ))
     return out
 

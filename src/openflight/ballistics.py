@@ -36,31 +36,28 @@ BALL_RADIUS_M = 0.02135
 BALL_AREA_M2 = math.pi * BALL_RADIUS_M ** 2
 AIR_DENSITY_STD = 1.225  # kg/m³ at sea level, 15 °C ISA
 
-# Cd = CD_BASE + CD_SPIN_COEFF * Sp
-#   Linear rise with spin parameter Sp = r·ω/v.
-# Cl = CL_SATURATION * Sp / (CL_HALF_SP + Sp)
-#   Hill-type saturating form: Cl → CL_SATURATION as Sp → ∞,
-#   reaches CL_SATURATION/2 at Sp = CL_HALF_SP.
-# These are simple parametric forms consistent with Bearman & Harvey (1976)
-# and Kensrud & Smith (2018) for dimpled balls past the drag crisis
-# (Re ~ 5e4–2e5), which covers the full range of realistic golf shots.
+# Cd = CD_POLY[0] + CD_POLY[1]*Sp + CD_POLY[2]*Sp^2
+# Cl = CL_POLY[0] + CL_POLY[1]*Sp + CL_POLY[2]*Sp^2, clamped at >= 0
+#   Second-order polynomials in the spin parameter Sp = r*omega/v, the form
+#   Ferguson, McNally & McPhee (2022, ISEA 14, doi:10.5703/1288284317493)
+#   fitted to N=1040 shots (GCQuad launch conditions, FlightScope X3
+#   carry/apex/offline, Pro V1, Sp 0.02-0.75). The coefficients below are
+#   their published values, not re-fitted here.
+#   Lift peaks near Sp ~ 0.52 and turns over, as in Bearman & Harvey (1976)
+#   and Lyu, Kensrud & Smith (2018). The previous Hill-type saturating form
+#   was monotonic by construction, so no choice of its two constants could
+#   represent that peak, and it sat ~4 yd low on apex across every club.
+#   Beyond Sp = SP_FIT_MAX both curves are held at their end value rather
+#   than extrapolating a parabola into a region the fit never saw.
 #
-# Fitted with scripts/analysis/sweep_ballistic_coeffs.py against the committed
-# TrackMan capture (session_logs/OpenFlight-Test.Normalized.csv, 24 shots,
-# differential evolution + Nelder-Mead, rho=1.184 to match TrackMan "Flat").
-# Overall carry RMSE against TrackMan: 24.52 -> 3.97 yd. The previous
-# CL_HALF_SP of 0.15 sat well above the low-spin driver regime (driver
-# Sp ~ 0.05-0.08), so for drivers the lift curve never left its low-lift
-# regime and driver carry ran ~37 yd short. Irons and wedges (Sp ~ 0.21-0.63)
-# were already past CL_HALF_SP and ran long instead, which is why the error
-# flipped sign by club. Resulting Cl is ~0.13-0.16 for drivers, rising to
-# ~0.22-0.23 for irons and wedges; the iron/wedge values sit inside the
-# 0.18-0.25 band the cited sources report, while the driver values remain
-# below it.
-CD_BASE = 0.19071
-CD_SPIN_COEFF = 0.31588
-CL_SATURATION = 0.25544
-CL_HALF_SP = 0.04758
+# Validation, TrackMan measured launch conditions in, simulated flight out,
+# Hill form (as re-fit in #229) -> this form:
+#   committed 24-shot capture:            carry RMSE 3.97 -> 2.90 yd
+#   independent 5-session 279-shot set:   carry RMSE 3.48 -> 1.98 yd,
+#                                         apex RMSE 4.41 -> 0.97 yd
+CD_POLY = (0.1304, 0.9287, -0.8259)
+CL_POLY = (0.0504, 1.2031, -1.1490)
+SP_FIT_MAX = 0.75
 
 # Exponential spin decay: ω(t) = ω₀·exp(-rate·t).
 # ~4%/s per Kiratidis & Leinweber (2018); small but matters over ~6 s flights.
@@ -184,12 +181,18 @@ def resolve_launch(shot: Shot) -> Optional[LaunchConditions]:
     )
 
 
+def _poly(coeffs: tuple, sp: float) -> float:
+    return coeffs[0] + coeffs[1] * sp + coeffs[2] * sp * sp
+
+
 def _cd(sp: float) -> float:
-    return CD_BASE + CD_SPIN_COEFF * sp
+    return _poly(CD_POLY, min(sp, SP_FIT_MAX))
 
 
 def _cl(sp: float) -> float:
-    return CL_SATURATION * sp / (CL_HALF_SP + sp) if sp > 0 else 0.0
+    if sp <= 0:
+        return 0.0
+    return max(0.0, _poly(CL_POLY, min(sp, SP_FIT_MAX)))
 
 
 def _derivatives(

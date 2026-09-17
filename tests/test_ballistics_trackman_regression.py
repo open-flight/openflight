@@ -36,24 +36,48 @@ from validate_ballistics import (  # noqa: E402  (path set up above)
 
 TRACKMAN_CSV = _REPO_ROOT / "session_logs" / "OpenFlight-Test.Normalized.csv"
 
-# Per-club RMSE ceilings in yards. Ratcheted down after the aero coefficients
-# were re-fit against this same capture (see ballistics.py CD_/CL_ constants).
+# Per-club RMSE ceilings in yards. Ratcheted twice: after the aero
+# coefficients were re-fit against this capture (#229), and again when the
+# Cd/Cl functional form moved to the Ferguson quadratics (#230).
 #
-#                    before re-fit        after re-fit
-#   club            rmse      bias       rmse     bias
-#   7-iron         11.64   +11.00        2.96   +1.52
-#   driver         38.60   -37.18        1.75   -0.45
-#   pitching wedge 13.56   +11.02        6.26   -2.96
-#   OVERALL        24.52    -5.05        3.97   -0.45
+#                    pre-#229          #229 (Hill)       quadratic
+#   club            rmse     bias      rmse    bias     rmse    bias
+#   7-iron         11.64   +11.00      2.96   +1.52     1.33   +1.30
+#   driver         38.60   -37.18      1.75   -0.45     2.38   -1.33
+#   pitching wedge 13.56   +11.02      6.26   -2.96     4.48   +1.83
+#   OVERALL        24.52    -5.05      3.97   -0.45     2.90   +0.58
+#
+# Driver moved up within its ceiling: the quadratic coefficients are an
+# external published fit, not tuned to this capture, and the driver ceiling
+# was left where it was rather than raised.
 #
 # Ceilings sit slightly above the measured values to absorb float/platform
 # drift. Lower them again if the model improves; never raise them.
 RMSE_BUDGET_YARDS = {
     "driver": 3.0,
-    "7-iron": 4.0,
-    "pitching wedge": 7.5,
+    "7-iron": 2.0,
+    "pitching wedge": 5.5,
 }
-OVERALL_RMSE_BUDGET_YARDS = 5.0
+OVERALL_RMSE_BUDGET_YARDS = 3.5
+
+# Apex ceilings in FEET (TrackMan's "Max Height - Height" column is feet).
+# Apex is the strongest evidence the quadratic form is right: nothing was ever
+# fitted against it, so the improvement is out-of-sample.
+#
+#   club            Hill (#229)   quadratic
+#   7-iron            18.15         1.53
+#   driver             5.08         3.17
+#   pitching wedge    18.00         2.81
+#   OVERALL           15.05         2.56
+#
+# Seeded above measured to absorb float/platform drift, matching the carry
+# budgets above. Lower them when the model improves; never raise them.
+APEX_RMSE_BUDGET_FEET = {
+    "driver": 4.0,
+    "7-iron": 2.0,
+    "pitching wedge": 3.5,
+}
+OVERALL_APEX_RMSE_BUDGET_FEET = 3.0
 
 # The reference capture is a fixed, committed file: if the shot count changes,
 # the fixture changed and every budget above needs re-deriving.
@@ -99,6 +123,51 @@ def test_per_club_carry_rmse_within_budget(validation_rows, club):
     budget = RMSE_BUDGET_YARDS[club]
     assert stats["rmse"] <= budget, (
         f"{club}: carry RMSE {stats['rmse']:.2f} yd exceeds budget {budget} yd "
+        f"(bias {stats['mean']:+.2f}, max |delta| {stats['max_abs']:.2f}, "
+        f"n={stats['n']})."
+    )
+
+
+def _apex_deltas(rows, club=None):
+    """Apex errors in feet, skipping rows whose source carried no apex."""
+    return [
+        r.delta_apex_feet
+        for r in rows
+        if r.delta_apex_feet is not None and (club is None or r.club == club)
+    ]
+
+
+def test_reference_capture_has_apex_measurements(validation_rows):
+    """Pin apex coverage: a fixture silently losing the column would turn
+    every apex budget below into a vacuous pass over an empty list."""
+    deltas = _apex_deltas(validation_rows)
+    assert len(deltas) == EXPECTED_SHOT_COUNT, (
+        f"{len(deltas)} of {EXPECTED_SHOT_COUNT} reference shots carry an apex "
+        f"measurement. The fixture's 'Max Height - Height' column changed."
+    )
+
+
+def test_overall_apex_rmse_within_budget(validation_rows):
+    """Model apex vs TrackMan apex, fed TrackMan's own launch conditions."""
+    stats = _stats(_apex_deltas(validation_rows))
+    assert stats["rmse"] <= OVERALL_APEX_RMSE_BUDGET_FEET, (
+        f"Overall apex RMSE {stats['rmse']:.2f} ft exceeds budget "
+        f"{OVERALL_APEX_RMSE_BUDGET_FEET} ft (bias {stats['mean']:+.2f}, "
+        f"max |delta| {stats['max_abs']:.2f}, n={stats['n']}). "
+        f"The ballistic model's flight height regressed."
+    )
+
+
+@pytest.mark.parametrize("club", sorted(APEX_RMSE_BUDGET_FEET))
+def test_per_club_apex_rmse_within_budget(validation_rows, club):
+    """Per-club apex budgets: trajectory shape is club-dependent, and the
+    quadratic's biggest win (irons and wedges) must not silently erode."""
+    deltas = _apex_deltas(validation_rows, club)
+    assert deltas, f"No reference shots with apex for club {club!r}"
+    stats = _stats(deltas)
+    budget = APEX_RMSE_BUDGET_FEET[club]
+    assert stats["rmse"] <= budget, (
+        f"{club}: apex RMSE {stats['rmse']:.2f} ft exceeds budget {budget} ft "
         f"(bias {stats['mean']:+.2f}, max |delta| {stats['max_abs']:.2f}, "
         f"n={stats['n']})."
     )
