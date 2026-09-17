@@ -22,7 +22,8 @@ import numpy as np
 
 from openflight.camera.club_motion import ReferenceBall, detect_reference_ball
 from openflight.camera.geometry import deroll_normalized_offsets
-from openflight.launch_monitor import ClubType
+from openflight.clubs import ClubType
+from openflight.clubs.physics import get_club_physics
 
 # --- scene / mask constants -------------------------------------------------
 # Scene brightness gate: background 99.5th percentile. The 2026-08-07 session
@@ -1048,29 +1049,6 @@ _IRON_OFFSET_ANCHORS: tuple[tuple[float, float], ...] = (
 )
 _DRIVER_OFFSET_DEG = 21.6
 
-_NOMINAL_LOFT_DEG: dict[ClubType, float] = {
-    ClubType.DRIVER: 10.5,
-    ClubType.WOOD_3: 15.0,
-    ClubType.WOOD_5: 18.0,
-    ClubType.WOOD_7: 21.0,
-    ClubType.HYBRID_3: 19.0,
-    ClubType.HYBRID_5: 22.0,
-    ClubType.HYBRID_7: 25.0,
-    ClubType.HYBRID_9: 28.0,
-    ClubType.IRON_2: 18.0,
-    ClubType.IRON_3: 21.0,
-    ClubType.IRON_4: 24.0,
-    ClubType.IRON_5: 27.0,
-    ClubType.IRON_6: 30.5,
-    ClubType.IRON_7: 34.0,
-    ClubType.IRON_8: 38.0,
-    ClubType.IRON_9: 42.0,
-    ClubType.PW: 46.0,
-    ClubType.GW: 50.0,
-    ClubType.SW: 54.0,
-    ClubType.LW: 58.0,
-}
-
 _IRON_LIKE = {
     ClubType.IRON_2,
     ClubType.IRON_3,
@@ -1133,7 +1111,7 @@ def aoa_offset_for_club(club: ClubType) -> tuple[float, str]:
     if measured is not None:
         return measured, "measured"
     if club in _IRON_LIKE or club is ClubType.UNKNOWN:
-        loft = _NOMINAL_LOFT_DEG.get(club, 34.0)
+        loft = get_club_physics(club).nominal_loft_deg
         lofts = np.array([anchor[0] for anchor in _IRON_OFFSET_ANCHORS])
         offsets = np.array([anchor[1] for anchor in _IRON_OFFSET_ANCHORS])
         offset = float(np.interp(loft, lofts, offsets))

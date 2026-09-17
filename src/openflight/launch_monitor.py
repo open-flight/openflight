@@ -1,73 +1,22 @@
 """
 Golf Launch Monitor data types and carry estimation.
 
-Provides Shot, ClubType, and carry distance estimation used by
+Provides Shot and carry distance estimation used by
 RollingBufferMonitor and the Flask server.
 """
 
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional
 
+from .clubs import ClubType
+from .clubs.physics import get_club_physics
 from .ops243 import SpeedReading
 
 # Spin confidence threshold for "high" quality — used across modules.
 # Measured spin is trusted for physics simulation only above this level.
 SPIN_CONFIDENCE_HIGH = 0.7
-
-
-class ClubType(Enum):
-    """Golf club types for distance estimation."""
-
-    DRIVER = "driver"
-    WOOD_3 = "3-wood"
-    WOOD_5 = "5-wood"
-    WOOD_7 = "7-wood"
-    HYBRID_3 = "3-hybrid"
-    HYBRID_5 = "5-hybrid"
-    HYBRID_7 = "7-hybrid"
-    HYBRID_9 = "9-hybrid"
-    IRON_2 = "2-iron"
-    IRON_3 = "3-iron"
-    IRON_4 = "4-iron"
-    IRON_5 = "5-iron"
-    IRON_6 = "6-iron"
-    IRON_7 = "7-iron"
-    IRON_8 = "8-iron"
-    IRON_9 = "9-iron"
-    PW = "pw"
-    GW = "gw"
-    SW = "sw"
-    LW = "lw"
-    UNKNOWN = "unknown"
-
-
-# Optimal launch angles by club (from TrackMan data)
-_OPTIMAL_LAUNCH = {
-    ClubType.DRIVER: 11.0,
-    ClubType.WOOD_3: 12.5,
-    ClubType.WOOD_5: 14.0,
-    ClubType.WOOD_7: 15.5,
-    ClubType.HYBRID_3: 13.5,
-    ClubType.HYBRID_5: 15.0,
-    ClubType.HYBRID_7: 16.5,
-    ClubType.HYBRID_9: 18.0,
-    ClubType.IRON_2: 13.0,
-    ClubType.IRON_3: 14.5,
-    ClubType.IRON_4: 16.0,
-    ClubType.IRON_5: 17.5,
-    ClubType.IRON_6: 19.0,
-    ClubType.IRON_7: 20.5,
-    ClubType.IRON_8: 23.0,
-    ClubType.IRON_9: 25.5,
-    ClubType.PW: 28.0,
-    ClubType.GW: 30.0,
-    ClubType.SW: 32.0,
-    ClubType.LW: 35.0,
-    ClubType.UNKNOWN: 18.0,
-}
 
 
 def estimate_carry_distance(ball_speed_mph: float, club: ClubType = ClubType.DRIVER) -> float:
@@ -181,7 +130,7 @@ def adjust_carry_for_launch_angle(
     Returns:
         Adjusted carry distance in yards
     """
-    optimal = _OPTIMAL_LAUNCH.get(club, 18.0)
+    optimal = get_club_physics(club).optimal_launch_deg
     angle_delta = launch_angle - optimal
 
     if angle_delta < 0:

@@ -26,9 +26,9 @@ flowchart LR
 | `rolling_buffer/processor.py` | FFT, mode-based speed extraction, spin detection |
 | `rolling_buffer/` | Trigger strategies |
 | `iwr6843/` | TI driver, L3 raw dump parser, LCMF-v1 angle and club path |
-| `launch_monitor.py` | `Shot` dataclass, `ClubType`, carry estimation |
+| `clubs/` | Built-in club types and immutable physics defaults |
+| `launch_monitor.py` | `Shot` dataclass and carry estimation |
 | `ballistics.py` | RK4 trajectory with drag and Magnus |
-| `club_data.py` | Canonical club physics parameters |
 | `inclinometer.py` | LIS3DH tilt compensation |
 | `sim/` | Simulator connectors and network transports |
 | `cloud/` | Telemetry, config, session upload |

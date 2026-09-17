@@ -10,7 +10,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 from openflight.rolling_buffer import (
     ImpactEstimate,
     IQCapture,

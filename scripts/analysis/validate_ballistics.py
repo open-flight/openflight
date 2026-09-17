@@ -66,7 +66,8 @@ from openflight.ballistics import (  # noqa: E402
     LaunchConditions,
     simulate,
 )
-from openflight.launch_monitor import SPIN_CONFIDENCE_HIGH, ClubType  # noqa: E402
+from openflight.clubs import ClubType  # noqa: E402
+from openflight.launch_monitor import SPIN_CONFIDENCE_HIGH  # noqa: E402
 
 # TrackMan "Flat" normalization: no wind, 0 ft altitude, 77 °F.
 # ρ = P / (R_specific · T) with P = 101325 Pa, T = 298.15 K, R = 287.05 J/(kg·K)

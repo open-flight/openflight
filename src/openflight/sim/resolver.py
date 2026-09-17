@@ -8,10 +8,10 @@ serialize the ResolvedShot into their own wire format.
 import math
 from typing import Dict, Tuple
 
+from openflight.clubs import ClubType
+from openflight.clubs.physics import get_club_physics
 from openflight.launch_monitor import (
-    _OPTIMAL_LAUNCH,
     SPIN_CONFIDENCE_HIGH,
-    ClubType,
     Shot,
 )
 from openflight.sim.types import IncompleteShotError, PlayerState, ResolvedShot
@@ -43,7 +43,6 @@ SPIN_MODEL_RPM: Dict[ClubType, float] = {
 }
 
 _DEFAULT_SPIN_RPM = 5000.0
-_DEFAULT_VLA_DEG = 18.0
 
 
 def _resolve_total_spin(shot: Shot) -> Tuple[float, str]:
@@ -74,7 +73,7 @@ def resolve_shot(shot: Shot, player_state: PlayerState) -> ResolvedShot:
         vla = float(shot.launch_angle_vertical)
         provenance["vla"] = "measured"
     else:
-        vla = _OPTIMAL_LAUNCH.get(shot.club, _DEFAULT_VLA_DEG)
+        vla = get_club_physics(shot.club).optimal_launch_deg
         provenance["vla"] = "estimated"
 
     if shot.launch_angle_horizontal is not None:

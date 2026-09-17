@@ -8,7 +8,8 @@ from datetime import datetime
 import pytest
 
 from openflight import session_logger as session_logger_module
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 from openflight.session_logger import SessionLogger, log_session_error
 
 

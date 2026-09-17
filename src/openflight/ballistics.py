@@ -22,7 +22,9 @@ import math
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from .launch_monitor import SPIN_CONFIDENCE_HIGH, ClubType, Shot
+from .clubs import ClubType
+from .clubs.physics import CLUB_PHYSICS
+from .launch_monitor import SPIN_CONFIDENCE_HIGH, Shot
 
 MPH_TO_MPS = 0.44704
 MPS_TO_MPH = 1.0 / MPH_TO_MPS
@@ -81,27 +83,7 @@ SAMPLE_INTERVAL_S = 0.05
 # Club-typical spin (RPM) from TrackMan PGA Tour averages.
 # Used as fallback when measured spin is missing or low-confidence.
 CLUB_TYPICAL_SPIN_RPM: dict[ClubType, float] = {
-    ClubType.DRIVER: 2700,
-    ClubType.WOOD_3: 3500,
-    ClubType.WOOD_5: 4200,
-    ClubType.WOOD_7: 4800,
-    ClubType.HYBRID_3: 4400,
-    ClubType.HYBRID_5: 4900,
-    ClubType.HYBRID_7: 5300,
-    ClubType.HYBRID_9: 5800,
-    ClubType.IRON_2: 4000,
-    ClubType.IRON_3: 4500,
-    ClubType.IRON_4: 5000,
-    ClubType.IRON_5: 5400,
-    ClubType.IRON_6: 6000,
-    ClubType.IRON_7: 6500,
-    ClubType.IRON_8: 7500,
-    ClubType.IRON_9: 8500,
-    ClubType.PW: 9000,
-    ClubType.GW: 9500,
-    ClubType.SW: 10000,
-    ClubType.LW: 10500,
-    ClubType.UNKNOWN: 5000,
+    club: physics.typical_spin_rpm for club, physics in CLUB_PHYSICS.items()
 }
 
 

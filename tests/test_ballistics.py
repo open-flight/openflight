@@ -12,7 +12,8 @@ from openflight.ballistics import (
     resolve_launch,
     simulate,
 )
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 
 
 def _shot(**kwargs) -> Shot:

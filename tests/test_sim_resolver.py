@@ -4,7 +4,8 @@ from datetime import datetime
 
 import pytest
 
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 from openflight.sim.resolver import resolve_shot, SPIN_MODEL_RPM
 from openflight.sim.types import IncompleteShotError, PlayerState
 

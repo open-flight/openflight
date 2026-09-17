@@ -13,7 +13,7 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import Optional
 
-from ..launch_monitor import ClubType
+from ..clubs import ClubType
 from ..serial_latency import log_usb_serial_latency_timer
 from .radc import VERTICAL_FLIGHT_WINDOW_NET_DISTANCE_FT
 from .types import KLD7Angle, KLD7Frame

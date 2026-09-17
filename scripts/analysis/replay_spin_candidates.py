@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import compare_trackman as ct  # noqa: E402  pylint: disable=wrong-import-position
 
-from openflight.launch_monitor import ClubType  # noqa: E402
+from openflight.clubs import ClubType  # noqa: E402
 from openflight.rolling_buffer.monitor import get_optimal_spin_for_ball_speed  # noqa: E402
 from openflight.rolling_buffer.processor import RollingBufferProcessor  # noqa: E402
 from openflight.rolling_buffer.types import IQCapture  # noqa: E402

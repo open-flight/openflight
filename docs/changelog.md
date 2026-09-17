@@ -144,6 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trusting it.
 
 ### Changed
+- Club physics and simulation defaults now lives in one immutable registry
 - Core server, session logging, kiosk startup, and UI code now share canonical
   shot/session helpers and omit redundant compatibility paths.
 - Session JSONL format version is now 2 after consolidating trigger and shot

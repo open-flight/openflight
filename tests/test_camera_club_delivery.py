@@ -26,7 +26,7 @@ from openflight.camera.club_delivery import (
     fuse_club_delivery,
 )
 from openflight.camera.club_motion import ReferenceBall, detect_reference_ball
-from openflight.launch_monitor import ClubType
+from openflight.clubs import ClubType
 
 
 class _Ball:

@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 
+from openflight.clubs import ClubType
 from openflight.iwr6843.calibration import Calibration
 from openflight.iwr6843.calibration_session import (
     CalibrationShotRecord,
@@ -9,7 +10,6 @@ from openflight.iwr6843.calibration_session import (
     clone_calibration,
     parse_club,
 )
-from openflight.launch_monitor import ClubType
 
 
 def test_parse_club_accepts_common_short_labels():

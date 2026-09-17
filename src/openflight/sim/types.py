@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Optional, Union
 
-from openflight.launch_monitor import ClubType
+from openflight.clubs import ClubType
 
 # GSPro parses ShotNumber as a signed 32-bit int; a larger value overflows it and
 # the shot is rejected with 501 "Bad format". Keep every ShotNumber at or below
