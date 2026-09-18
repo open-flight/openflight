@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the OpenFlight server and a local browser in kiosk mode.
+# Start the OpenFlight server and a local Electron (or Chromium) kiosk.
 
 set -eo pipefail
 
@@ -17,12 +17,16 @@ STARTUP_LOG_PATH="${OPENFLIGHT_STARTUP_LOG:-$HOME/openflight_sessions/terminal_l
 SERVER_PID=""
 SPLASH_PID=""
 BROWSER_PID=""
+BROWSER_PGID=""
 BROWSER_LAUNCHED=false
 SERVER_ARGS=()
 
 log() { printf '[OpenFlight] %s\n' "$1"; }
 warn() { printf '[OpenFlight] WARNING: %s\n' "$1"; }
 error() { printf '[OpenFlight] ERROR: %s\n' "$1" >&2; }
+
+# shellcheck source=kiosk-browser.sh
+source "$SCRIPT_DIR/kiosk-browser.sh"
 
 require_value() {
     if [ "$#" -lt 2 ]; then
@@ -182,40 +186,53 @@ stop_startup_splash_server() {
 cleanup() {
     local exit_code="${1:-$?}"
     trap - EXIT SIGINT SIGTERM
+    log "Shutting down..."
     shutdown_server
     stop_startup_splash_server
-    [ -z "$BROWSER_PID" ] || kill "$BROWSER_PID" 2>/dev/null || true
-    pkill -f 'chromium.*--kiosk' 2>/dev/null || true
-    pkill -f 'chrome.*--kiosk' 2>/dev/null || true
+    stop_kiosk_browser
     exit "$exit_code"
 }
 
-launch_kiosk_browser() {
-    local url="$1"
-    local browser=""
-    local flags=(
-        --kiosk
-        --noerrdialogs
-        --disable-infobars
-        --disable-session-crashed-bubble
-        --password-store=basic
-    )
-    for browser in chromium-browser chromium google-chrome; do
-        if command -v "$browser" >/dev/null 2>&1; then
-            DISPLAY=:0 "$browser" "${flags[@]}" "$url" &
-            BROWSER_PID=$!
-            BROWSER_LAUNCHED=true
+acquire_instance_lock() {
+    # One kiosk per web port. The default lives in /tmp rather than
+    # XDG_RUNTIME_DIR because openflight.service and a desktop session have
+    # different runtime dirs, and it was exactly that pair fighting over the
+    # screen: a failing boot service ran cleanup every 5 s and killed the
+    # desktop session's Electron each time.
+    local lock_file="${OPENFLIGHT_KIOSK_LOCK_FILE:-/tmp/openflight-kiosk-${WEB_PORT}.lock}"
+
+    if ! command -v flock >/dev/null 2>&1; then
+        warn "flock unavailable; cannot guard against a second OpenFlight instance"
+        return 0
+    fi
+    # Probe in a subshell: a failed redirection on `exec` would abort the script.
+    if ! ( : >>"$lock_file" ) 2>/dev/null; then
+        warn "Cannot open $lock_file; continuing without the single-instance guard"
+        return 0
+    fi
+    exec {INSTANCE_LOCK_FD}>>"$lock_file"
+    if ! flock -n "$INSTANCE_LOCK_FD"; then
+        error "OpenFlight is already running (lock held on $lock_file)."
+        error "  Stop the other instance first. If it is the boot service: sudo systemctl stop openflight"
+        # Exit 3 is listed in openflight.service's RestartPreventExitStatus so
+        # systemd does not retry every 5 s while someone else owns the kiosk.
+        exit 3
+    fi
+}
+
+ensure_uv_on_path() {
+    # systemd starts the service with a minimal PATH that omits the user-local
+    # install dirs astral's installer uses, so `uv` looked missing at boot.
+    if command -v uv >/dev/null 2>&1; then
+        return 0
+    fi
+    local candidate
+    for candidate in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+        if [ -x "$candidate/uv" ]; then
+            export PATH="$candidate:$PATH"
             return 0
         fi
     done
-    if command -v firefox >/dev/null 2>&1; then
-        DISPLAY=:0 firefox --kiosk "$url" &
-        BROWSER_PID=$!
-        BROWSER_LAUNCHED=true
-        return 0
-    fi
-    warn "No kiosk browser found; open $url manually"
-    return 1
 }
 
 start_startup_splash() {
@@ -283,6 +300,7 @@ show_startup_failure() {
     local preserve_existing="${5:-false}"
 
     error "$message"
+    error "$recovery"
     if [ -n "$STARTUP_STATUS_FILE" ] && [ -f "$STARTUP_STATUS_FILE" ]; then
         local status_args=(
             fail "$STARTUP_STATUS_FILE"
@@ -330,17 +348,23 @@ start_alloy() {
     systemctl is-active alloy >/dev/null 2>&1 || sudo systemctl start alloy 2>/dev/null || true
 }
 
+cd "$PROJECT_DIR"
+acquire_instance_lock
+# shellcheck source=ensure-kiosk-ui.sh
+source "$SCRIPT_DIR/ensure-kiosk-ui.sh"
+ensure_kiosk_ui
+
 trap 'cleanup $?' EXIT
 trap 'cleanup 130' SIGINT SIGTERM
-cd "$PROJECT_DIR"
 
 start_startup_splash
 
+ensure_uv_on_path
 if ! command -v uv >/dev/null 2>&1; then
     show_startup_failure \
-        server \
+        "server" \
         "OpenFlight preparation failed" \
-        "The uv command is unavailable. Ask a technician to repair the OpenFlight installation."
+        "The uv command is unavailable (checked PATH, ~/.local/bin and ~/.cargo/bin). Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"
 fi
 
 UV_SYNC_ARGS=(--quiet)
@@ -348,30 +372,18 @@ if has_server_arg --camera-capture; then
     export UV_PYTHON=/usr/bin/python3
     if [ ! -x .venv/bin/python ] || ! .venv/bin/python -c 'import picamera2' >/dev/null 2>&1; then
         uv venv --clear --system-site-packages --python /usr/bin/python3 || show_startup_failure \
-            server \
+            "server" \
             "OpenFlight preparation failed" \
             "Camera environment preparation failed. Check the terminal log, then relaunch OpenFlight."
     fi
     UV_SYNC_ARGS+=(--extra camera)
 fi
 uv sync "${UV_SYNC_ARGS[@]}" || show_startup_failure \
-    server \
+    "server" \
     "OpenFlight preparation failed" \
     "Dependency preparation failed. Check the terminal log, then relaunch OpenFlight."
 
 configure_kld7_latency
-
-if [ ! -d ui/node_modules ]; then
-    warn "UI dependencies not installed; installing now"
-    npm --prefix ui install || show_startup_failure \
-        server \
-        "OpenFlight interface build failed" \
-        "Check the terminal log or network connection, then relaunch OpenFlight."
-fi
-npm --prefix ui run build || show_startup_failure \
-    server \
-    "OpenFlight interface build failed" \
-    "Check the terminal log or network connection, then relaunch OpenFlight."
 
 start_alloy
 log "Starting OpenFlight server on port $WEB_PORT"
@@ -391,7 +403,7 @@ done
 if ! curl -fsS "http://$HOST:$WEB_PORT" >/dev/null 2>&1; then
     if kill -0 "$SERVER_PID" 2>/dev/null; then
         show_startup_failure \
-            server \
+            "server" \
             "OpenFlight server timed out" \
             "Wait a moment, then return to the desktop and relaunch OpenFlight." \
             1 \
@@ -400,7 +412,7 @@ if ! curl -fsS "http://$HOST:$WEB_PORT" >/dev/null 2>&1; then
     wait "$SERVER_PID" 2>/dev/null || true
     SERVER_PID=""
     show_startup_failure \
-        server \
+        "server" \
         "OpenFlight server exited during startup" \
         "Check the connected radar hardware and terminal log, then relaunch OpenFlight." \
         1 \

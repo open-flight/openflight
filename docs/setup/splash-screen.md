@@ -128,6 +128,14 @@ installer always preserves that checkout's local wrapper. No reboot is
 required. Close an existing OpenFlight session first, then launch the refreshed
 desktop icon.
 
+If this pull is the first that launches **Electron** instead of system
+Chromium, browser-local settings (units, theme, language, pinned Live metric)
+and Shots validation notes do not migrate. Export **Export CSV** on the Shots
+tab while Chromium is still the kiosk, then re-set preferences after Electron
+starts. See [Electron Kiosk Shell](../electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
+If Node is still 20 or the Pi is offline, startup keeps using Chromium until
+Electron can be installed.
+
 Raspberry Pi desktop settings determine whether icons require a single click or
 a double click. The installer removes the separate “execute or execute in
 terminal” choice; it does not change the user's global file-manager click

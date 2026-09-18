@@ -3,7 +3,12 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
+    "electron": "electron .",
     "dev": "vite",
     "dev:mock": "concurrently -k \"npm:mock-server\" \"npm:dev\"",
     "mock-server": "tsx mock-server/index.ts",
@@ -33,6 +38,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.1.0",
     "concurrently": "^10.0.5",
+    "electron": "^44.1.0",
     "eslint": "^10.8.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.4",

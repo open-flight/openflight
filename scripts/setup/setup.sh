@@ -134,18 +134,15 @@ else
     exit 1
 fi
 
-# Check for Node.js
+# Check for Node.js (Electron 44's npm installer requires 22.12+)
+# shellcheck source=../require-node.sh
+source "$SCRIPT_DIR/../require-node.sh"
 log "Checking Node.js..."
-if command -v node &> /dev/null; then
-    NODE_VERSION=$(node --version)
-    log "Node.js $NODE_VERSION found ✓"
+if openflight_node_meets_min; then
+    log "Node.js $(openflight_node_version) found ✓"
 else
-    error "Node.js not found. Please install Node.js 18+"
-    if [ "$PLATFORM" == "pi" ]; then
-        info "On Raspberry Pi, run: sudo apt install nodejs npm"
-    elif [ "$PLATFORM" == "macos" ]; then
-        info "On macOS, run: brew install node"
-    fi
+    error "Node.js $OPENFLIGHT_MIN_NODE+ required, found $(openflight_node_version 2>/dev/null || echo none)"
+    openflight_node_install_hint
     exit 1
 fi
 

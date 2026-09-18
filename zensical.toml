@@ -52,6 +52,7 @@ nav = [
     "setup/rolling-buffer.md",
     "setup/auto-start.md",
     "setup/splash-screen.md",
+    "electron-kiosk-shell.md",
     "setup/diagnostic.md",
   ] },
 
