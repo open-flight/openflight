@@ -40,6 +40,12 @@ percentage will not always change together.
 > Use four matching, healthy cells of the required size and chemistry, observe
 > polarity, and follow Geekworm's handling instructions. Do not mix cell models,
 > capacities, ages, or charge states.
+>
+> **Do not charge the cells below 0 °C (32 °F).** Lithium-ion cells charged
+> below freezing plate metallic lithium onto the anode, which permanently
+> reduces capacity and can make the cell unsafe. A launch monitor that has been
+> outdoors in the cold must be brought inside, or allowed to warm up, before
+> external power is connected to the UPS.
 
 ### X1206 Input Revisions
 
