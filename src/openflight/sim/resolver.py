@@ -47,14 +47,15 @@ _DEFAULT_VLA_DEG = 18.0
 
 
 def _resolve_total_spin(shot: Shot) -> Tuple[float, str]:
-    """Measured spin if present and high-confidence, else the per-club model."""
+    """Use high-confidence spin with its provenance, else the per-club model."""
     if (
         shot.spin_rpm is not None
         and shot.spin_rpm > 0
         and shot.spin_confidence is not None
         and shot.spin_confidence >= SPIN_CONFIDENCE_HIGH
     ):
-        return float(shot.spin_rpm), "measured"
+        provenance = "estimated" if shot.spin_source == "calculated" else "measured"
+        return float(shot.spin_rpm), provenance
     return SPIN_MODEL_RPM.get(shot.club, _DEFAULT_SPIN_RPM), "estimated"
 
 
