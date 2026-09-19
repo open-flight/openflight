@@ -113,7 +113,8 @@
   gap: 4px;
 }
 
-.metric-card__estimated {
+.metric-card__estimated,
+.metric-card__experimental {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -121,16 +122,19 @@
   flex-shrink: 0;
 }
 
-.metric-card__estimated svg {
+.metric-card__estimated svg,
+.metric-card__experimental svg {
   width: 16px;
   height: 16px;
   stroke: currentColor;
   stroke-width: 1.7;
   fill: none;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.metric-card__estimated-label {
+.metric-card__estimated-label,
+.metric-card__experimental-label {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -177,6 +181,9 @@
   letter-spacing: 0.08em;
   color: var(--color-text-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .metric-card__confidence {
@@ -201,18 +208,6 @@
   background: var(--color-accent);
 }
 
-.metric-card__confidence--experimental {
-  width: fit-content;
-  margin-top: 4px;
-  padding: 2px 7px;
-  border: 1px solid var(--color-border-emphasis);
-  border-radius: var(--radius);
-}
-
-.metric-card__confidence--experimental .metric-card__confidence-label {
-  color: var(--color-accent);
-}
-
 @media (max-height: 700px) {
   .metric-card {
     padding: var(--space-xs) var(--space-sm);
@@ -234,10 +229,6 @@
   .metric-card--label-above .metric-card__label {
     margin-top: 0;
   }
-
-  .metric-card__confidence--experimental {
-    margin-top: 2px;
-  }
 }
 
 @media (max-height: 500px) {
@@ -256,10 +247,5 @@
 
   .metric-card--label-above .metric-card__label {
     margin-top: 0;
-  }
-
-  .metric-card__confidence--experimental {
-    margin-top: 1px;
-    padding: 1px 5px;
   }
 }

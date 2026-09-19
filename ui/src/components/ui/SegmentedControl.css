@@ -1,6 +1,7 @@
 .segmented-control {
   display: flex;
   width: 100%;
+  min-width: 0;
   align-items: stretch;
   gap: 3px;
   padding: 3px;
@@ -10,10 +11,11 @@
 }
 
 .segmented-control__button {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 44px;
-  padding: var(--space-xs) var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  overflow: hidden;
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -34,6 +36,13 @@
 .segmented-control__button:focus,
 .segmented-control__button:focus-visible {
   outline: none;
+}
+
+.segmented-control__label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .segmented-control__button--active {
