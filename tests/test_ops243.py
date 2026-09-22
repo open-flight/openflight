@@ -542,6 +542,62 @@ class _ScheduledSerial:
         return chunk
 
 
+class _StaggeredDrainSerial:
+    """Serial stand-in whose active dump pauses longer than the old quiet gap."""
+
+    is_open = True
+
+    def __init__(self, chunks):
+        self.timeout = 1.0
+        self._chunks = iter(sorted(chunks, key=lambda item: item[0]))
+        self._next_time, self._next_chunk = next(self._chunks)
+        self._started = time.monotonic()
+        self.read_bytes = bytearray()
+
+    def read(self, _size):
+        remaining = self._next_time - (time.monotonic() - self._started)
+        if remaining > 0:
+            time.sleep(min(remaining, self.timeout))
+        if time.monotonic() - self._started < self._next_time:
+            return b""
+        chunk = self._next_chunk
+        self.read_bytes.extend(chunk)
+        try:
+            self._next_time, self._next_chunk = next(self._chunks)
+        except StopIteration:
+            self._next_time, self._next_chunk = float("inf"), b""
+        return chunk
+
+    def reset_input_buffer(self):
+        pass
+
+
+class TestSerialDrain:
+    """Startup must wait through a short USB pause inside an active dump."""
+
+    def test_drain_waits_for_late_dump_tail(self):
+        radar = OPS243Radar.__new__(OPS243Radar)
+        radar.port = "/dev/ttyACM0"
+        radar.baud = OPS243Radar.DEFAULT_BAUD
+        radar.serial = _StaggeredDrainSerial([(0.0, b"head"), (0.6, b"tail")])
+
+        radar._drain_serial(max_wait=2.0)
+
+        assert bytes(radar.serial.read_bytes) == b"headtail"
+
+    def test_drain_rejects_a_stream_that_misses_the_deadline(self):
+        radar = OPS243Radar.__new__(OPS243Radar)
+        radar.port = "/dev/ttyACM0"
+        radar.baud = OPS243Radar.DEFAULT_BAUD
+        radar.serial = _StaggeredDrainSerial([(0.0, b"head"), (1.2, b"tail")])
+        original_timeout = radar.serial.timeout
+
+        with pytest.raises(ConnectionError, match=r"did not quiesce.*4 bytes drained"):
+            radar._drain_serial(max_wait=1.0)
+
+        assert radar.serial.timeout == original_timeout
+
+
 class TestWaitForHardwareTrigger:
     """Tests for the hardware-trigger read loop (sound trigger path)."""
 
@@ -700,6 +756,32 @@ class _InternalTriggerSerial:
         pass
 
 
+class _RestoreRaceSerial(_InternalTriggerSerial):
+    """Model a rolling-buffer dump starting while settings are restored."""
+
+    def __init__(self, trigger_threshold=25.0):
+        super().__init__()
+        self.trigger_threshold = trigger_threshold
+        self.active_threshold = None
+        self.gc_started = False
+        self.dump_started = False
+        self.thresholds = []
+
+    def write(self, data):
+        text = data.decode("ascii")
+        if text.startswith("ST"):
+            self.active_threshold = abs(float(text[2:].rstrip("\r")))
+            self.thresholds.append(self.active_threshold)
+        if (
+            self.gc_started
+            and not text.startswith("ST")
+            and self.active_threshold <= self.trigger_threshold
+        ):
+            self.dump_started = True
+            raise serial.SerialTimeoutException("radar entered rolling-buffer dump")
+        return super().write(data)
+
+
 class TestInternalSpeedTrigger:
     """Focused tests for the OPS243 board-managed speed trigger."""
 
@@ -748,8 +830,34 @@ class TestInternalSpeedTrigger:
             "W0",
             "S#6",
         ]
-        assert radar.serial.writes == [b"ST-25\r", b"ST-25\r", b"SM40\r"]
+        assert radar.serial.writes == [
+            b"ST-90\r",
+            b"ST-90\r",
+            b"ST-200\r",
+            b"SM40\r",
+            b"ST-25\r",
+        ]
         assert not {"GS", "PA", "S#0"} & set(commands)
+
+    def test_configuration_blocks_trigger_while_restoring_settings(self, monkeypatch):
+        """A stale armed board must not dump while GC settings are restored."""
+        radar = self._radar(_RestoreRaceSerial())
+        commands = []
+        monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+        def send_command(command):
+            if command == "GC":
+                radar.serial.gc_started = True
+            commands.append(command)
+            return '{"Version":"1.3.2"}' if command == "?V" else ""
+
+        monkeypatch.setattr(radar, "_send_command", send_command)
+
+        radar.configure_for_internal_speed_trigger(trigger_threshold_mph=25)
+
+        assert radar.serial.dump_started is False
+        assert radar.serial.thresholds[-1] == 25
+        assert all(value > 25 for value in radar.serial.thresholds[:-1])
 
     @pytest.mark.parametrize(
         ("kwargs", "message"),
@@ -801,7 +909,14 @@ class TestInternalSpeedTrigger:
         )
 
         assert radar.rearm_internal_speed_trigger() is True
-        assert radar.serial.writes == [b"GC", b"ST-25\r", b"SM40\r"]
+        assert radar.serial.writes == [
+            b"ST-90\r",
+            b"GC",
+            b"ST-90\r",
+            b"ST-200\r",
+            b"SM40\r",
+            b"ST-25\r",
+        ]
         assert commands == [
             "S=30",
             "US",

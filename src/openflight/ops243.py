@@ -167,6 +167,11 @@ class OPS243Radar:
     REQUIRED_INTERNAL_TRIGGER_FIRMWARE = ".".join(
         str(part) for part in INTERNAL_TRIGGER_FIRMWARE_MINIMUM
     )
+    # GC can restore the detector units to m/s before US is sent. 90 is below
+    # the 30 ksps ceiling of 93.2 m/s, and is still above ordinary startup
+    # motion if the board retained mph units.
+    INTERNAL_TRIGGER_GUARD_THRESHOLD = 90.0
+    INTERNAL_TRIGGER_MPH_GUARD_THRESHOLD = 200.0
 
     # Target rate on the J3 UART. At 230,400 a dump moves in ~1.8s; the
     # 19,200 factory default would take 21s and miss every shot.
@@ -180,6 +185,12 @@ class OPS243Radar:
     # Measured size of one rolling-buffer dump: 40,556 bytes of JSON for
     # 4096 I + 4096 Q samples, plus margin for whitespace and timing lines.
     DUMP_BYTES = 45000
+
+    # USB CDC can pause for more than one half-second while a rolling-buffer
+    # dump is still in flight. Wait through that gap, but cap startup drain so
+    # a continuously streaming or wedged board cannot hang connection.
+    SERIAL_DRAIN_QUIET_S = 1.0
+    SERIAL_DRAIN_TIMEOUT_S = 8.0
 
     # Bound every serial write. A radar that is mid-dump (e.g. HOST_INT
     # re-asserted by the ball hitting the net) stops servicing commands;
@@ -458,7 +469,11 @@ class OPS243Radar:
             self.serial.close()
             self.serial = None
 
-    def _drain_serial(self, quiet_period: float = 0.5, max_wait: Optional[float] = None):
+    def _drain_serial(
+        self,
+        quiet_period: float = SERIAL_DRAIN_QUIET_S,
+        max_wait: Optional[float] = None,
+    ):
         """
         Drain serial port until no data arrives for quiet_period seconds.
 
@@ -469,23 +484,41 @@ class OPS243Radar:
         Args:
             quiet_period: Seconds of silence before considering drain complete
             max_wait: Maximum total seconds to wait before giving up. None
-                derives it from baud (floor 5s) so a slow UART link gets
+                derives it from baud (with an 8s floor) so a slow UART link gets
                 long enough to finish a straggling dump.
         """
         if max_wait is None:
-            max_wait = self.transfer_budget_s(floor=5.0)
-        start = time.monotonic()
+            max_wait = self.transfer_budget_s(floor=self.SERIAL_DRAIN_TIMEOUT_S)
+        deadline = time.monotonic() + max_wait
         drained = 0
         old_timeout = self.serial.timeout
-        self.serial.timeout = quiet_period
+        deadline_exceeded = False
 
-        while time.monotonic() - start < max_wait:
-            chunk = self.serial.read(4096)
-            if not chunk:
-                break  # No data for quiet_period — drain complete
-            drained += len(chunk)
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    deadline_exceeded = True
+                    break
 
-        self.serial.timeout = old_timeout
+                self.serial.timeout = min(quiet_period, remaining)
+                chunk = self.serial.read(4096)
+                if not chunk:
+                    # No data for quiet_period means the dump ended. If the
+                    # read itself consumed the remaining budget, it did not.
+                    deadline_exceeded = time.monotonic() >= deadline
+                    break
+                drained += len(chunk)
+        finally:
+            self.serial.timeout = old_timeout
+
+        if deadline_exceeded:
+            raise ConnectionError(
+                "OPS243 serial stream did not quiesce within "
+                f"{max_wait:.1f}s ({drained} bytes drained); "
+                "the radar may still be finishing a rolling-buffer dump"
+            )
+
         self.serial.reset_input_buffer()
 
         if drained > 0:
@@ -1750,6 +1783,12 @@ class OPS243Radar:
         """Format the outbound (negative radar velocity) ``ST`` threshold."""
         return f"-{abs(float(threshold_mph)):g}"
 
+    def _send_internal_trigger_threshold(self, threshold_mph: float):
+        """Set an internal trigger threshold as one complete serial command."""
+        signed_threshold = self._format_internal_trigger_threshold(threshold_mph)
+        self.serial.write(f"ST{signed_threshold}\r".encode("ascii"))
+        self.serial.flush()
+
     def configure_for_internal_speed_trigger(
         self,
         trigger_threshold_mph: float = 25.0,
@@ -1782,16 +1821,19 @@ class OPS243Radar:
 
         pre_trigger_segments = max(0, min(32, pre_trigger_segments))
         signed_threshold = self._format_internal_trigger_threshold(threshold)
+        guard_threshold = self.INTERNAL_TRIGGER_GUARD_THRESHOLD
         self._speed_read_buffer = ""
         self.serial.reset_input_buffer()
         self._hardware_trigger_recovery_required = False
 
-        # OPS243 internal-trigger order: idle, arm the threshold, enter GC.
+        # Keep the board from starting a dump while GC and the detector
+        # settings are being restored. GC resets the trigger settings, so the
+        # guard is sent on both sides of the mode transition.
         self._send_command("PI")
-        self.serial.write(f"ST{signed_threshold}\r".encode("ascii"))
-        self.serial.flush()
+        self._send_internal_trigger_threshold(guard_threshold)
         time.sleep(0.1)
         self._send_command("GC")
+        self._send_internal_trigger_threshold(guard_threshold)
 
         self._internal_speed_trigger_config = (
             threshold,
@@ -1825,6 +1867,9 @@ class OPS243Radar:
 
         self.set_sample_rate(sample_rate_ksps * 1000)
         self.set_units(SpeedUnit.MPH)
+        # The first guard is valid in either unit system. Once MPH is explicit,
+        # raise it near the 30 ksps ceiling while the remaining writes run.
+        self._send_internal_trigger_threshold(self.INTERNAL_TRIGGER_MPH_GUARD_THRESHOLD)
         self.set_transmit_power(0)
         self.set_buffer_size(128)
         self.set_fft_size(2)
@@ -1835,10 +1880,11 @@ class OPS243Radar:
         self._send_command("W0")
         self._send_command(f"S#{pre_trigger_segments}")
 
+        # Keep the threshold guarded until every other setting is restored.
         # ST/SM require a terminating carriage return and are deliberately
         # sent after MPH is restored so the threshold is interpreted in mph.
-        self.serial.write(f"ST{signed_threshold}\r".encode("ascii"))
         self.serial.write(f"SM{trigger_magnitude}\r".encode("ascii"))
+        self.serial.write(f"ST{signed_threshold}\r".encode("ascii"))
         self.serial.flush()
         time.sleep(0.1)
 
@@ -1860,9 +1906,11 @@ class OPS243Radar:
         try:
             self._drain_rearm_serial()
             self.serial.reset_input_buffer()
+            self._send_internal_trigger_threshold(self.INTERNAL_TRIGGER_GUARD_THRESHOLD)
             self.serial.write(b"GC")
             self.serial.flush()
             time.sleep(0.15)
+            self._send_internal_trigger_threshold(self.INTERNAL_TRIGGER_GUARD_THRESHOLD)
             self._restore_internal_speed_trigger_settings()
             self.serial.reset_input_buffer()
         except serial.SerialTimeoutException as error:
