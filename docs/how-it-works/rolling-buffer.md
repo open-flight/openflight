@@ -27,6 +27,13 @@ The runtime then starts in the persisted `GC` rolling-buffer mode without
 re-entering it. See [Sound trigger wiring](../build/sound-trigger.md) for the
 recommended direct hardware trigger.
 
+The OPS243 internal speed trigger is available as a separate, opt-in capture
+strategy. It requires OPS243-A firmware v1.3.2 or newer in the 1.3 release
+train, uses the tested 30 ksps configuration, and defaults to `S#6`; see
+the [Internal Hardware Trigger guide](../hardware-trigger.md) for its command
+ordering, re-arm behavior, and Raspberry Pi validation checklist. The sound
+path and its defaults remain unchanged.
+
 ## Current defaults
 
 | Setting | Value |
@@ -70,4 +77,5 @@ in the session JSONL logs described in the
 
 - [Raspberry Pi Setup](../setup/raspberry-pi.md)
 - [Sound Trigger Wiring](../build/sound-trigger.md)
+- [OPS243 Internal Hardware Trigger](../hardware-trigger.md)
 - [Spin Replay and Diagnostics](../development/spin-replay.md)

@@ -5,6 +5,7 @@ Defines different methods for determining when to capture the rolling buffer.
 """
 
 import logging
+import math
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -684,12 +685,124 @@ class SoundTrigger(TriggerStrategy):
         pass  # No state to reset
 
 
+class HardwareTriggeredCapture(TriggerStrategy):
+    """Capture using the OPS243's internal speed trigger."""
+
+    def __init__(
+        self,
+        trigger_threshold_mph: float = 25.0,
+        min_ball_speed_mph: float = 35.0,
+        pre_trigger_segments: int = 6,
+        trigger_magnitude: int = 25,
+        sample_rate_ksps: int = 30,
+    ):
+        super().__init__(pre_trigger_segments=pre_trigger_segments)
+
+        threshold = float(trigger_threshold_mph)
+        if not math.isfinite(threshold) or threshold < 0:
+            raise ValueError("Trigger threshold must be non-negative")
+        if not isinstance(pre_trigger_segments, int) or not 0 <= pre_trigger_segments <= 32:
+            raise ValueError("Pre-trigger segments must be an integer from 0 to 32")
+        if not isinstance(trigger_magnitude, int) or not 1 <= trigger_magnitude <= 2000:
+            raise ValueError("Trigger magnitude must be between 1 and 2000")
+        if sample_rate_ksps != 30:
+            raise ValueError("Internal speed trigger requires a 30 ksps sample rate")
+
+        self.trigger_threshold_mph = threshold
+        self.min_ball_speed_mph = float(min_ball_speed_mph)
+        self.trigger_magnitude = trigger_magnitude
+        self.sample_rate_ksps = sample_rate_ksps
+
+    def wait_for_trigger(
+        self,
+        radar: "OPS243Radar",
+        processor: RollingBufferProcessor,
+        timeout: float = 30.0,
+    ) -> Optional[IQCapture]:
+        """Wait for one internal-trigger dump and return a valid capture."""
+        logger.info(
+            "[TRIGGER] Waiting for OPS hardware trigger >= %.1f mph (timeout=%.0fs)...",
+            self.trigger_threshold_mph,
+            timeout,
+        )
+
+        response = radar.wait_for_hardware_trigger(timeout=timeout)
+        if not response:
+            logger.info("[TRIGGER] OPS hardware trigger timeout — no dump received")
+            return None
+
+        response_bytes = len(response)
+        first_byte_timestamp = getattr(
+            radar,
+            "last_hardware_trigger_first_byte_timestamp",
+            None,
+        )
+        capture = None
+        parse_error = None
+        started_at = time.time()
+        try:
+            capture = processor.parse_capture(
+                response,
+                first_byte_timestamp=first_byte_timestamp,
+            )
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            parse_error = error
+            logger.warning("[TRIGGER] Hardware capture parse failed: %s", error, exc_info=True)
+        finally:
+            try:
+                rearmed = radar.rearm_internal_speed_trigger(self.sample_rate_ksps)
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                rearmed = False
+                logger.warning("[TRIGGER] Internal trigger re-arm failed: %s", error, exc_info=True)
+
+        trigger_latency_ms = (time.time() - started_at) * 1000.0
+        if not rearmed:
+            logger.warning("[TRIGGER] Hardware capture retained while radar re-arm is pending")
+
+        if capture is None or parse_error is not None:
+            self._append_diagnostic(
+                accepted=False,
+                reason="parse_failed",
+                response_bytes=response_bytes,
+                trigger_latency_ms=trigger_latency_ms,
+            )
+            return None
+
+        summary = self._summarize_capture_activity(processor, capture)
+        valid_outbound = [
+            speed for speed in summary["all_outbound_speeds"] if speed >= self.min_ball_speed_mph
+        ]
+        if not valid_outbound:
+            self._append_activity_diagnostic(
+                summary,
+                accepted=False,
+                reason="no_ball_speed",
+                response_bytes=response_bytes,
+                trigger_latency_ms=trigger_latency_ms,
+            )
+            logger.info(
+                "[TRIGGER] OPS hardware capture rejected — no outbound speed >= %.1f mph",
+                self.min_ball_speed_mph,
+            )
+            return None
+
+        logger.info(
+            "[TRIGGER] OPS hardware capture accepted — peak %.1f mph",
+            max(valid_outbound),
+        )
+        return capture
+
+    def reset(self):
+        """Reset trigger state; the radar owns the armed state."""
+        pass
+
+
 def create_trigger(trigger_type: str = "sound", **kwargs) -> TriggerStrategy:
     """
     Factory function to create trigger strategy.
 
     Args:
-        trigger_type: "sound" (production) or "speed" (fallback)
+        trigger_type: "sound" (production), "hardware", or "speed" (fallback)
         **kwargs: Arguments passed to trigger constructor
 
     Returns:
@@ -700,8 +813,10 @@ def create_trigger(trigger_type: str = "sound", **kwargs) -> TriggerStrategy:
                    Requires GATE voltage to reach 3.3V threshold.
         - "speed": Fast speed detection triggers rolling buffer capture.
                    Recommended fallback by OmniPreSense. ~5-6ms response time.
+        - "hardware": OPS243 internal speed trigger with rolling-buffer capture.
     """
     triggers = {
+        "hardware": HardwareTriggeredCapture,
         "speed": SpeedTriggeredCapture,
         "sound": SoundTrigger,
     }

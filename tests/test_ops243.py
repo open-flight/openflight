@@ -5,6 +5,7 @@ import threading
 import time
 
 import pytest
+import serial
 
 from openflight.ops243 import Direction, OPS243Radar, SpeedReading
 
@@ -541,6 +542,62 @@ class _ScheduledSerial:
         return chunk
 
 
+class _StaggeredDrainSerial:
+    """Serial stand-in whose active dump pauses longer than the old quiet gap."""
+
+    is_open = True
+
+    def __init__(self, chunks):
+        self.timeout = 1.0
+        self._chunks = iter(sorted(chunks, key=lambda item: item[0]))
+        self._next_time, self._next_chunk = next(self._chunks)
+        self._started = time.monotonic()
+        self.read_bytes = bytearray()
+
+    def read(self, _size):
+        remaining = self._next_time - (time.monotonic() - self._started)
+        if remaining > 0:
+            time.sleep(min(remaining, self.timeout))
+        if time.monotonic() - self._started < self._next_time:
+            return b""
+        chunk = self._next_chunk
+        self.read_bytes.extend(chunk)
+        try:
+            self._next_time, self._next_chunk = next(self._chunks)
+        except StopIteration:
+            self._next_time, self._next_chunk = float("inf"), b""
+        return chunk
+
+    def reset_input_buffer(self):
+        pass
+
+
+class TestSerialDrain:
+    """Startup must wait through a short USB pause inside an active dump."""
+
+    def test_drain_waits_for_late_dump_tail(self):
+        radar = OPS243Radar.__new__(OPS243Radar)
+        radar.port = "/dev/ttyACM0"
+        radar.baud = OPS243Radar.DEFAULT_BAUD
+        radar.serial = _StaggeredDrainSerial([(0.0, b"head"), (0.6, b"tail")])
+
+        radar._drain_serial(max_wait=2.0)
+
+        assert bytes(radar.serial.read_bytes) == b"headtail"
+
+    def test_drain_rejects_a_stream_that_misses_the_deadline(self):
+        radar = OPS243Radar.__new__(OPS243Radar)
+        radar.port = "/dev/ttyACM0"
+        radar.baud = OPS243Radar.DEFAULT_BAUD
+        radar.serial = _StaggeredDrainSerial([(0.0, b"head"), (1.2, b"tail")])
+        original_timeout = radar.serial.timeout
+
+        with pytest.raises(ConnectionError, match=r"did not quiesce.*4 bytes drained"):
+            radar._drain_serial(max_wait=1.0)
+
+        assert radar.serial.timeout == original_timeout
+
+
 class TestWaitForHardwareTrigger:
     """Tests for the hardware-trigger read loop (sound trigger path)."""
 
@@ -671,3 +728,234 @@ class TestWaitForHardwareTrigger:
 
         assert response == b"".join(self._DUMP).decode("ascii")
         assert events == ["first-byte"]
+
+
+class _InternalTriggerSerial:
+    """Minimal serial stand-in for internal-trigger command tests."""
+
+    is_open = True
+
+    def __init__(self, fail_write=False):
+        self.writes = []
+        self.fail_write = fail_write
+
+    @property
+    def in_waiting(self):
+        return 0
+
+    def reset_input_buffer(self):
+        pass
+
+    def write(self, data):
+        if self.fail_write:
+            raise serial.SerialTimeoutException("radar busy")
+        self.writes.append(data)
+        return len(data)
+
+    def flush(self):
+        pass
+
+
+class _RestoreRaceSerial(_InternalTriggerSerial):
+    """Model a rolling-buffer dump starting while settings are restored."""
+
+    def __init__(self, trigger_threshold=25.0):
+        super().__init__()
+        self.trigger_threshold = trigger_threshold
+        self.active_threshold = None
+        self.gc_started = False
+        self.dump_started = False
+        self.thresholds = []
+
+    def write(self, data):
+        text = data.decode("ascii")
+        if text.startswith("ST"):
+            self.active_threshold = abs(float(text[2:].rstrip("\r")))
+            self.thresholds.append(self.active_threshold)
+        if (
+            self.gc_started
+            and not text.startswith("ST")
+            and self.active_threshold <= self.trigger_threshold
+        ):
+            self.dump_started = True
+            raise serial.SerialTimeoutException("radar entered rolling-buffer dump")
+        return super().write(data)
+
+
+class TestInternalSpeedTrigger:
+    """Focused tests for the OPS243 board-managed speed trigger."""
+
+    @staticmethod
+    def _radar(serial_obj):
+        radar = OPS243Radar.__new__(OPS243Radar)
+        radar.serial = serial_obj
+        return radar
+
+    def test_configuration_uses_gc_trigger_order_and_six_pre_segments(self, monkeypatch):
+        """Internal trigger setup must restore GC-reset settings in order."""
+        radar = self._radar(_InternalTriggerSerial())
+        commands = []
+        monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+        def send_command(command):
+            commands.append(command)
+            return '{"Version":"1.3.2"}' if command == "?V" else ""
+
+        monkeypatch.setattr(
+            radar,
+            "_send_command",
+            send_command,
+        )
+
+        radar.configure_for_internal_speed_trigger(
+            trigger_threshold_mph=25,
+            pre_trigger_segments=6,
+            trigger_magnitude=40,
+            sample_rate_ksps=30,
+        )
+
+        assert commands == [
+            "?V",
+            "PI",
+            "GC",
+            "S=30",
+            "US",
+            "P0",
+            "S(",
+            "X=2",
+            "R-",
+            "R>25",
+            "OJ",
+            "OM",
+            "W0",
+            "S#6",
+        ]
+        assert radar.serial.writes == [
+            b"ST-90\r",
+            b"ST-90\r",
+            b"ST-200\r",
+            b"SM40\r",
+            b"ST-25\r",
+        ]
+        assert not {"GS", "PA", "S#0"} & set(commands)
+
+    def test_configuration_blocks_trigger_while_restoring_settings(self, monkeypatch):
+        """A stale armed board must not dump while GC settings are restored."""
+        radar = self._radar(_RestoreRaceSerial())
+        commands = []
+        monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+        def send_command(command):
+            if command == "GC":
+                radar.serial.gc_started = True
+            commands.append(command)
+            return '{"Version":"1.3.2"}' if command == "?V" else ""
+
+        monkeypatch.setattr(radar, "_send_command", send_command)
+
+        radar.configure_for_internal_speed_trigger(trigger_threshold_mph=25)
+
+        assert radar.serial.dump_started is False
+        assert radar.serial.thresholds[-1] == 25
+        assert all(value > 25 for value in radar.serial.thresholds[:-1])
+
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"trigger_threshold_mph": -1}, "non-negative"),
+            ({"trigger_magnitude": 0}, "between 1 and 2000"),
+            ({"trigger_magnitude": 2001}, "between 1 and 2000"),
+            ({"sample_rate_ksps": 25}, "30 ksps"),
+        ],
+    )
+    def test_configuration_validates_hardware_requirements(self, kwargs, message):
+        """Unsafe threshold, magnitude, and sample-rate values fail early."""
+        radar = self._radar(_InternalTriggerSerial())
+
+        with pytest.raises(ValueError, match=message):
+            radar.configure_for_internal_speed_trigger(**kwargs)
+
+    @pytest.mark.parametrize(
+        "version",
+        ["1.3.1", "1.3.0", "1.2.9", "1.4.0", "unknown", "1.3", "v1.3.2", "1.3.2-beta", None],
+    )
+    def test_configuration_rejects_unsupported_ops243_firmware(self, monkeypatch, version):
+        """Internal triggering must reject old, unknown, and other firmware trains."""
+        radar = self._radar(_InternalTriggerSerial())
+        monkeypatch.setattr(radar, "_probe_firmware_version", lambda: version)
+
+        with pytest.raises(RuntimeError, match="requires OPS243-A firmware v1.3.2"):
+            radar.configure_for_internal_speed_trigger()
+
+    @pytest.mark.parametrize("version", ["1.3.2", "1.3.3", "1.3.99"])
+    def test_configuration_accepts_compatible_ops243_firmware(self, monkeypatch, version):
+        """The current and newer patch releases in the 1.3 train are accepted."""
+        radar = self._radar(_InternalTriggerSerial())
+        monkeypatch.setattr(radar, "_probe_firmware_version", lambda: version)
+
+        assert radar.validate_internal_trigger_firmware() == version
+
+    def test_rearm_uses_gc_and_restores_cached_settings(self, monkeypatch):
+        """A completed dump is re-armed with GC without PA or S#0."""
+        radar = self._radar(_InternalTriggerSerial())
+        radar._internal_speed_trigger_config = (25.0, 6, 40, 30)
+        commands = []
+        monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+        monkeypatch.setattr(radar, "_drain_rearm_serial", lambda: None)
+        monkeypatch.setattr(
+            radar,
+            "_send_command",
+            lambda command: commands.append(command) or "",
+        )
+
+        assert radar.rearm_internal_speed_trigger() is True
+        assert radar.serial.writes == [
+            b"ST-90\r",
+            b"GC",
+            b"ST-90\r",
+            b"ST-200\r",
+            b"SM40\r",
+            b"ST-25\r",
+        ]
+        assert commands == [
+            "S=30",
+            "US",
+            "P0",
+            "S(",
+            "X=2",
+            "R-",
+            "R>25",
+            "OJ",
+            "OM",
+            "W0",
+            "S#6",
+        ]
+        assert not {"PI", "GS", "PA", "S#0"} & set(commands)
+
+    def test_rearm_recovers_from_serial_timeout_without_discarding_capture(self, monkeypatch):
+        """A busy radar reports a retryable re-arm failure instead of raising."""
+        radar = self._radar(_InternalTriggerSerial(fail_write=True))
+        radar._internal_speed_trigger_config = (25.0, 6, 40, 30)
+        monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+        monkeypatch.setattr(radar, "_drain_rearm_serial", lambda: None)
+
+        assert radar.rearm_internal_speed_trigger() is False
+        assert radar._hardware_trigger_recovery_required is True
+
+    def test_failed_rearm_discards_stale_output_before_next_dump(self):
+        """Recovery must ignore trailing UART records before the next I/Q dump."""
+        stale = b'{"speed":-12.0}\r\n'
+        radar = self._radar(
+            _ScheduledSerial(
+                [
+                    (0.0, stale),
+                    (0.05, b"".join(TestWaitForHardwareTrigger._DUMP)),
+                ]
+            )
+        )
+        radar._hardware_trigger_recovery_required = True
+
+        response = radar.wait_for_hardware_trigger(timeout=1.0)
+
+        assert response == b"".join(TestWaitForHardwareTrigger._DUMP).decode("ascii")
+        assert radar._hardware_trigger_recovery_required is False

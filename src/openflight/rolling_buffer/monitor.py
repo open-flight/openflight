@@ -225,16 +225,30 @@ class RollingBufferMonitor:
         """
         Connect to radar and configure based on trigger type.
 
-        Sound uses the persisted rolling-buffer configuration. Speed handles
-        its own mode transition when a qualifying speed is detected.
+        Sound uses the persisted rolling-buffer configuration. The opt-in
+        hardware trigger configures the OPS243 internal speed trigger. Speed
+        handles its own mode transition when a qualifying speed is detected.
 
         Returns:
             True if successful
         """
         self.radar.connect()
 
+        if self.trigger_type == "hardware":
+            self.radar.configure_for_internal_speed_trigger(
+                trigger_threshold_mph=self.trigger.trigger_threshold_mph,
+                pre_trigger_segments=self.trigger.pre_trigger_segments,
+                trigger_magnitude=self.trigger.trigger_magnitude,
+                sample_rate_ksps=self.sample_rate_ksps,
+            )
+            logger.info(
+                "[MONITOR] Internal hardware trigger configured (threshold %.1f, S#%d, SM%d)",
+                self.trigger.trigger_threshold_mph,
+                self.trigger.pre_trigger_segments,
+                self.trigger.trigger_magnitude,
+            )
         # Speed trigger handles its own configuration (starts in speed mode).
-        if self.trigger_type != "speed":
+        elif self.trigger_type != "speed":
             pre_trigger_segments = getattr(self.trigger, "pre_trigger_segments", 12)
             self.radar.prepare_persisted_rolling_buffer(
                 pre_trigger_segments=pre_trigger_segments,

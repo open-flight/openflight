@@ -63,6 +63,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a trigger-frame impact marker. MP4 conversion starts only after a manual
   Replay selection, caches the result beside the raw capture, and reports
   retryable preparation or playback failures without affecting shot results.
+- **Opt-in OPS243 internal hardware trigger.** `--trigger hardware` configures
+  the radar's internal speed trigger with 25 mph, magnitude 25, and the tested
+  `S#6` split at 30 ksps. Captures are parsed and the radar is re-armed with
+  `GC` after each dump. The existing sound-trigger default and
+  `--sound-pre-trigger` behavior are unchanged. Hardware mode requires and
+  validates OPS243-A firmware v1.3.2 or newer in the 1.3 release train;
+  firmware v1.3.1 is rejected because of a vendor data-sequence bug. See
+  [OPS243 Internal Hardware Trigger](hardware-trigger.md).
 - **Battery and external-power status for Raspberry Pi UPS boards.** OpenFlight
   can now display charging state and battery percentage, issue dismissible 20%
   and 10% warnings while discharging, and record throttled power telemetry in

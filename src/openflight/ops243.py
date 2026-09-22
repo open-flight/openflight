@@ -35,6 +35,7 @@ Speed limits by sample rate:
 
 import json
 import logging
+import math
 import re
 import threading
 import time
@@ -91,6 +92,7 @@ def set_show_raw_readings(enabled: bool):
 
 
 _CLOCK_RE = re.compile(r'"?Clock"?\s*:\s*"?(-?\d+(?:\.\d+)?)"?')
+_OPS243_FIRMWARE_RE = re.compile(r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)")
 
 
 def _parse_ops_clock(response: str) -> Optional[float]:
@@ -161,6 +163,15 @@ class OPS243Radar:
     # Default serial settings per datasheet
     DEFAULT_BAUD = 57600
     DEFAULT_TIMEOUT = 1.0
+    INTERNAL_TRIGGER_FIRMWARE_MINIMUM = (1, 3, 2)
+    REQUIRED_INTERNAL_TRIGGER_FIRMWARE = ".".join(
+        str(part) for part in INTERNAL_TRIGGER_FIRMWARE_MINIMUM
+    )
+    # GC can restore the detector units to m/s before US is sent. 90 is below
+    # the 30 ksps ceiling of 93.2 m/s, and is still above ordinary startup
+    # motion if the board retained mph units.
+    INTERNAL_TRIGGER_GUARD_THRESHOLD = 90.0
+    INTERNAL_TRIGGER_MPH_GUARD_THRESHOLD = 200.0
 
     # Target rate on the J3 UART. At 230,400 a dump moves in ~1.8s; the
     # 19,200 factory default would take 21s and miss every shot.
@@ -174,6 +185,12 @@ class OPS243Radar:
     # Measured size of one rolling-buffer dump: 40,556 bytes of JSON for
     # 4096 I + 4096 Q samples, plus margin for whitespace and timing lines.
     DUMP_BYTES = 45000
+
+    # USB CDC can pause for more than one half-second while a rolling-buffer
+    # dump is still in flight. Wait through that gap, but cap startup drain so
+    # a continuously streaming or wedged board cannot hang connection.
+    SERIAL_DRAIN_QUIET_S = 1.0
+    SERIAL_DRAIN_TIMEOUT_S = 8.0
 
     # Bound every serial write. A radar that is mid-dump (e.g. HOST_INT
     # re-asserted by the ball hitting the net) stops servicing commands;
@@ -222,6 +239,8 @@ class OPS243Radar:
         self._json_mode = False
         self._magnitude_enabled = False
         self._speed_read_buffer = ""
+        self._internal_speed_trigger_config = None
+        self._hardware_trigger_recovery_required = False
         self.last_hardware_trigger_first_byte_timestamp: Optional[float] = None
         # Most recent OPS-clock -> host-epoch sync (see read_clock_sync).
         self.last_clock_sync: Optional[dict] = None
@@ -450,7 +469,11 @@ class OPS243Radar:
             self.serial.close()
             self.serial = None
 
-    def _drain_serial(self, quiet_period: float = 0.5, max_wait: Optional[float] = None):
+    def _drain_serial(
+        self,
+        quiet_period: float = SERIAL_DRAIN_QUIET_S,
+        max_wait: Optional[float] = None,
+    ):
         """
         Drain serial port until no data arrives for quiet_period seconds.
 
@@ -461,23 +484,41 @@ class OPS243Radar:
         Args:
             quiet_period: Seconds of silence before considering drain complete
             max_wait: Maximum total seconds to wait before giving up. None
-                derives it from baud (floor 5s) so a slow UART link gets
+                derives it from baud (with an 8s floor) so a slow UART link gets
                 long enough to finish a straggling dump.
         """
         if max_wait is None:
-            max_wait = self.transfer_budget_s(floor=5.0)
-        start = time.monotonic()
+            max_wait = self.transfer_budget_s(floor=self.SERIAL_DRAIN_TIMEOUT_S)
+        deadline = time.monotonic() + max_wait
         drained = 0
         old_timeout = self.serial.timeout
-        self.serial.timeout = quiet_period
+        deadline_exceeded = False
 
-        while time.monotonic() - start < max_wait:
-            chunk = self.serial.read(4096)
-            if not chunk:
-                break  # No data for quiet_period — drain complete
-            drained += len(chunk)
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    deadline_exceeded = True
+                    break
 
-        self.serial.timeout = old_timeout
+                self.serial.timeout = min(quiet_period, remaining)
+                chunk = self.serial.read(4096)
+                if not chunk:
+                    # No data for quiet_period means the dump ended. If the
+                    # read itself consumed the remaining budget, it did not.
+                    deadline_exceeded = time.monotonic() >= deadline
+                    break
+                drained += len(chunk)
+        finally:
+            self.serial.timeout = old_timeout
+
+        if deadline_exceeded:
+            raise ConnectionError(
+                "OPS243 serial stream did not quiesce within "
+                f"{max_wait:.1f}s ({drained} bytes drained); "
+                "the radar may still be finishing a rolling-buffer dump"
+            )
+
         self.serial.reset_input_buffer()
 
         if drained > 0:
@@ -780,6 +821,24 @@ class OPS243Radar:
             return data.get("Version", "unknown")
         except json.JSONDecodeError:
             return response
+
+    def validate_internal_trigger_firmware(self) -> str:
+        """Require a compatible OPS243-A firmware release for internal triggering."""
+        version = self._probe_firmware_version()
+        required = self.REQUIRED_INTERNAL_TRIGGER_FIRMWARE
+        match = _OPS243_FIRMWARE_RE.fullmatch(version or "")
+        parsed = (
+            tuple(int(match.group(part)) for part in ("major", "minor", "patch")) if match else None
+        )
+        minimum = self.INTERNAL_TRIGGER_FIRMWARE_MINIMUM
+        if parsed is None or parsed[:2] != minimum[:2] or parsed < minimum:
+            detected = f"v{version}" if version else "no response"
+            raise RuntimeError(
+                f"Internal hardware trigger requires OPS243-A firmware v{required} "
+                "or newer in the 1.3 release train; "
+                f"detected {detected}. Update the OPS243 before using --trigger hardware."
+            )
+        return version
 
     def set_units(self, unit: SpeedUnit):
         """
@@ -1512,13 +1571,19 @@ class OPS243Radar:
         last_data_time = None
         bytes_received = 0
         self.last_hardware_trigger_first_byte_timestamp = None
+        recovery_required = bool(getattr(self, "_hardware_trigger_recovery_required", False))
+        capture_started = False
+        if recovery_required:
+            logger.info(
+                "[OPS] Re-arm recovery: discarding trailing output until a fresh capture starts"
+            )
 
         while time.time() < deadline:
             waiting = self.serial.in_waiting
             if waiting:
                 chunk = self.serial.read(waiting)
                 first_byte_timestamp = None
-                if last_data_time is None:
+                if not capture_started:
                     idle_bytes.extend(chunk)
                     marker_offsets = [idle_bytes.find(marker) for marker in capture_markers]
                     marker_offsets = [offset for offset in marker_offsets if offset >= 0]
@@ -1533,6 +1598,10 @@ class OPS243Radar:
                     capture_start = min(marker_offsets)
                     chunk = bytes(idle_bytes[capture_start:])
                     idle_bytes.clear()
+                    capture_started = True
+                    if recovery_required:
+                        self._hardware_trigger_recovery_required = False
+                        logger.info("[OPS] Re-arm recovery: fresh capture boundary found")
                     first_byte_timestamp = time.time()
 
                 response_lines.append(chunk.decode("ascii", errors="ignore"))
@@ -1578,7 +1647,7 @@ class OPS243Radar:
                         break
                 time.sleep(0.02)
 
-        full_response = "".join(response_lines) if response_lines else ""
+        full_response = "".join(response_lines) if capture_started else ""
 
         if not full_response:
             logger.info("[OPS] Hardware trigger: no data received within %.0fs", timeout)
@@ -1679,6 +1748,183 @@ class OPS243Radar:
 
         self.serial.reset_input_buffer()
         logger.info("[OPS] Rolling buffer re-armed (S#%d)", pre_trigger_segments)
+
+    def _drain_rearm_serial(self, quiet_period: float = 0.2):
+        """Drain any tail bytes before changing the board mode.
+
+        The internal trigger returns a complete I/Q dump without an ``S!``
+        command.  A few firmware versions can still have a short tail in the
+        UART buffer when the Q array is complete, so GC must wait for a quiet
+        gap before it is sent.  The wait is bounded by the same dump budget
+        used by the ordinary re-arm path.
+        """
+        if not self.serial or not self.serial.is_open:
+            raise ConnectionError("Not connected to radar")
+
+        budget = self.transfer_budget_s(floor=self.REARM_DRAIN_TIMEOUT_S)
+        started = time.monotonic()
+        last_data = started
+        drained = 0
+
+        while time.monotonic() - started < budget:
+            waiting = self.serial.in_waiting
+            if waiting:
+                drained += len(self.serial.read(waiting))
+                last_data = time.monotonic()
+            elif time.monotonic() - last_data >= quiet_period:
+                break
+            time.sleep(0.02)
+
+        if drained:
+            logger.info("[OPS] Internal-trigger re-arm drained %d trailing bytes", drained)
+
+    @staticmethod
+    def _format_internal_trigger_threshold(threshold_mph: float) -> str:
+        """Format the outbound (negative radar velocity) ``ST`` threshold."""
+        return f"-{abs(float(threshold_mph)):g}"
+
+    def _send_internal_trigger_threshold(self, threshold_mph: float):
+        """Set an internal trigger threshold as one complete serial command."""
+        signed_threshold = self._format_internal_trigger_threshold(threshold_mph)
+        self.serial.write(f"ST{signed_threshold}\r".encode("ascii"))
+        self.serial.flush()
+
+    def configure_for_internal_speed_trigger(
+        self,
+        trigger_threshold_mph: float = 25.0,
+        pre_trigger_segments: int = 6,
+        trigger_magnitude: int = 25,
+        sample_rate_ksps: int = 30,
+    ):
+        """Configure the OPS243's internal speed-triggered rolling buffer.
+
+        The board owns the trigger edge in this mode.  ``ST`` arms the
+        internal speed threshold, ``GC`` enters rolling-buffer mode, and the
+        detector settings are restored after GC because the firmware resets
+        them when changing modes.  This path intentionally does not enable
+        the optional SZ board-processing stream.
+        """
+        if not self.serial or not self.serial.is_open:
+            raise ConnectionError("Not connected to radar")
+
+        threshold = float(trigger_threshold_mph)
+        if not math.isfinite(threshold) or threshold < 0:
+            raise ValueError("Trigger threshold must be non-negative")
+        if not isinstance(pre_trigger_segments, int):
+            raise ValueError("Pre-trigger segments must be an integer")
+        if not isinstance(trigger_magnitude, int) or not 1 <= trigger_magnitude <= 2000:
+            raise ValueError("Trigger magnitude must be between 1 and 2000")
+        if sample_rate_ksps != 30:
+            raise ValueError("Internal speed trigger requires a 30 ksps sample rate")
+
+        self.validate_internal_trigger_firmware()
+
+        pre_trigger_segments = max(0, min(32, pre_trigger_segments))
+        signed_threshold = self._format_internal_trigger_threshold(threshold)
+        guard_threshold = self.INTERNAL_TRIGGER_GUARD_THRESHOLD
+        self._speed_read_buffer = ""
+        self.serial.reset_input_buffer()
+        self._hardware_trigger_recovery_required = False
+
+        # Keep the board from starting a dump while GC and the detector
+        # settings are being restored. GC resets the trigger settings, so the
+        # guard is sent on both sides of the mode transition.
+        self._send_command("PI")
+        self._send_internal_trigger_threshold(guard_threshold)
+        time.sleep(0.1)
+        self._send_command("GC")
+        self._send_internal_trigger_threshold(guard_threshold)
+
+        self._internal_speed_trigger_config = (
+            threshold,
+            pre_trigger_segments,
+            trigger_magnitude,
+            sample_rate_ksps,
+        )
+        self._restore_internal_speed_trigger_settings()
+        self.serial.reset_input_buffer()
+
+        # A 4,096-sample buffer takes about 136.5 ms at 30 ksps.
+        time.sleep(0.3)
+        logger.info(
+            "[OPS] Internal speed trigger armed (ST%s, S#%d, S=%d, SM%d)",
+            signed_threshold,
+            pre_trigger_segments,
+            sample_rate_ksps,
+            trigger_magnitude,
+        )
+
+    def _restore_internal_speed_trigger_settings(self):
+        """Restore detector settings cleared by the last GC command."""
+        if self._internal_speed_trigger_config is None:
+            raise RuntimeError("Internal speed trigger has not been configured")
+
+        threshold, pre_trigger_segments, trigger_magnitude, sample_rate_ksps = (
+            self._internal_speed_trigger_config
+        )
+        threshold_text = f"{threshold:g}"
+        signed_threshold = self._format_internal_trigger_threshold(threshold)
+
+        self.set_sample_rate(sample_rate_ksps * 1000)
+        self.set_units(SpeedUnit.MPH)
+        # The first guard is valid in either unit system. Once MPH is explicit,
+        # raise it near the 30 ksps ceiling while the remaining writes run.
+        self._send_internal_trigger_threshold(self.INTERNAL_TRIGGER_MPH_GUARD_THRESHOLD)
+        self.set_transmit_power(0)
+        self.set_buffer_size(128)
+        self.set_fft_size(2)
+        self._send_command("R-")
+        self._send_command(f"R>{threshold_text}")
+        self.enable_json_output(True)
+        self.enable_magnitude_report(True)
+        self._send_command("W0")
+        self._send_command(f"S#{pre_trigger_segments}")
+
+        # Keep the threshold guarded until every other setting is restored.
+        # ST/SM require a terminating carriage return and are deliberately
+        # sent after MPH is restored so the threshold is interpreted in mph.
+        self.serial.write(f"SM{trigger_magnitude}\r".encode("ascii"))
+        self.serial.write(f"ST{signed_threshold}\r".encode("ascii"))
+        self.serial.flush()
+        time.sleep(0.1)
+
+    def rearm_internal_speed_trigger(self, sample_rate_ksps: int = 30) -> bool:
+        """Re-arm an internal hardware trigger after a completed dump.
+
+        GC restarts the rolling buffer but also restores firmware defaults, so
+        the cached detector settings are applied again.  A serial write timeout
+        is recoverable: the capture is valid and the next cycle can retry the
+        GC sequence.
+        """
+        if not self.serial or not self.serial.is_open:
+            raise ConnectionError("Not connected to radar")
+        if sample_rate_ksps != 30:
+            raise ValueError("Internal speed trigger requires a 30 ksps sample rate")
+        if self._internal_speed_trigger_config is None:
+            raise RuntimeError("Internal speed trigger has not been configured")
+
+        try:
+            self._drain_rearm_serial()
+            self.serial.reset_input_buffer()
+            self._send_internal_trigger_threshold(self.INTERNAL_TRIGGER_GUARD_THRESHOLD)
+            self.serial.write(b"GC")
+            self.serial.flush()
+            time.sleep(0.15)
+            self._send_internal_trigger_threshold(self.INTERNAL_TRIGGER_GUARD_THRESHOLD)
+            self._restore_internal_speed_trigger_settings()
+            self.serial.reset_input_buffer()
+        except serial.SerialTimeoutException as error:
+            self._hardware_trigger_recovery_required = True
+            logger.warning(
+                "[OPS] Internal trigger re-arm timed out; capture retained and "
+                "re-arm will be retried: %s",
+                error,
+            )
+            return False
+
+        time.sleep((4096 / (sample_rate_ksps * 1000)) + 0.05)
+        logger.info("[OPS] Internal speed trigger re-armed (GC)")
+        return True
 
     def configure_for_rolling_buffer(
         self, pre_trigger_segments: int = 16, sample_rate_ksps: int = 30

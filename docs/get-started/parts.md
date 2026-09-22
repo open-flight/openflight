@@ -23,7 +23,7 @@ Hardware components for building the OpenFlight golf launch monitor.
 
 The sound trigger detects club impact to precisely time radar captures. Essential for spin detection via rolling buffer mode.
 
-> **Optional path, not merged yet:** [PR #221](https://github.com/open-flight/openflight/pull/221) adds an opt-in `--trigger hardware` mode in which the OPS243 fires the rolling-buffer dump from its own internal speed trigger, with no SEN-14262 in the loop. It needs OPS243-A firmware 1.3.2, which every OPS243-A can run; whether getting there costs you anything depends on the firmware your radar arrived with, see [Internal Trigger Instead](#internal-trigger-instead-pr-221) below. Until the PR lands the sound trigger is the supported trigger and stays in the totals.
+> **Optional internal-trigger path:** Hardware mode lets the OPS243 fire the rolling-buffer dump from its own internal speed trigger, with no SEN-14262 in the loop. It requires OPS243-A firmware 1.3.2 or newer in the 1.3 release train; firmware 1.3.1 is rejected because of a vendor data-sequence bug. See [Internal Hardware Trigger](#internal-hardware-trigger) below.
 
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
@@ -49,11 +49,11 @@ SEN-14262               Raspberry Pi           OPS243
 
 See [sound-trigger-wiring.md](../build/sound-trigger.md) for detailed instructions and troubleshooting.
 
-### Internal Trigger Instead (PR #221)
+### Internal Hardware Trigger
 
-[PR #221](https://github.com/open-flight/openflight/pull/221) lets the OPS243-A start the rolling-buffer capture from its own speed trigger, so the sound detector, its resistor and its wiring are not needed. The firmware that adds that trigger is OPS243-A 1.3.2, and any OPS243-A can be brought to it. What that costs you depends on what your radar arrived with, so check before buying anything: plug the radar into USB, open a serial terminal, send `?V`, and read the version it prints back.
+Hardware mode lets the OPS243-A start the rolling-buffer capture from its own speed trigger, so the sound detector, its resistor and its wiring are not needed. The supported firmware is OPS243-A 1.3.2 or newer in the 1.3 release train. Check before buying anything: plug the radar into USB, open a serial terminal, send `?V`, and read the version it prints back.
 
-- **It reports 1.3.2 or later.** Nothing to buy. OmniPreSense [told the project on 2026-09-10](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576) that 1.3.2 went onto the sensors shipping from that build on (1.3.1 had gone to some earlier customers with a late bug), so a new order should arrive like this. Once the PR lands, skip the Sound Trigger table above.
+- **It reports 1.3.2 or later in the 1.3 train.** Nothing to buy; use `scripts/start-kiosk.sh --trigger hardware`. OmniPreSense [told the project on 2026-09-10](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576) that 1.3.2 went onto the sensors shipping from that build on (1.3.1 had gone to some earlier customers with a late bug), so a new order should arrive like this. Skip the Sound Trigger table above if you choose hardware mode.
 - **It reports 1.3.1 or older.** You flash it yourself, which is where the debugger cost comes in. OmniPreSense's [AN-013 code-update note](https://omnipresense.com/wp-content/uploads/2019/06/AN-013-D_OPS241-Code-Update.pdf) is the procedure: a SEGGER J-Link on the radar's keyed `J2` JTAG header (a 10-pin 1.27 mm Cortex debug header, not the `J3` UART header OpenFlight wires to), Infineon's free XMCFlasher in Serial Wire Debug mode with the XMC4500-1024 target selected, and the 1.3.2 hex file, which is not a public download: email customerservice@omnipresense.com for it, and they will also confirm which J-Link model to get. Send `?P` first and pick the XMC4700 in XMCFlasher instead if the board reports that part ([note on the PR](https://github.com/open-flight/openflight/pull/221#issuecomment-5463503457)). Do not press Erase in XMCFlasher: it clears the factory settings some sensors carry and anything you saved to persistent memory. On Windows run the J-Link driver installer as administrator and tick the legacy J-Link USB driver, or XMCFlasher will not find the probe ([upgrade report](https://github.com/open-flight/openflight/pull/221#issuecomment-5756563718)).
 
 | Part | Description | Link | ~Price |
