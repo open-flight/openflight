@@ -1,0 +1,494 @@
+/* ==========================================================================
+   OpenFlight docs theme
+   Mirrors the openflight.dev design system: deep near-black surfaces, gold
+   accent, warm cream text, DM Serif Display headings / Outfit body / IBM Plex
+   Mono code, and uppercase wide-tracked mono labels.
+
+   Outfit and IBM Plex Mono are loaded by Zensical from theme.font in
+   zensical.toml; only the display serif needs an extra request.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap");
+
+/* --------------------------------------------------------------------------
+   Brand tokens (verbatim from openflight.dev / ui/src/index.css)
+   -------------------------------------------------------------------------- */
+
+:root {
+  --of-font-display: "DM Serif Display", Georgia, serif;
+
+  --of-bg-deep: #0a0a0f;
+  --of-bg-card: #12121a;
+  --of-bg-elevated: #1a1a24;
+  --of-bg-hover: #222230;
+
+  --of-gold: #d4af37;
+  --of-gold-bright: #f4cf47;
+  --of-gold-dim: #a68b2a;
+  /* Deep gold reserved for light mode: 5.6:1 on --of-paper, gold stays gold */
+  --of-gold-deep: #7a5f14;
+
+  --of-cream: #f5f0e6;
+  --of-paper: #faf7f0;
+  --of-ink: #14141c;
+
+  --of-success: #4ade80;
+  --of-info: #60a5fa;
+  --of-warning: #fbbf24;
+  --of-danger: #f87171;
+
+  /* Tracking scale used for eyebrow / label text on the marketing site */
+  --of-tracking: 0.14em;
+  --of-tracking-wide: 0.18em;
+}
+
+/* --------------------------------------------------------------------------
+   Palette — dark (slate). This is the canonical OpenFlight look.
+   -------------------------------------------------------------------------- */
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 240;
+
+  --md-default-fg-color: var(--of-cream);
+  --md-default-fg-color--light: rgba(245, 240, 230, 0.72);
+  --md-default-fg-color--lighter: rgba(245, 240, 230, 0.4);
+  --md-default-fg-color--lightest: rgba(245, 240, 230, 0.12);
+
+  --md-default-bg-color: var(--of-bg-deep);
+  --md-default-bg-color--light: rgba(10, 10, 15, 0.72);
+  --md-default-bg-color--lighter: rgba(10, 10, 15, 0.45);
+  --md-default-bg-color--lightest: rgba(10, 10, 15, 0.2);
+
+  --md-primary-fg-color: var(--of-gold);
+  --md-primary-fg-color--light: var(--of-gold-bright);
+  --md-primary-fg-color--dark: var(--of-gold-dim);
+  --md-primary-bg-color: var(--of-bg-deep);
+  --md-primary-bg-color--light: rgba(10, 10, 15, 0.7);
+
+  --md-accent-fg-color: var(--of-gold-bright);
+  --md-accent-fg-color--transparent: rgba(212, 175, 55, 0.12);
+  --md-accent-bg-color: var(--of-bg-deep);
+  --md-accent-bg-color--light: rgba(10, 10, 15, 0.7);
+
+  --md-typeset-color: var(--of-cream);
+  --md-typeset-a-color: var(--of-gold);
+  --md-typeset-mark-color: rgba(212, 175, 55, 0.28);
+  --md-typeset-del-color: rgba(248, 113, 113, 0.18);
+  --md-typeset-ins-color: rgba(74, 222, 128, 0.18);
+  --md-typeset-table-color: rgba(245, 240, 230, 0.14);
+  --md-typeset-table-color--light: rgba(245, 240, 230, 0.04);
+  --md-typeset-kbd-color: var(--of-bg-elevated);
+  --md-typeset-kbd-accent-color: var(--of-bg-hover);
+  --md-typeset-kbd-border-color: #05050a;
+
+  --md-code-fg-color: var(--of-cream);
+  --md-code-bg-color: var(--of-bg-card);
+  --md-code-bg-color--light: rgba(18, 18, 26, 0.9);
+  --md-code-bg-color--lighter: rgba(18, 18, 26, 0.54);
+  --md-code-hl-color: rgba(212, 175, 55, 0.24);
+  --md-code-hl-color--light: rgba(212, 175, 55, 0.1);
+
+  --md-code-hl-keyword-color: #c4b5fd;
+  --md-code-hl-function-color: var(--of-gold-bright);
+  --md-code-hl-string-color: var(--of-success);
+  --md-code-hl-number-color: #fca5a5;
+  --md-code-hl-constant-color: #93c5fd;
+  --md-code-hl-special-color: #f0abfc;
+  --md-code-hl-name-color: var(--md-code-fg-color);
+  --md-code-hl-operator-color: rgba(245, 240, 230, 0.62);
+  --md-code-hl-punctuation-color: rgba(245, 240, 230, 0.62);
+  --md-code-hl-comment-color: rgba(245, 240, 230, 0.42);
+  --md-code-hl-generic-color: rgba(245, 240, 230, 0.62);
+  --md-code-hl-variable-color: rgba(245, 240, 230, 0.82);
+
+  --md-admonition-fg-color: var(--md-default-fg-color);
+  --md-admonition-bg-color: var(--of-bg-card);
+
+  --md-footer-fg-color: var(--of-cream);
+  --md-footer-fg-color--light: rgba(245, 240, 230, 0.72);
+  --md-footer-fg-color--lighter: rgba(245, 240, 230, 0.4);
+  --md-footer-bg-color: var(--of-bg-card);
+  --md-footer-bg-color--dark: var(--of-bg-deep);
+
+  --md-shadow-z1: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.4), 0 0 0.05rem rgba(245, 240, 230, 0.08);
+  --md-shadow-z2: 0 0.25rem 1rem rgba(0, 0, 0, 0.55), 0 0 0.05rem rgba(245, 240, 230, 0.12);
+  --md-shadow-z3: 0 0.5rem 2rem rgba(0, 0, 0, 0.65), 0 0 0.05rem rgba(245, 240, 230, 0.14);
+}
+
+/* Subtle gold wash + film grain, as on the marketing site */
+[data-md-color-scheme="slate"] body {
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.045) 0%, transparent 55%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-attachment: fixed;
+}
+
+/* --------------------------------------------------------------------------
+   Palette — light (default). Same palette inverted onto warm ivory paper so
+   the two schemes read as one brand rather than two sites.
+   -------------------------------------------------------------------------- */
+
+[data-md-color-scheme="default"] {
+  --md-default-fg-color: var(--of-ink);
+  --md-default-fg-color--light: rgba(20, 20, 28, 0.68);
+  --md-default-fg-color--lighter: rgba(20, 20, 28, 0.36);
+  --md-default-fg-color--lightest: rgba(20, 20, 28, 0.1);
+
+  --md-default-bg-color: var(--of-paper);
+  --md-default-bg-color--light: rgba(250, 247, 240, 0.75);
+  --md-default-bg-color--lighter: rgba(250, 247, 240, 0.45);
+  --md-default-bg-color--lightest: rgba(250, 247, 240, 0.2);
+
+  --md-primary-fg-color: var(--of-gold-deep);
+  --md-primary-fg-color--light: var(--of-gold-dim);
+  --md-primary-fg-color--dark: #5c470f;
+  --md-primary-bg-color: var(--of-paper);
+  --md-primary-bg-color--light: rgba(250, 247, 240, 0.7);
+
+  --md-accent-fg-color: #5c470f;
+  --md-accent-fg-color--transparent: rgba(122, 95, 20, 0.1);
+  --md-accent-bg-color: var(--of-paper);
+  --md-accent-bg-color--light: rgba(250, 247, 240, 0.7);
+
+  --md-typeset-color: var(--of-ink);
+  --md-typeset-a-color: var(--of-gold-deep);
+  --md-typeset-mark-color: rgba(212, 175, 55, 0.35);
+  --md-typeset-table-color: rgba(20, 20, 28, 0.14);
+  --md-typeset-table-color--light: rgba(20, 20, 28, 0.035);
+
+  --md-code-fg-color: #2a2a36;
+  --md-code-bg-color: #f1ece1;
+  --md-code-bg-color--light: rgba(241, 236, 225, 0.9);
+  --md-code-bg-color--lighter: rgba(241, 236, 225, 0.54);
+  --md-code-hl-color: rgba(212, 175, 55, 0.3);
+  --md-code-hl-color--light: rgba(212, 175, 55, 0.12);
+
+  --md-code-hl-keyword-color: #6d28d9;
+  --md-code-hl-function-color: #8a6a10;
+  --md-code-hl-string-color: #15803d;
+  --md-code-hl-number-color: #b91c1c;
+  --md-code-hl-constant-color: #1d4ed8;
+  --md-code-hl-special-color: #a21caf;
+
+  --md-admonition-bg-color: #f4efe4;
+}
+
+/* The modern variant paints .md-footer from --md-default-bg-color, so the
+   footer follows the active scheme. Give it a gold hairline instead — the
+   same divider the marketing site uses between sections. */
+.md-footer {
+  border-top: 1px solid color-mix(in srgb, var(--of-gold) 22%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Typography
+   -------------------------------------------------------------------------- */
+
+/* DM Serif Display ships a single weight — never let the browser fake bold. */
+.md-typeset h1,
+.md-typeset h2,
+.md-header__topic:first-child .md-ellipsis {
+  font-family: var(--of-font-display);
+  font-weight: 400;
+  font-synthesis-weight: none;
+}
+
+.md-typeset h1 {
+  font-size: 2.1em;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset h2 {
+  margin-top: 2em;
+  font-size: 1.5em;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+/* Hairline rule above section headings, echoing the site's section dividers */
+.md-typeset h2::before {
+  display: block;
+  width: 2.4rem;
+  height: 1px;
+  margin-bottom: 0.7em;
+  content: "";
+  background: linear-gradient(90deg, var(--of-gold), transparent);
+}
+
+.md-typeset h3,
+.md-typeset h4 {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Eyebrow treatment: uppercase mono with wide tracking */
+.md-typeset h5,
+.md-typeset h6 {
+  font-family: var(--md-code-font-family);
+  font-size: 0.72em;
+  font-weight: 500;
+  letter-spacing: var(--of-tracking);
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset a {
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, currentcolor 35%, transparent);
+}
+
+.md-typeset a:hover {
+  text-decoration-color: currentcolor;
+}
+
+::selection {
+  background: rgba(212, 175, 55, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   Header, navigation and search
+   -------------------------------------------------------------------------- */
+
+.md-header {
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  /* The header deliberately matches the page ground rather than using the
+     primary colour — but it must be *opaque*, or content scrolling underneath
+     the sticky tabs bar shows through the wordmark. */
+  background-color: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+.md-header__button.md-logo :is(img, svg) {
+  width: auto;
+  height: 1.3rem;
+  border-radius: 0.28rem;
+}
+
+/* Site name as a wide-tracked wordmark rather than plain body text */
+.md-header__topic:first-child .md-ellipsis {
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+}
+
+.md-tabs {
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  /* Opaque for the same reason as .md-header — navigation.tabs.sticky keeps
+     this bar pinned while the page scrolls beneath it. */
+  background-color: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+.md-tabs__link {
+  opacity: 1;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-tabs__link:is(:hover, :focus),
+.md-tabs__link--active {
+  color: var(--md-default-fg-color);
+}
+
+/* Sidebar section labels get the marketing site's eyebrow treatment */
+.md-nav--secondary .md-nav__title,
+.md-nav__item--section > .md-nav__link:not(.md-nav__link--index),
+.md-nav__item--section > label.md-nav__link {
+  font-family: var(--md-code-font-family);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: var(--of-tracking);
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-nav__link--active,
+.md-nav__link:focus,
+.md-nav__link:hover {
+  color: var(--md-accent-fg-color);
+}
+
+.md-search__input {
+  border-radius: 0.4rem;
+}
+
+.md-search__input::placeholder {
+  letter-spacing: 0.01em;
+}
+
+/* --------------------------------------------------------------------------
+   Code
+   -------------------------------------------------------------------------- */
+
+.md-typeset pre > code,
+.md-typeset .highlighttable {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+}
+
+.md-typeset .highlighttable .highlight pre > code {
+  border: none;
+}
+
+.md-typeset code {
+  border-radius: 0.25rem;
+}
+
+/* Code block titles read as mono eyebrows */
+.md-typeset .highlight span.filename {
+  font-family: var(--md-code-font-family);
+  font-size: 0.68em;
+  font-weight: 500;
+  letter-spacing: var(--of-tracking);
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  background-color: var(--md-code-bg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* --------------------------------------------------------------------------
+   Tables
+   -------------------------------------------------------------------------- */
+
+.md-typeset table:not([class]) {
+  border-radius: 0.4rem;
+}
+
+.md-typeset table:not([class]) th {
+  font-family: var(--md-code-font-family);
+  font-size: 0.86em;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  background-color: var(--md-typeset-table-color--light);
+}
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+
+.md-typeset .md-button {
+  font-family: var(--md-code-font-family);
+  font-size: 0.72em;
+  font-weight: 500;
+  letter-spacing: var(--of-tracking);
+  text-transform: uppercase;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+}
+
+.md-typeset .md-button--primary {
+  color: var(--of-bg-deep);
+  background-color: var(--of-gold);
+  border-color: var(--of-gold);
+}
+
+.md-typeset .md-button--primary:is(:hover, :focus) {
+  color: var(--of-bg-deep);
+  background-color: var(--of-gold-bright);
+  border-color: var(--of-gold-bright);
+}
+
+.md-typeset .md-button:not(.md-button--primary):is(:hover, :focus) {
+  color: var(--md-accent-fg-color);
+  background-color: var(--md-accent-fg-color--transparent);
+  border-color: color-mix(in srgb, var(--md-accent-fg-color) 45%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Admonitions — retinted off Material's stock blues onto the brand accents.
+   Each type sets --of-adm; the generic rules below consume it. The [class]
+   attribute selector matches the theme's per-type specificity so these win
+   on cascade order.
+   -------------------------------------------------------------------------- */
+
+.md-typeset :is(.admonition, details) {
+  --of-adm: var(--of-gold);
+}
+
+.md-typeset :is(.admonition, details):is(.note) { --of-adm: var(--of-gold); }
+.md-typeset :is(.admonition, details):is(.abstract, .summary, .tldr) { --of-adm: var(--of-info); }
+.md-typeset :is(.admonition, details):is(.info, .todo) { --of-adm: var(--of-info); }
+.md-typeset :is(.admonition, details):is(.tip, .hint, .important) { --of-adm: #2dd4bf; }
+.md-typeset :is(.admonition, details):is(.success, .check, .done) { --of-adm: var(--of-success); }
+.md-typeset :is(.admonition, details):is(.question, .help, .faq) { --of-adm: #a3e635; }
+.md-typeset :is(.admonition, details):is(.warning, .caution, .attention) { --of-adm: var(--of-warning); }
+.md-typeset :is(.admonition, details):is(.failure, .fail, .missing) { --of-adm: #fb923c; }
+.md-typeset :is(.admonition, details):is(.danger, .error) { --of-adm: var(--of-danger); }
+.md-typeset :is(.admonition, details):is(.bug) { --of-adm: #f472b6; }
+.md-typeset :is(.admonition, details):is(.example) { --of-adm: #a78bfa; }
+.md-typeset :is(.admonition, details):is(.quote, .cite) { --of-adm: #9ca3af; }
+
+.md-typeset .admonition,
+.md-typeset details,
+.md-typeset .admonition[class],
+.md-typeset details[class] {
+  background-color: color-mix(in srgb, var(--of-adm) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--of-adm) 26%, transparent);
+  border-radius: 0.5rem;
+}
+
+.md-typeset .admonition[class] > :is(.admonition-title, summary)::before,
+.md-typeset details[class] > :is(.admonition-title, summary)::before {
+  background-color: var(--of-adm);
+}
+
+.md-typeset .admonition[class] > :is(.admonition-title, summary)::after,
+.md-typeset details[class] > :is(.admonition-title, summary)::after {
+  color: var(--of-adm);
+}
+
+.md-typeset :is(.admonition-title, summary) {
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+/* On paper the bright accents need darkening to stay legible */
+[data-md-color-scheme="default"] .md-typeset .admonition[class] > :is(.admonition-title, summary)::before,
+[data-md-color-scheme="default"] .md-typeset details[class] > :is(.admonition-title, summary)::before {
+  background-color: color-mix(in srgb, var(--of-adm) 58%, var(--of-ink));
+}
+
+[data-md-color-scheme="default"] .md-typeset .admonition[class] > :is(.admonition-title, summary)::after,
+[data-md-color-scheme="default"] .md-typeset details[class] > :is(.admonition-title, summary)::after {
+  color: color-mix(in srgb, var(--of-adm) 58%, var(--of-ink));
+}
+
+/* --------------------------------------------------------------------------
+   Content tabs, blockquotes and scrollbar
+   -------------------------------------------------------------------------- */
+
+.md-typeset .tabbed-labels > label {
+  font-family: var(--md-code-font-family);
+  font-size: 0.68em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.md-typeset blockquote {
+  color: var(--md-default-fg-color--light);
+  border-left: 2px solid color-mix(in srgb, var(--of-gold) 55%, transparent);
+}
+
+[data-md-color-scheme="slate"] {
+  scrollbar-color: rgba(212, 175, 55, 0.3) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--of-gold) 30%, transparent);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--of-gold) 55%, transparent);
+}

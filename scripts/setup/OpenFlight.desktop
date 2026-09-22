@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=OpenFlight
-Comment=Golf Launch Monitor Kiosk
-Exec=lxterminal -e /home/coleman/openflight/scripts/start-kiosk.sh --kld7
-Icon=applications-games
-Terminal=false
-Type=Application
-Categories=Game;Sports;

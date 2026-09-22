@@ -11,7 +11,6 @@ let explosionTimer: ReturnType<typeof setTimeout> | null = null;
 interface LaunchDaddyState {
   isLaunchDaddyMode: boolean;
   isExploding: boolean;
-  secretTapCount: number;
   toggleLaunchDaddy: () => void;
   triggerExplosion: () => void;
   handleSecretTap: () => void;
@@ -20,12 +19,10 @@ interface LaunchDaddyState {
 export const useLaunchDaddyStore = create<LaunchDaddyState>((set, get) => ({
   isLaunchDaddyMode: false,
   isExploding: false,
-  secretTapCount: 0,
   toggleLaunchDaddy: () => {
     secretTapCountRef = 0;
     set((state) => ({
       isLaunchDaddyMode: !state.isLaunchDaddyMode,
-      secretTapCount: 0,
     }));
   },
   triggerExplosion: () => {
@@ -50,11 +47,9 @@ export const useLaunchDaddyStore = create<LaunchDaddyState>((set, get) => ({
       secretTapCountRef = 0;
       set((state) => ({
         isLaunchDaddyMode: !state.isLaunchDaddyMode,
-        secretTapCount: 0,
       }));
     } else {
       secretTapCountRef = nextCount;
-      set({ secretTapCount: nextCount });
     }
 
     lastTapTime = now;

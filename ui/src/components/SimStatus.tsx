@@ -1,9 +1,11 @@
-import './SimStatus.css';
+import { useI18n } from '../i18n/useI18n';
 import type { SimStatus as SimStatusData } from '../types/socket';
+import './SimStatus.css';
 
 const DISPLAY_NAMES: Record<string, string> = {
   gspro: 'GSPro',
   opengolfsim: 'OpenGolfSim',
+  partee: 'PAR-TEE',
 };
 
 // Map a connection state to a visual severity bucket.
@@ -37,12 +39,13 @@ interface SimStatusProps {
 }
 
 export function SimStatus({ statuses }: SimStatusProps) {
+  const { t } = useI18n();
   const entries = Object.values(statuses);
   if (entries.length === 0) {
     return null; // No simulator connectors configured.
   }
   return (
-    <div className="sim-status" role="group" aria-label="Simulator connectors">
+    <div className="sim-status" role="group" aria-label={t('sim.connectors')}>
       {entries.map((s) => (
         <div key={s.target} className={`sim-status__pill sim-status__pill--${severity(s.state)}`} title={pillTitle(s)}>
           <span className="sim-status__dot" />

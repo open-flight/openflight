@@ -9,6 +9,7 @@ FIRMWARE_MAKEFILE = Path(__file__).parents[1] / "firmware" / "Makefile"
 CONFIG_DIR = Path(__file__).parents[1] / "config"
 WIDE_CONFIG = CONFIG_DIR / "iwr6843_l3dump_wide_24f3ms_53bin_iq16.cfg"
 DENSE_CONFIG = CONFIG_DIR / "iwr6843_l3dump_dense_36f2ms_53bin_iq8.cfg"
+DENSE_WIDE_LATE_CONFIG = CONFIG_DIR / "iwr6843_l3dump_dense_36f2ms_53bin_iq8_wide_late.cfg"
 
 
 def _function_source(source: str, name: str, next_name: str) -> str:
@@ -107,11 +108,48 @@ def test_shutdown_waits_for_iq8_pack_without_rearming():
     )
 
     shutdown = rearm.index("gHwaShutdownRequested")
-    pack = rearm.index("l3_packIq8CompletedFrame", shutdown)
+    pack = rearm.index("l3_waitForAllIq8Edma", shutdown)
     completion = rearm.index("Semaphore_post(gHwaFreezeSemaphore)", shutdown)
     restart = rearm.index("l3_restartCompletedHwaFrame", shutdown)
 
     assert shutdown < pack < completion < restart
+
+
+def test_iq8_edma_pack_compacts_int16_scratch_without_cpu_loop():
+    source = FIRMWARE.read_text(encoding="utf-8")
+    pack = _function_source(
+        source,
+        "static int32_t l3_startIq8EdmaPack",
+        "static void l3_waitForIq8EdmaScratch",
+    )
+    rearm = _function_source(
+        source,
+        "static void l3_hwaRearmTask",
+        "/* Fill the 20-byte fixed dump header",
+    )
+
+    assert "param->aCount = 1U" in pack
+    assert "param->bCount = (uint16_t)components" in pack
+    assert "param->sourceBindex = (int16_t)sizeof(int16_t)" in pack
+    assert "param->destinationBindex = 1" in pack
+    assert "EDMA_startDmaTransfer" in pack
+    assert "l3_restartCompletedHwaFrame" in rearm
+    assert "l3_startIq8EdmaPack" in rearm
+    assert rearm.count("l3_packIq8CompletedFrame") == 2
+    assert rearm.count("#else\n                    l3_packIq8CompletedFrame") == 1
+    assert rearm.count("#else\n                l3_packIq8CompletedFrame") == 1
+
+
+def test_iq8_edma_pack_waits_before_reusing_ping_pong_scratch():
+    source = FIRMWARE.read_text(encoding="utf-8")
+    rearm = _function_source(
+        source,
+        "static void l3_hwaRearmTask",
+        "/* Fill the 20-byte fixed dump header",
+    )
+
+    assert "l3_waitForIq8EdmaScratch(nextScratch)" in rearm
+    assert "l3_waitForAllIq8Edma()" in rearm
 
 
 def test_dump_header_rotates_from_oldest_completed_frame():
@@ -129,10 +167,11 @@ def test_production_build_uses_configurable_compression_and_single_release():
     assert "--define=CONFIGURABLE_CAPTURE=1" in target
     assert "--define=HYBRID_CADENCE_CAPTURE=1" in target
     assert "--define=L3_RING_IQ8=1" in target
-    assert "--define=L3_IQ8_SPARSE_SCALE=1" in target
+    assert "--define=L3_IQ8_EDMA_PACK=1" in target
+    assert "--define=L3_IQ8_SPARSE_SCALE=1" not in target
     assert "--define=LOOPS=" not in target
     assert "--define=RING_FRAMES=" not in target
-    assert "RELEASE_NAME ?= l3_dump_configurable_capture_20260816.bin" in source
+    assert "RELEASE_NAME ?= l3_dump_configurable_capture_20260818.bin" in source
     assert '"$(RELEASE_DIR)/$(RELEASE_NAME)"' in target
     assert source.count("\nbuild-native:") == 1
 
@@ -161,10 +200,20 @@ def test_dense_profile_uses_36_frames_at_2ms_with_53_bin_iq8_windows():
     assert "phaseCaptureCfg 20 53 14 32 53 10 47 53 64 12 1" in lines
 
 
+def test_dense_wide_late_profile_keeps_dense_timing_and_near_late_window():
+    lines = _config_lines(DENSE_WIDE_LATE_CONFIG)
+
+    assert "frameCfg 0 2 12 0 2 1 0" in lines
+    assert "captureFormat iq8" in lines
+    assert "iq8Scale 128" in lines
+    assert "phaseCaptureCfg 20 53 14 32 53 10 47 53 47 12 1" in lines
+
+
 def test_supported_profiles_keep_the_same_72ms_movie():
     for path, expected_frames, expected_period_ms in (
         (WIDE_CONFIG, 24, 3.0),
         (DENSE_CONFIG, 36, 2.0),
+        (DENSE_WIDE_LATE_CONFIG, 36, 2.0),
     ):
         commands = {line.split()[0]: line.split() for line in _config_lines(path)}
         frame = commands["frameCfg"]

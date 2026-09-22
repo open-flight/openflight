@@ -7,6 +7,7 @@ import {
   formatSpeed,
   getDistanceUnit,
   getSpeedUnit,
+  getUnitsLabel,
 } from './units';
 
 describe('units helpers', () => {
@@ -32,6 +33,11 @@ describe('units helpers', () => {
     expect(convertDistanceFromYards(100, 'metric')).toBeCloseTo(91.44, 2);
     expect(formatDistance(100, 'metric', 0)).toBe('91');
     expect(getDistanceUnit('metric')).toBe('m');
+  });
+
+  it('joins speed and distance units for chrome labels', () => {
+    expect(getUnitsLabel('imperial')).toBe('mph / yds');
+    expect(getUnitsLabel('metric')).toBe('km/h / m');
   });
 
   it('formats carry ranges in the selected unit system', () => {

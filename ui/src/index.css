@@ -1,75 +1,83 @@
-/* OpenFlight - Premium Golf Tech Design System */
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;500;600;700&display=swap');
+/* OpenFlight - Instrument Panel Design System */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 * {
   box-sizing: border-box;
 }
 
 :root {
-  /* Typography */
-  --font-display: 'DM Serif Display', Georgia, serif;
   --font-body: 'Outfit', system-ui, -apple-system, sans-serif;
-
-  /* Color Palette - Premium Golf */
-  --color-bg-deep: #0a0a0f;
-  --color-bg-card: #12121a;
-  --color-bg-elevated: #1a1a24;
-  --color-bg-hover: #222230;
-
-  /* Gold accent (primary) */
-  --color-gold: #d4af37;
-  --color-gold-bright: #f4cf47;
-  --color-gold-dim: #a68b2a;
-  --color-gold-glow: rgba(212, 175, 55, 0.4);
-
-  /* Cream/ivory (secondary) */
-  --color-cream: #f5f0e6;
-  --color-cream-dim: rgba(245, 240, 230, 0.7);
-  --color-cream-muted: rgba(245, 240, 230, 0.5);
-
-  /* Accent colors */
-  --color-success: #4ade80;
-  --color-info: #60a5fa;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-
-  /* Text */
-  --text-primary: var(--color-cream);
-  --text-secondary: var(--color-cream-dim);
-  --text-muted: var(--color-cream-muted);
-
-  /* Spacing - compact for 7" */
+  --radius: 0.25rem;
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
   --space-md: 0.75rem;
   --space-lg: 1rem;
   --space-xl: 1.5rem;
-
-  /* Border radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-
-  /* Shadows */
-  --shadow-glow: 0 0 20px var(--color-gold-glow);
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
-
-  /* Transitions */
   --transition-fast: 0.15s ease;
-  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --color-success: #4ade80;
+  --color-error: #ef4444;
+  --color-info: #60a5fa;
+  --color-warning: #fbbf24;
+  /* --color-danger / --color-danger-border are theme-scoped; see below. */
+}
 
-  /* Base styles */
-  line-height: 1.4;
-  font-weight: 400;
+/*
+ * Palette values come from the "Club Select Mockups" design doc: option 6a for
+ * the dark theme, option 5a (its daylight sibling) for the light theme.
+ *
+ * --color-accent is for text and icons; --color-accent-block is for solid
+ * fills, always paired with --color-accent-fg. Dark mode uses #ffd400 for
+ * both. Light mode uses a darker, more saturated gold for both: pale
+ * #ffd400 washes out on cream, as text and as a chip fill.
+ *
+ * Kiosk contrast: muted/faint stay readable on black. Never park shot
+ * numbers on --color-text-muted. Grid gaps stay grey (--color-border).
+ */
+[data-theme='dark'] {
   color-scheme: dark;
-  color: var(--text-primary);
-  background-color: var(--color-bg-deep);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --color-bg: #0e0f10;
+  --color-surface: #16181a;
+  --color-accent: #ffd400;
+  --color-accent-block: #ffd400;
+  --color-accent-fg: #0b0b0c;
+  --color-text: #ffffff;
+  --color-text-muted: rgba(242, 241, 236, 0.78);
+  --color-text-faint: rgba(242, 241, 236, 0.58);
+  --color-border: rgba(242, 241, 236, 0.32);
+  --color-border-soft: rgba(242, 241, 236, 0.2);
+  --color-border-emphasis: var(--color-accent);
+  --color-scrim: rgba(6, 7, 8, 0.6);
+  --color-hatch: #101112;
+  --color-danger: #ff9b7d;
+  --color-danger-border: rgba(255, 120, 90, 0.5);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #f4f2ec;
+  --color-surface: #f4f2ec;
+  --color-accent: #ffbe1b;
+  --color-accent-block: #ffbe1b;
+  --color-accent-fg: #14140f;
+  --color-text: #14140f;
+  --color-text-muted: rgba(20, 20, 15, 0.72);
+  --color-text-faint: rgba(20, 20, 15, 0.52);
+  --color-border: rgba(20, 20, 15, 0.28);
+  --color-border-soft: rgba(20, 20, 15, 0.16);
+  --color-border-emphasis: var(--color-accent);
+  --color-scrim: rgba(20, 20, 15, 0.45);
+  --color-hatch: #eae7df;
+  --color-danger: #b03a1a;
+  --color-danger-border: rgba(176, 58, 26, 0.5);
+}
+
+html {
+  /* 1rem tracks the kiosk: ~117% at 800-wide, 150% at 1024-wide (24px if the
+   * browser default is 16px). Rem type and spacing then follow the screen. */
+  font-size: clamp(112.5%, 2.34vw, 150%);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  font-family: var(--font-body);
 }
 
 body {
@@ -77,11 +85,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: var(--font-body);
-  background: var(--color-bg-deep);
-  /* Subtle texture overlay */
-  background-image:
-    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.03) 0%, transparent 50%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  font-size: 1rem;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 #root {
@@ -92,37 +98,38 @@ button {
   font-family: var(--font-body);
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--color-surface);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.3);
-  border-radius: 3px;
+  background: var(--color-border);
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 55, 0.5);
+  background: var(--color-text-muted);
 }
 
-/* Utility classes */
-.text-gold {
-  color: var(--color-gold);
-}
-.text-cream {
-  color: var(--color-cream);
-}
 .text-muted {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
-/* Focus styles for accessibility */
 :focus-visible {
-  outline: 2px solid var(--color-gold);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

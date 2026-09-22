@@ -174,7 +174,7 @@ class IWR6843Radar:
         """
         self.ser.reset_input_buffer()
         self.ser.write(b"l3dump\n")
-        buf = b""
+        buf = bytearray()
         expected: int | None = None
         start = time.time()
         last = start
@@ -182,14 +182,14 @@ class IWR6843Radar:
             waiting = self.ser.in_waiting
             chunk = self.ser.read(waiting if waiting else 1)
             if chunk:
-                buf += chunk
+                buf.extend(chunk)
                 last = time.time()
             elif buf and time.time() - last > stall_tolerance_s:
                 break
             if expected is None:
                 idx = buf.find(MAGIC)
                 if idx >= 0 and len(buf) - idx >= HEADER.size:
-                    buf = buf[idx:]
+                    del buf[:idx]
                     try:
                         metadata = parse_header(buf)
                         expected = metadata["header_nbytes"] + payload_nbytes(metadata, buf)
@@ -198,9 +198,9 @@ class IWR6843Radar:
             elif len(buf) >= expected:
                 break
         if expected is None:
-            return buf
+            return bytes(buf)
 
-        payload = buf[:expected]
+        payload = bytes(buf[:expected])
         if len(payload) == expected:
             # The binary payload can finish just before the CLI handler returns.
             # Wait for its trailing Done before another command can be consumed

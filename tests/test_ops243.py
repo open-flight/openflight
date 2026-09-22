@@ -717,7 +717,7 @@ class TestInternalSpeedTrigger:
 
         def send_command(command):
             commands.append(command)
-            return '{"Version":"1.3.1"}' if command == "?V" else ""
+            return '{"Version":"1.3.2"}' if command == "?V" else ""
 
         monkeypatch.setattr(
             radar,
@@ -767,13 +767,25 @@ class TestInternalSpeedTrigger:
         with pytest.raises(ValueError, match=message):
             radar.configure_for_internal_speed_trigger(**kwargs)
 
-    def test_configuration_rejects_unvalidated_ops243_firmware(self, monkeypatch):
-        """Internal triggering must refuse firmware other than the tested release."""
+    @pytest.mark.parametrize(
+        "version",
+        ["1.3.1", "1.3.0", "1.2.9", "1.4.0", "unknown", "1.3", "v1.3.2", "1.3.2-beta", None],
+    )
+    def test_configuration_rejects_unsupported_ops243_firmware(self, monkeypatch, version):
+        """Internal triggering must reject old, unknown, and other firmware trains."""
         radar = self._radar(_InternalTriggerSerial())
-        monkeypatch.setattr(radar, "_probe_firmware_version", lambda: "1.3.0")
+        monkeypatch.setattr(radar, "_probe_firmware_version", lambda: version)
 
-        with pytest.raises(RuntimeError, match="requires OPS243 firmware v1.3.1"):
+        with pytest.raises(RuntimeError, match="requires OPS243-A firmware v1.3.2"):
             radar.configure_for_internal_speed_trigger()
+
+    @pytest.mark.parametrize("version", ["1.3.2", "1.3.3", "1.3.99"])
+    def test_configuration_accepts_compatible_ops243_firmware(self, monkeypatch, version):
+        """The current and newer patch releases in the 1.3 train are accepted."""
+        radar = self._radar(_InternalTriggerSerial())
+        monkeypatch.setattr(radar, "_probe_firmware_version", lambda: version)
+
+        assert radar.validate_internal_trigger_firmware() == version
 
     def test_rearm_uses_gc_and_restores_cached_settings(self, monkeypatch):
         """A completed dump is re-armed with GC without PA or S#0."""

@@ -1,0 +1,265 @@
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.metric-card--emphasis {
+  border-color: var(--color-border-emphasis);
+}
+
+/*
+ * Label-above cards sit inside a hairline grid (design doc 6a / 7a): the grid
+ * container paints the rules via gap, so the cards themselves are borderless.
+ * Cell fill is --color-surface (same cream as the page in light theme).
+ */
+.metric-card--label-above {
+  display: grid;
+  /*
+   * Equal 1fr spacers vertically center the block. Label / value / meta are
+   * explicit auto rows with reserved min-heights so every tile in a grid row
+   * shares the same bands — independent `align-content: center` would shift
+   * numbers on tiles that omit ≈, units, or captions.
+   */
+  grid-template-rows: 1fr auto auto auto 1fr;
+  align-content: stretch;
+  justify-items: start;
+  gap: 10px;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.metric-card--label-above .metric-card__label {
+  display: inline-flex;
+  grid-row: 2;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0;
+  /* Estimated ≈ is 16px; keep titles the same height without it. */
+  min-height: 16px;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.metric-card--label-above .metric-card__value-row {
+  grid-row: 3;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  min-height: 1em;
+}
+
+.metric-card--label-above .metric-card__meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  grid-row: 4;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  /* One caption line (dots + HIGH / FADE / SPIN-ADJUSTED) even when empty. */
+  min-height: 1.125rem;
+}
+
+.metric-card--interactive {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  align-items: stretch;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Selected is the only yellow title. :hover would stick on the previous hero
+ * after a tap reorders the grid, including on hybrid touch PCs. */
+.metric-card--selected .metric-card__label {
+  color: var(--color-accent);
+}
+
+.metric-card--selected {
+  box-shadow: inset 5px 0 0 var(--color-accent-block);
+}
+
+.metric-card--hero {
+  flex: 1;
+  align-items: center;
+  text-align: center;
+}
+
+.metric-card--hero .metric-card__value {
+  font-size: clamp(4.25rem, 11vw, 9.5rem);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.metric-card--hero .metric-card__label {
+  color: var(--color-accent);
+}
+
+.metric-card__value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.metric-card__estimated {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.metric-card__estimated svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.metric-card__estimated-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.metric-card__unit {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.metric-card__value {
+  font-size: clamp(2.25rem, 5.5vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.metric-card__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.metric-card__subtext,
+.metric-card__confidence-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.metric-card__confidence {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.metric-card__confidence-dots {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.metric-card__confidence-dots .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: var(--radius);
+}
+
+.metric-card__confidence-dots .dot.filled {
+  background: var(--color-accent);
+}
+
+.metric-card__confidence--experimental {
+  width: fit-content;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--color-border-emphasis);
+  border-radius: var(--radius);
+}
+
+.metric-card__confidence--experimental .metric-card__confidence-label {
+  color: var(--color-accent);
+}
+
+@media (max-height: 700px) {
+  .metric-card {
+    padding: var(--space-xs) var(--space-sm);
+    gap: 2px;
+  }
+
+  .metric-card--label-above {
+    gap: 10px;
+  }
+
+  .metric-card__value-row {
+    gap: 2px;
+  }
+
+  .metric-card__label {
+    margin-top: 2px;
+  }
+
+  .metric-card--label-above .metric-card__label {
+    margin-top: 0;
+  }
+
+  .metric-card__confidence--experimental {
+    margin-top: 2px;
+  }
+}
+
+@media (max-height: 500px) {
+  .metric-card {
+    padding: 2px var(--space-xs);
+    gap: 1px;
+  }
+
+  .metric-card--label-above {
+    gap: 8px;
+  }
+
+  .metric-card__label {
+    margin-top: 1px;
+  }
+
+  .metric-card--label-above .metric-card__label {
+    margin-top: 0;
+  }
+
+  .metric-card__confidence--experimental {
+    margin-top: 1px;
+    padding: 1px 5px;
+  }
+}

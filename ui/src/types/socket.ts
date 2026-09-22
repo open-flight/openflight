@@ -32,7 +32,8 @@ export interface SwingSpeedEvent {
   reading_count: number;
   trigger_speed_mph: number;
   peak_magnitude: number | null;
-  player_name?: string;
+  profile_id?: string;
+  profile_name?: string;
   unit: string;
   mode: 'swing-speed';
 }

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Suppression: true vs measured angle" role="img" viewBox="0 0 800 230" width="800" height="230">
+<style>
+  svg {
+    --bg:#0a0a0f; --card:#12121a; --elev:#1a1a24; --hover:#222230;
+    --gold:#d4af37; --gold-bright:#f4cf47; --gold-dim:#a68b2a;
+    --cream:#f5f0e6; --cream-dim:rgba(245,240,230,.72);
+    --cream-muted:rgba(245,240,230,.5);
+    --ok:#4ade80; --info:#60a5fa; --warn:#fbbf24; --bad:#f87171;
+    --line:rgba(245,240,230,.12);
+    font-family: Outfit, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  }
+  .svg-lbl{fill:var(--cream-dim);font-size:13px}
+  .svg-lbl-sm{fill:var(--cream-muted);font-size:11.5px}
+  .svg-strong{fill:var(--cream);font-size:13px;font-weight:600}
+  .svg-mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style>
+<rect x="0" y="0" width="800" height="230" rx="8" fill="var(--bg)"/>
+
+<line stroke="var(--cream-muted)" stroke-width="1.5" x1="120" x2="740" y1="190" y2="190"></line>
+<circle cx="120" cy="190" fill="var(--cream)" r="6"></circle>
+<text class="svg-lbl-sm" text-anchor="middle" x="120" y="210">tee</text>
+<!-- true -->
+<line stroke="var(--ok)" stroke-width="2.5" x1="120" x2="600" y1="190" y2="60"></line>
+<text class="svg-strong" fill="var(--ok)" x="610" y="62">true 17°</text>
+<!-- measured -->
+<line stroke="var(--bad)" stroke-width="2.5" x1="120" x2="640" y1="190" y2="140"></line>
+<text class="svg-strong" fill="var(--bad)" x="650" y="142">measured 9°</text>
+<!-- gap arc -->
+<path d="M300 141 A 190 190 0 0 0 300 96" fill="none" stroke="var(--warn)" stroke-width="2"></path>
+<text class="svg-lbl" fill="var(--warn)" x="312" y="124">suppression gap</text>
+</svg>

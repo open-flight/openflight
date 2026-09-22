@@ -12,8 +12,8 @@ PANEL_PACKAGE = (
 PANEL_PATCH = (
     PROJECT_ROOT / "scripts" / "battery" / "patches" / "wfplug-batt-capacity-and-power.patch"
 )
-BATTERY_GUIDE = PROJECT_ROOT / "docs" / "battery" / "README.md"
-OPERATOR_GUIDE = PROJECT_ROOT / "docs" / "battery" / "geekworm.md"
+BATTERY_GUIDE = PROJECT_ROOT / "docs" / "using" / "battery.md"
+OPERATOR_GUIDE = PROJECT_ROOT / "docs" / "build" / "battery.md"
 MAIN_SETUP_SCRIPT = PROJECT_ROOT / "scripts" / "setup" / "setup.sh"
 
 
@@ -120,7 +120,7 @@ def test_panel_patch_uses_external_power_for_charge_icon():
 
 
 def test_operator_guide_links_models_and_distinguishes_batteries():
-    guide = OPERATOR_GUIDE.read_text(encoding="ascii")
+    guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
 
     assert "https://geekworm.com/products/x1202" in guide
     assert "https://geekworm.com/products/x1206" in guide
@@ -131,11 +131,13 @@ def test_operator_guide_links_models_and_distinguishes_batteries():
 
 
 def test_battery_guide_documents_provider_interface_and_cli():
-    guide = BATTERY_GUIDE.read_text(encoding="ascii")
+    guide = BATTERY_GUIDE.read_text(encoding="utf-8")
 
     assert "--battery geekworm" in guide
     assert "PowerReader" in guide
-    assert "geekworm.md" in guide
+    # The operator guide lives at docs/build/battery.md; this asserts the
+    # provider overview still links to it.
+    assert "../build/battery.md" in guide
 
 
 def test_main_setup_offers_geekworm_provisioning():

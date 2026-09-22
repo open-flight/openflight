@@ -15,6 +15,13 @@
       "device_id": "OpenFlight",
       "units": "Yards",
       "heartbeat_interval_s": 5
+    },
+    {
+      "type": "partee",
+      "enabled": false,
+      "host": "192.168.1.70",
+      "port": 921,
+      "device_id": "OpenFlight"
     }
   ]
 }

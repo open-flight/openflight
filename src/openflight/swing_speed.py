@@ -26,7 +26,8 @@ class SwingSpeedEvent:
     peak_magnitude: Optional[float] = None
     training_implement: str = "driver"
     training_implement_label: str = "Driver"
-    player_name: str = "Player 1"
+    profile_id: str = ""
+    profile_name: str = ""
     unit: str = "mph"
     mode: str = "swing-speed"
 

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="End to end decision flow" role="img" viewBox="0 0 800 380" width="800" height="380">
+<style>
+  svg {
+    --bg:#0a0a0f; --card:#12121a; --elev:#1a1a24; --hover:#222230;
+    --gold:#d4af37; --gold-bright:#f4cf47; --gold-dim:#a68b2a;
+    --cream:#f5f0e6; --cream-dim:rgba(245,240,230,.72);
+    --cream-muted:rgba(245,240,230,.5);
+    --ok:#4ade80; --info:#60a5fa; --warn:#fbbf24; --bad:#f87171;
+    --line:rgba(245,240,230,.12);
+    font-family: Outfit, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  }
+  .svg-lbl{fill:var(--cream-dim);font-size:13px}
+  .svg-lbl-sm{fill:var(--cream-muted);font-size:11.5px}
+  .svg-strong{fill:var(--cream);font-size:13px;font-weight:600}
+  .svg-mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style>
+<rect x="0" y="0" width="800" height="380" rx="8" fill="var(--bg)"/>
+
+<defs>
+<marker id="fa" markerHeight="9" markerWidth="9" orient="auto" refX="7" refY="4.5"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--cream-muted)"></path></marker>
+</defs>
+
+<!-- start -->
+<rect class="node" fill="var(--elev)" height="44" stroke="var(--info)" width="200" x="300" y="14"></rect>
+<text class="ntext" text-anchor="middle" x="400" y="33">two-ray estimate</text>
+<text class="nsub" text-anchor="middle" x="400" y="49">ball elevation per frame</text>
+<line class="edge" x1="400" x2="400" y1="58" y2="86"></line>
+<!-- Tier-1 gate? -->
+<polygon fill="var(--card)" points="400,86 506,128 400,170 294,128" stroke="var(--ok)" stroke-width="1.6"></polygon>
+<text class="ntext" text-anchor="middle" x="400" y="124">Tier-1 gate?</text>
+<text class="nsub" text-anchor="middle" x="400" y="141">nval≥2 · maxsep≥9</text>
+<text class="nsub" text-anchor="middle" x="400" y="155">maxel ok · pos fit</text>
+<!-- yes -> tier1 -->
+<line class="edge" x1="506" x2="620" y1="128" y2="128"></line>
+<text class="elbl" x="520" y="120">yes</text>
+<rect class="node" fill="rgba(74,222,128,.10)" height="46" stroke="var(--ok)" width="160" x="620" y="105"></rect>
+<text class="ntext" style="fill:var(--ok)" text-anchor="middle" x="700" y="124">TIER 1 · 0.85</text>
+<text class="nsub" text-anchor="middle" x="700" y="140">"measured"</text>
+<!-- no down to suppressed? -->
+<line class="edge" x1="400" x2="400" y1="170" y2="198"></line>
+<text class="elbl" x="412" y="190">no</text>
+<polygon fill="var(--card)" points="400,198 506,240 400,282 294,240" stroke="var(--warn)" stroke-width="1.6"></polygon>
+<text class="ntext" text-anchor="middle" x="400" y="236">reads suppressed?</text>
+<text class="nsub" text-anchor="middle" x="400" y="253">maxel &lt; 0.43 × tour</text>
+<!-- yes -> boosted -->
+<line class="edge" x1="506" x2="620" y1="240" y2="240"></line>
+<text class="elbl" x="520" y="232">yes</text>
+<rect class="node" fill="rgba(251,191,36,.10)" height="46" stroke="var(--warn)" width="160" x="620" y="217"></rect>
+<text class="ntext" style="fill:var(--warn)" text-anchor="middle" x="700" y="236">TIER 2 · 0.35</text>
+<text class="nsub" text-anchor="middle" x="700" y="252">+ boost → tour avg</text>
+<!-- no -> tier2 plain -->
+<line class="edge" x1="400" x2="400" y1="282" y2="310"></line>
+<text class="elbl" x="412" y="302">no</text>
+<rect class="node" fill="rgba(251,191,36,.06)" height="46" stroke="var(--warn)" width="160" x="320" y="312"></rect>
+<text class="ntext" style="fill:var(--warn)" text-anchor="middle" x="400" y="331">TIER 2 · 0.65</text>
+<text class="nsub" text-anchor="middle" x="400" y="347">as-measured</text>
+</svg>

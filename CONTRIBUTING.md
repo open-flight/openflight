@@ -79,7 +79,7 @@ make format
 
 ### TypeScript/React
 
-Use the checked-in [UI color palette](docs/color_palette.html) when adding or
+Use the checked-in [UI color palette](docs/development/color-palette.md) when adding or
 changing visual states.
 
 ```bash

@@ -82,9 +82,10 @@ def _codec_for(cfg: "ConnectorConfig") -> Codec:
 
     The OpenConnect V1 codec is shared: GSPro uses it on 921; OpenGolfSim uses it
     on its Developer API (3111, which speaks OpenConnect), named "opengolfsim" so
-    the UI/logs/config say OpenGolfSim rather than GSPro.
+    the UI/logs/config say OpenGolfSim rather than GSPro; PAR-TEE listens for it
+    on the phone's Wi-Fi address (921), named "partee" for the same reason.
     """
-    if cfg.type not in ("gspro", "opengolfsim"):
+    if cfg.type not in ("gspro", "opengolfsim", "partee"):
         raise ValueError(f"unknown simulator connector type: {cfg.type!r}")
     from openflight.gspro.codec import GSProCodec  # pylint: disable=import-outside-toplevel
 

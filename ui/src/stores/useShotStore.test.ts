@@ -15,6 +15,7 @@ describe('useShotStore processing lifecycle', () => {
       shots: [],
       isNewShot: false,
       shotProcessingPhase: null,
+      shotProcessingShotTimestamp: null,
       shotVersion: 0,
     });
   });
@@ -49,5 +50,52 @@ describe('useShotStore processing lifecycle', () => {
     vi.advanceTimersByTime(30_000);
 
     expect(useShotStore.getState().shotProcessingPhase).toBeNull();
+  });
+
+  it('replaces a provisional shot without replaying new-shot effects', () => {
+    const enriched = {
+      ...shot,
+      launch_angle_vertical: 17.4,
+      launch_angle_vertical_source: 'radar',
+    } as Shot;
+    useShotStore.setState({
+      latestShot: shot,
+      shots: [shot],
+      shotProcessingPhase: 'iwr_dump',
+      shotProcessingShotTimestamp: shot.timestamp,
+      isNewShot: true,
+      shotVersion: 1,
+    });
+
+    useShotStore.getState().updateShot(enriched);
+
+    expect(useShotStore.getState().shots).toEqual([enriched]);
+    expect(useShotStore.getState().latestShot).toBe(enriched);
+    expect(useShotStore.getState().shotProcessingPhase).toBeNull();
+    expect(useShotStore.getState().shotProcessingShotTimestamp).toBeNull();
+    expect(useShotStore.getState().isNewShot).toBe(true);
+    expect(useShotStore.getState().shotVersion).toBe(1);
+  });
+
+  it('does not clear a newer IWR dump indicator when an older shot update arrives', () => {
+    const newerShot = { ...shot, timestamp: '2026-08-12T12:01:00Z' } as Shot;
+    useShotStore.setState({
+      latestShot: newerShot,
+      shots: [shot, newerShot],
+      shotProcessingPhase: 'iwr_dump',
+      shotProcessingShotTimestamp: newerShot.timestamp,
+    });
+
+    useShotStore.getState().updateShot({ ...shot, launch_angle_vertical: 17.4 } as Shot);
+
+    expect(useShotStore.getState().shotProcessingPhase).toBe('iwr_dump');
+    expect(useShotStore.getState().shotProcessingShotTimestamp).toBe(newerShot.timestamp);
+  });
+
+  it('ignores enrichment for a shot that was already removed', () => {
+    useShotStore.getState().updateShot(shot);
+
+    expect(useShotStore.getState().shots).toEqual([]);
+    expect(useShotStore.getState().latestShot).toBeNull();
   });
 });

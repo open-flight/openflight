@@ -298,6 +298,67 @@ def test_club_path_receives_the_configured_azimuth_offset():
     assert seen["aim_offset_deg"] == 1.5
 
 
+def test_azimuth_offset_corrects_horizontal_launch():
+    measurement = LCMFResult(
+        status="accepted",
+        angle_deg=18.0,
+        horizontal_deg=3.3,
+        horizontal_status="hlcmf_v0_accepted",
+    )
+    with patch("openflight.iwr6843.runtime.estimate_lcmf_v1", return_value=measurement):
+        result = _runtime(azimuth_offset_deg=-3.0).process_shot(
+            impact_timestamp=1.0,
+            ball_speed_mph=100.0,
+            club="9i",
+            club_speed_mph=None,
+        )
+
+    assert result.measurement.horizontal_deg == pytest.approx(0.3)
+    assert result.measurement.horizontal_raw_deg == pytest.approx(3.3)
+
+
+def test_lcmf_receives_the_configured_horizontal_phase_reference():
+    seen = {}
+
+    def fake_lcmf(raw, cal, **kwargs):
+        seen.update(kwargs)
+        return None
+
+    with patch("openflight.iwr6843.runtime.estimate_lcmf_v1", side_effect=fake_lcmf):
+        _runtime(horizontal_phase_reference_rad=-0.493587).process_shot(
+            impact_timestamp=1.0,
+            ball_speed_mph=100.0,
+            club="7i",
+        )
+
+    assert seen["horizontal_phase_reference_rad"] == pytest.approx(-0.493587)
+
+
+def test_club_path_receives_the_configured_horizontal_phase_reference():
+    seen = {}
+
+    def fake_club(raw, cal, **kwargs):
+        seen.update(kwargs)
+        return ClubPathResult(status="accepted", path_deg=2.0, confidence=0.8)
+
+    class Measurement:
+        tdm_sign_used = 1
+        impact_t_s = 0.04
+
+    with (
+        patch("openflight.iwr6843.runtime.estimate_lcmf_v1", return_value=Measurement()),
+        patch("openflight.iwr6843.runtime.estimate_club_path", side_effect=fake_club),
+    ):
+        _runtime(horizontal_phase_reference_rad=-0.493587).process_shot(
+            impact_timestamp=1.0,
+            ball_speed_mph=100.0,
+            club="7i",
+            club_speed_mph=74.0,
+        )
+
+    assert seen["phase_reference_rad"] == pytest.approx(-0.493587)
+
+
 def test_falls_back_to_policy_sign_when_ball_has_none():
     seen = {}
 
@@ -353,6 +414,41 @@ def test_per_shot_tilt_uses_a_calibration_copy_without_mutating_runtime():
     assert seen["calibration"] is not calibration
     assert math.degrees(seen["calibration"].tilt_rad) == pytest.approx(13.5)
     assert calibration.tilt_rad == 0.0
+
+
+def test_recovered_ball_impact_anchor_is_used_for_club_range_search():
+    """A rejected vertical angle may still anchor experimental club delivery."""
+    seen = {}
+    runtime = _runtime()
+    runtime.recovery_observations = [
+        (1.0, 0.016, 0.040),
+        (1.01, 0.017, 0.041),
+        (0.99, 0.015, 0.039),
+    ]
+    measurement = LCMFResult(status="rejected_track_quality", impact_t_s=None)
+
+    def fake_club(_raw, _cal, **kwargs):
+        seen.update(kwargs)
+        return ClubPathResult(status="rejected_phase_span")
+
+    candidate = type("Candidate", (), {"impact_s": 0.019})()
+    with (
+        patch("openflight.iwr6843.runtime.estimate_lcmf_v1", return_value=measurement),
+        patch("openflight.iwr6843.runtime.RecoveryPrior.fit"),
+        patch("openflight.iwr6843.runtime.find_recovery_candidates", return_value=[candidate]),
+        patch("openflight.iwr6843.runtime.select_recovery_candidate", return_value=candidate),
+        patch("openflight.iwr6843.runtime.estimate_club_path", side_effect=fake_club),
+    ):
+        result = runtime.process_shot(
+            impact_timestamp=1.0,
+            ball_speed_mph=100.0,
+            club="9i",
+            club_speed_mph=74.0,
+        )
+
+    assert result.club_path is not None
+    assert seen["impact_t_s"] == pytest.approx(0.017)
+    assert "recovered_impact" in result.club_path.status
 
 
 def test_ball_estimate_receives_the_configured_tdm_sign_policy():

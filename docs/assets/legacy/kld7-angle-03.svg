@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Two frame-timing scenarios: 2 frames vs 1 frame" role="img" viewBox="0 0 800 300" width="800" height="300">
+<style>
+  svg {
+    --bg:#0a0a0f; --card:#12121a; --elev:#1a1a24; --hover:#222230;
+    --gold:#d4af37; --gold-bright:#f4cf47; --gold-dim:#a68b2a;
+    --cream:#f5f0e6; --cream-dim:rgba(245,240,230,.72);
+    --cream-muted:rgba(245,240,230,.5);
+    --ok:#4ade80; --info:#60a5fa; --warn:#fbbf24; --bad:#f87171;
+    --line:rgba(245,240,230,.12);
+    font-family: Outfit, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  }
+  .svg-lbl{fill:var(--cream-dim);font-size:13px}
+  .svg-lbl-sm{fill:var(--cream-muted);font-size:11.5px}
+  .svg-strong{fill:var(--cream);font-size:13px;font-weight:600}
+  .svg-mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style>
+<rect x="0" y="0" width="800" height="300" rx="8" fill="var(--bg)"/>
+
+<!-- ROW A: best case, 2 good frames -->
+<text class="svg-strong" fill="var(--ok)" x="58" y="46">Best case — 2 good frames</text>
+<rect fill="rgba(74,222,128,.08)" height="28" stroke="rgba(74,222,128,.3)" stroke-width="1" width="322" x="234" y="78"></rect>
+<text class="svg-lbl-sm" text-anchor="middle" x="395" y="71">clean-view window (ball clear of the tee, not yet at the net)</text>
+<line stroke="var(--cream-muted)" stroke-width="1.3" x1="130" x2="612" y1="92" y2="92"></line>
+<line stroke="var(--bad)" stroke-width="2.5" x1="150" x2="150" y1="70" y2="112"></line>
+<text class="svg-lbl-sm" fill="var(--bad)" text-anchor="middle" x="150" y="128">impact</text>
+<circle cx="325" cy="92" fill="var(--ok)" r="6.5"></circle>
+<circle cx="528" cy="92" fill="var(--ok)" r="6.5"></circle>
+<text class="svg-strong" text-anchor="middle" x="325" y="128">25 ms</text>
+<text class="svg-strong" text-anchor="middle" x="528" y="128">54 ms</text>
+<line stroke="var(--cream-muted)" stroke-width="1" x1="325" x2="528" y1="74" y2="74"></line>
+<text class="svg-lbl-sm" text-anchor="middle" x="426" y="68">29 ms apart</text>
+<rect fill="rgba(74,222,128,.12)" height="28" rx="14" stroke="var(--ok)" stroke-width="1" width="150" x="628" y="78"></rect>
+<text class="svg-strong" fill="var(--ok)" text-anchor="middle" x="703" y="96">→ Tier 1 ✓</text>
+<!-- ROW B: common case, frame burned at contact -->
+<text class="svg-strong" fill="var(--warn)" x="58" y="178">Common case — a frame fires at contact</text>
+<rect fill="rgba(74,222,128,.08)" height="28" stroke="rgba(74,222,128,.3)" stroke-width="1" width="322" x="234" y="200"></rect>
+<line stroke="var(--cream-muted)" stroke-width="1.3" x1="130" x2="612" y1="214" y2="214"></line>
+<line stroke="var(--bad)" stroke-width="2.5" x1="150" x2="150" y1="196" y2="232"></line>
+<text class="svg-lbl-sm" fill="var(--bad)" text-anchor="middle" x="150" y="248">impact</text>
+<circle cx="171" cy="214" fill="var(--bad)" r="6.5"></circle>
+<circle cx="374" cy="214" fill="var(--ok)" r="6.5"></circle>
+<circle cx="577" cy="214" fill="var(--cream-muted)" opacity=".45" r="6.5"></circle>
+<text class="svg-strong" fill="var(--bad)" text-anchor="middle" x="171" y="248">3 ms</text>
+<text class="svg-strong" text-anchor="middle" x="374" y="248">32 ms</text>
+<text class="svg-lbl-sm" fill="var(--cream-muted)" text-anchor="middle" x="577" y="248">61 ms</text>
+<text class="svg-lbl-sm" fill="var(--bad)" style="font-size:10.5px" text-anchor="middle" x="171" y="263">wasted · ball at tee</text>
+<text class="svg-lbl-sm" fill="var(--cream-muted)" style="font-size:10.5px" text-anchor="middle" x="577" y="263">too late · past net</text>
+<rect fill="rgba(251,191,36,.12)" height="28" rx="14" stroke="var(--warn)" stroke-width="1" width="150" x="628" y="200"></rect>
+<text class="svg-strong" fill="var(--warn)" text-anchor="middle" x="703" y="218">→ Tier 2 · 1 frame</text>
+<line stroke="var(--line)" stroke-width="1" x1="40" x2="760" y1="285" y2="285"></line>
+<text class="svg-lbl-sm" text-anchor="middle" x="400" y="299">Same radar, two different shots — the only difference is where impact happened to fall in the 29 ms frame clock.</text>
+</svg>

@@ -1,0 +1,36 @@
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ui-button--primary {
+  background: var(--color-accent-block);
+  color: var(--color-accent-fg);
+  border: 1px solid var(--color-accent-block);
+}
+
+.ui-button--ghost {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-accent);
+}
+
+.ui-button--block {
+  width: 100%;
+}
+
+@media (max-height: 500px) {
+  .ui-button {
+    min-height: 38px;
+  }
+}

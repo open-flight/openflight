@@ -3,16 +3,16 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
-  color: var(--text-primary);
+  color: var(--color-text);
 }
 
 .progress-indicator--inline {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0.35rem var(--space-md);
-  border: 1px solid rgba(212, 175, 55, 0.28);
-  border-radius: var(--radius-md);
-  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid var(--color-border-emphasis);
+  border-radius: var(--radius);
+  background: var(--color-surface);
 }
 
 .progress-indicator--dialog {
@@ -24,8 +24,8 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  border: 2px solid rgba(212, 175, 55, 0.24);
-  border-top-color: var(--color-gold-bright);
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: progress-indicator-spin 0.8s linear infinite;
 }
@@ -49,7 +49,7 @@
 }
 
 .progress-indicator__title {
-  color: var(--color-gold-bright);
+  color: var(--color-accent);
   font-size: 0.875rem;
   letter-spacing: 0.02em;
 }
@@ -59,7 +59,7 @@
 }
 
 .progress-indicator__detail {
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 
@@ -72,6 +72,6 @@
 @media (prefers-reduced-motion: reduce) {
   .progress-indicator__spinner {
     animation: none;
-    border-color: var(--color-gold-bright);
+    border-color: var(--color-accent);
   }
 }

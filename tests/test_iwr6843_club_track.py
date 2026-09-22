@@ -8,7 +8,7 @@ already — it just needs pointing at one deliberately.
 import numpy as np
 import pytest
 
-from openflight.iwr6843 import club, tracking
+from openflight.iwr6843 import tracking
 from openflight.iwr6843.dump import parse_dump
 from openflight.iwr6843.shot import geometry_from_header
 
@@ -73,40 +73,38 @@ def test_club_gates_find_a_slow_close_mover():
 def test_speed_bounds_are_the_callers_not_the_module_default():
     """The caller's speed band must actually gate the fit.
 
-    ``speed_bounds_ms`` is layer 2 of the two-layer guard that stops the ball
-    being reported as club path (layer 1 is ``time_window_s``), so it needs a
-    test that fails when it is ignored. Every other fixture in this suite runs
-    at 22 m/s radial, which sits inside BOTH the ball band (20-90) and the club
-    band (10-45) -- so none of them can tell the two apart, and substituting
-    the module default for the argument passes them all.
+    ``speed_bounds_ms`` needs a test that fails when the argument is ignored
+    and the module default is substituted. Every other fixture in this suite
+    runs at 22 m/s radial, which sits inside BOTH the ball band (20-90) and the
+    club band (18-45), so none of them can tell the two apart.
 
-    12 m/s is inside the club band and below the ball band's 20 m/s floor, so
-    it separates them. Gates and ``min_ball_ms`` are held identical across the
-    two calls: ``speed_bounds_ms`` is the only thing that differs, so it is
-    the only thing that can explain the difference in outcome.
+    The bands themselves no longer separate ball from club -- they overlap
+    everywhere except 18-20 m/s, which is far too narrow for the RANSAC fit's
+    own tolerance to resolve. In production that separation rests on
+    ``time_window_s`` (which ends at impact) and on the club gate's upper edge
+    being capped at the tee, since the clubhead is always short of the ball
+    before it strikes it. What this test pins is therefore the plumbing: an
+    explicit band supplied by the caller must gate the fit. Gates and
+    ``min_ball_ms`` are held identical across the two calls, so
+    ``speed_bounds_ms`` is the only thing that can explain the difference.
     """
-    raw = _synth(1.6, 12.0)
+    raw = _synth(1.6, 22.0)
     shared = {"gates_m": ((1.0, 2.6),), "min_ball_ms": 10.0}
 
-    with_club_bounds = _track(raw, speed_bounds_ms=club.CLUB_SPEED_BOUNDS_MS, **shared)
-    assert with_club_bounds is not None, (
-        "12 m/s is inside the club band (10-45 m/s) and must be found"
-    )
-    assert with_club_bounds.speed_ms == pytest.approx(12.0, abs=2.0)
+    admitted = _track(raw, speed_bounds_ms=(10.0, 45.0), **shared)
+    assert admitted is not None, "22 m/s is inside (10, 45) and must be found"
+    assert admitted.speed_ms == pytest.approx(22.0, abs=2.0)
 
-    with_ball_bounds = _track(raw, speed_bounds_ms=tracking.SPEED_BOUNDS_MS, **shared)
-    assert with_ball_bounds is None, (
-        "12 m/s is below the ball band's 20 m/s floor and must be rejected; "
-        f"got {with_ball_bounds}"
+    excluded = _track(raw, speed_bounds_ms=(30.0, 45.0), **shared)
+    assert excluded is None, (
+        f"22 m/s is below the supplied band's 30 m/s floor and must be rejected; got {excluded}"
     )
 
 
 def test_ball_behaviour_unchanged_by_defaults():
     """Defaults must reproduce today's behaviour exactly."""
     raw = _synth(2.6, 45.0)
-    explicit = _track(
-        raw, gates_m=tracking.BALL_GATES_M, speed_bounds_ms=tracking.SPEED_BOUNDS_MS
-    )
+    explicit = _track(raw, gates_m=tracking.BALL_GATES_M, speed_bounds_ms=tracking.SPEED_BOUNDS_MS)
     implicit = _track(raw)
     assert (explicit is None) == (implicit is None)
     if explicit is not None:

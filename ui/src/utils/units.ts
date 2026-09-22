@@ -39,6 +39,10 @@ export function getDistanceUnit(unitSystem: UnitSystem): string {
   return unitSystem === 'metric' ? METRIC_DISTANCE_UNIT : IMPERIAL_DISTANCE_UNIT;
 }
 
+export function getUnitsLabel(unitSystem: UnitSystem): string {
+  return `${getSpeedUnit(unitSystem)} / ${getDistanceUnit(unitSystem)}`;
+}
+
 export function formatCarryRange(carryRange: [number, number], unitSystem: UnitSystem): string {
   const min = formatDistance(carryRange[0], unitSystem, 0);
   const max = formatDistance(carryRange[1], unitSystem, 0);

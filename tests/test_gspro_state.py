@@ -1,6 +1,6 @@
 """Tests for gspro.state — GSPro club-code mapping."""
+from openflight.clubs import ClubType
 from openflight.gspro.state import gspro_code_to_club
-from openflight.launch_monitor import ClubType
 
 
 def test_gspro_code_to_club_mapping():

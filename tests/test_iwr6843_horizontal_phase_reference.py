@@ -1,4 +1,4 @@
-"""Horizontal LCMF target-line calibration and LEVM geometry tests."""
+"""Horizontal LCMF target-line phase-reference tests."""
 
 import math
 
@@ -9,6 +9,7 @@ from openflight.iwr6843.lcmf import _referenced_horizontal_mean
 
 
 def test_levm_tx2_half_wavelength_baseline_recovers_axis_angle():
+    """LEVM TX2 is displaced lambda/2 from the TX1/TX3 phase center."""
     angle_rad = math.radians(12.0)
     phase_rad = math.pi * math.sin(angle_rad)
 
@@ -18,7 +19,7 @@ def test_levm_tx2_half_wavelength_baseline_recovers_axis_angle():
 
 
 def test_phase_reference_maps_calibrated_target_line_to_zero():
-    target_line_phase_rad = -0.5
+    target_line_phase_rad = -0.493587
 
     angle_deg, coherence = _referenced_horizontal_mean(
         [target_line_phase_rad] * 3,
@@ -31,7 +32,7 @@ def test_phase_reference_maps_calibrated_target_line_to_zero():
 
 
 def test_phase_reference_is_subtracted_before_angle_conversion():
-    target_line_phase_rad = -0.5
+    target_line_phase_rad = -0.493587
     relative_phase_rad = 0.2
 
     angle_deg, _coherence = _referenced_horizontal_mean(
@@ -45,7 +46,7 @@ def test_phase_reference_is_subtracted_before_angle_conversion():
 
 
 def test_omitting_phase_reference_preserves_raw_rf_zero():
-    raw_phase_rad = -0.5
+    raw_phase_rad = -0.493587
 
     angle_deg, _coherence = _referenced_horizontal_mean(
         [raw_phase_rad],

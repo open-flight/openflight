@@ -10,21 +10,20 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 from openflight.rolling_buffer import (
     HardwareTriggeredCapture,
     ImpactEstimate,
     IQCapture,
-    ManualTrigger,
-    PollingTrigger,
     ProcessedCapture,
     RollingBufferProcessor,
+    SoundTrigger,
     SpeedReading,
     SpeedTimeline,
     SpeedTriggeredCapture,
     SpinCandidate,
     SpinResult,
-    ThresholdTrigger,
     create_trigger,
     # Monitor functions
     estimate_carry_with_spin,
@@ -523,20 +522,15 @@ class TestRollingBufferProcessor:
 class TestTriggerFactory:
     """Tests for the trigger factory function."""
 
-    def test_create_polling_trigger(self):
-        """Factory should create PollingTrigger."""
-        trigger = create_trigger("polling")
-        assert isinstance(trigger, PollingTrigger)
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [("sound", SoundTrigger), ("speed", SpeedTriggeredCapture)],
+    )
+    def test_supported_triggers(self, name, expected):
+        assert isinstance(create_trigger(name), expected)
 
-    def test_create_threshold_trigger(self):
-        """Factory should create ThresholdTrigger."""
-        trigger = create_trigger("threshold", speed_threshold_mph=60)
-        assert isinstance(trigger, ThresholdTrigger)
-
-    def test_create_manual_trigger(self):
-        """Factory should create ManualTrigger."""
-        trigger = create_trigger("manual")
-        assert isinstance(trigger, ManualTrigger)
+    def test_default_trigger_is_sound(self):
+        assert isinstance(create_trigger(), SoundTrigger)
 
     def test_invalid_trigger_type(self):
         """Factory should raise error for unknown trigger type."""
@@ -552,7 +546,7 @@ class TestTriggerFactory:
         assert trigger.trigger_magnitude == 25
         assert trigger.pre_trigger_segments == 6
         assert trigger.sample_rate_ksps == 30
-        assert isinstance(create_trigger(), SpeedTriggeredCapture)
+        assert isinstance(create_trigger(), SoundTrigger)
 
     def test_monitor_configures_hardware_trigger_on_connect(self):
         """Hardware mode delegates its board setup to the OPS243 driver."""
@@ -671,10 +665,7 @@ class TestSoundTriggerTimestampPropagation:
 
             def __init__(self):
                 self._response = (
-                    b'{"sample_time": 1.0}\r\n'
-                    b'{"trigger_time": 1.1}\r\n'
-                    b'{"I": [1]}\r\n'
-                    b'{"Q": [1]}'
+                    b'{"sample_time": 1.0}\r\n{"trigger_time": 1.1}\r\n{"I": [1]}\r\n{"Q": [1]}'
                 )
 
             @property
@@ -916,76 +907,6 @@ class TestSoundTriggerTimestampPropagation:
         assert result.trigger_timestamp_source == "first_byte"
 
 
-class TestPollingTrigger:
-    """Tests for the polling-based trigger."""
-
-    def test_default_parameters(self):
-        """Polling trigger should have sensible defaults."""
-        trigger = PollingTrigger()
-        assert trigger.poll_interval == 0.3
-        assert trigger.min_readings == 1
-        assert trigger.min_speed_mph == 15
-
-    def test_custom_parameters(self):
-        """Polling trigger should accept custom parameters."""
-        trigger = PollingTrigger(
-            poll_interval=0.2,
-            min_readings=5,
-            min_speed_mph=50,
-        )
-        assert trigger.poll_interval == 0.2
-        assert trigger.min_readings == 5
-        assert trigger.min_speed_mph == 50
-
-    def test_reset_no_state(self):
-        """Polling trigger reset should be no-op."""
-        trigger = PollingTrigger()
-        trigger.reset()  # Should not raise
-
-
-class TestThresholdTrigger:
-    """Tests for the threshold-based trigger."""
-
-    def test_default_threshold(self):
-        """Threshold trigger should have default 50 mph threshold."""
-        trigger = ThresholdTrigger()
-        assert trigger.speed_threshold_mph == 50
-
-    def test_custom_threshold(self):
-        """Threshold trigger should accept custom threshold."""
-        trigger = ThresholdTrigger(speed_threshold_mph=70)
-        assert trigger.speed_threshold_mph == 70
-
-    def test_reset_clears_triggered(self):
-        """Reset should clear triggered state."""
-        trigger = ThresholdTrigger()
-        trigger._triggered = True
-        trigger.reset()
-        assert trigger._triggered is False
-
-
-class TestManualTrigger:
-    """Tests for the manual trigger."""
-
-    def test_initial_state(self):
-        """Manual trigger should start with no request."""
-        trigger = ManualTrigger()
-        assert trigger._trigger_requested is False
-
-    def test_request_trigger(self):
-        """Request should set trigger flag."""
-        trigger = ManualTrigger()
-        trigger.request_trigger()
-        assert trigger._trigger_requested is True
-
-    def test_reset_clears_request(self):
-        """Reset should clear trigger request."""
-        trigger = ManualTrigger()
-        trigger.request_trigger()
-        trigger.reset()
-        assert trigger._trigger_requested is False
-
-
 # =============================================================================
 # Tests for Shot with Spin Fields
 # =============================================================================
@@ -1128,7 +1049,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """PW/short-iron rail-low spin should be logged but not exposed."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         monitor.set_club(ClubType.PW)
         processed = self._processed_with_spin(
             SpinResult(
@@ -1155,7 +1076,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """K-LD7 geometry should use the trusted sound-trigger impact time."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         processed = self._processed_with_spin(
             SpinResult(spin_rpm=0, confidence=0.0, snr=0.0, quality="none")
         )
@@ -1170,7 +1091,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """Rail picks should be logged but not exposed as measured spin."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         monitor.set_club(ClubType.DRIVER)
         processed = self._processed_with_spin(
             SpinResult(
@@ -1197,7 +1118,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """Low-confidence rail spin should remain diagnostic, not user-facing."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         monitor.set_club(ClubType.DRIVER)
         processed = self._processed_with_spin(
             SpinResult(
@@ -1225,7 +1146,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """Non-rail low-confidence spin can be shown but must not drive carry."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         monitor.set_club(ClubType.IRON_7)
         processed = self._processed_with_spin(
             SpinResult(
@@ -1251,7 +1172,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """Rolling-buffer shots should carry the wall-clock sound trigger time."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         capture = IQCapture(
             sample_time=100.000,
             trigger_time=100.068,
@@ -1277,7 +1198,7 @@ class TestRollingBufferMonitorSpinPlausibility:
         """Transition impact timing should shift K-LD7 correlation per shot."""
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         capture = IQCapture(
             sample_time=100.000,
             trigger_time=100.068,
@@ -1302,6 +1223,79 @@ class TestRollingBufferMonitorSpinPlausibility:
         assert shot is not None
         assert shot.impact_timestamp == pytest.approx(1715000000.123)
         assert shot.impact_timestamp_kld7 == pytest.approx(1715000000.115)
+
+
+class TestRollingBufferShotIdentity:
+    """Raw OPS captures and downstream shots must share a monotonic identity."""
+
+    @staticmethod
+    def _processed(impact_timestamp: float) -> ProcessedCapture:
+        capture = IQCapture(
+            sample_time=100.0,
+            trigger_time=100.068,
+            i_samples=[2048] * 16,
+            q_samples=[2048] * 16,
+            trigger_timestamp=impact_timestamp,
+        )
+        return ProcessedCapture(
+            timeline=SpeedTimeline(readings=[], sample_rate_hz=937.5, capture=capture),
+            ball_speed_mph=100.0,
+            ball_timestamp_ms=68.0,
+            club_speed_mph=75.0,
+            capture=capture,
+        )
+
+    def test_clear_session_does_not_reuse_raw_ops_shot_number(self, monkeypatch):
+        from openflight.rolling_buffer import RollingBufferMonitor, monitor as monitor_module
+
+        raw_captures = []
+        downstream_shots = []
+        session_log = MagicMock()
+        session_log.log_rolling_buffer_capture.side_effect = lambda **row: raw_captures.append(row)
+        monkeypatch.setattr(monitor_module, "get_session_logger", lambda: session_log)
+
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
+        monitor._diagnostic_callback = None
+        monitor._shot_callback = downstream_shots.append
+
+        def run_capture(impact_timestamp):
+            processed = self._processed(impact_timestamp)
+
+            class OneCaptureTrigger:
+                calls = 0
+
+                def wait_for_trigger(self, **_kwargs):
+                    self.calls += 1
+                    if self.calls == 1:
+                        return processed.capture
+                    monitor._running = False
+                    return None
+
+                @staticmethod
+                def drain_diagnostics():
+                    return []
+
+                @staticmethod
+                def reset():
+                    return None
+
+            monitor.trigger = OneCaptureTrigger()
+            monitor.processor = MagicMock(process_capture=MagicMock(return_value=processed))
+            monitor._running = True
+            monitor._capture_loop()
+
+        run_capture(1000.0)
+        monitor.clear_session()
+        run_capture(1001.0)
+
+        assert [(shot.shot_number, shot.impact_timestamp) for shot in downstream_shots] == [
+            (1, 1000.0),
+            (2, 1001.0),
+        ]
+        assert [(row["shot_number"], row["trigger_timestamp"]) for row in raw_captures] == [
+            (1, 1000.0),
+            (2, 1001.0),
+        ]
 
 
 # =============================================================================
@@ -1375,25 +1369,21 @@ class TestCarryCalculationIntegration:
 class TestTriggerStrategyDiagnostics:
     """Tests for the diagnostic accumulation in TriggerStrategy."""
 
-    def test_drain_diagnostics_returns_empty_list(self):
-        """drain_diagnostics should return empty list when no diagnostics."""
-        trigger = PollingTrigger()
-        result = trigger.drain_diagnostics()
-        assert result == []
+    def test_drain_clears_diagnostics_and_defaults_lists(self):
+        trigger = SoundTrigger()
+        assert trigger.drain_diagnostics() == []
+        trigger._append_diagnostic(accepted=False, reason="timeout")
 
-    def test_drain_diagnostics_clears_list(self):
-        """drain_diagnostics should clear the internal list."""
-        trigger = PollingTrigger()
-        trigger._append_diagnostic(
-            accepted=False,
-            reason="test",
-        )
-        assert len(trigger.drain_diagnostics()) == 1
-        assert len(trigger.drain_diagnostics()) == 0
+        diagnostic = trigger.drain_diagnostics()[0]
 
-    def test_append_diagnostic_accepted(self):
-        """Appending accepted diagnostic should include all fields."""
-        trigger = PollingTrigger()
+        assert diagnostic["all_outbound_speeds"] == []
+        assert diagnostic["all_inbound_speeds"] == []
+        assert diagnostic["peak_outbound_magnitude"] == 0.0
+        assert diagnostic["peak_inbound_magnitude"] == 0.0
+        assert trigger.drain_diagnostics() == []
+
+    def test_append_diagnostic_preserves_capture_details(self):
+        trigger = SoundTrigger()
         trigger._append_diagnostic(
             accepted=True,
             reason="accepted",
@@ -1405,96 +1395,24 @@ class TestTriggerStrategyDiagnostics:
             peak_inbound_mph=45.0,
             all_outbound_speeds=[155.3, 140.2],
             all_inbound_speeds=[45.0],
+            peak_outbound_magnitude=245.5,
+            peak_inbound_magnitude=180.3,
         )
 
-        diagnostics = trigger.drain_diagnostics()
-        assert len(diagnostics) == 1
-
-        diag = diagnostics[0]
+        diag = trigger.drain_diagnostics()[0]
         assert diag["accepted"] is True
         assert diag["reason"] == "accepted"
         assert diag["response_bytes"] == 32768
         assert diag["total_readings"] == 32
         assert diag["outbound_readings"] == 8
         assert diag["peak_outbound_mph"] == 155.3
-        assert len(diag["all_outbound_speeds"]) == 2
+        assert diag["all_outbound_speeds"] == [155.3, 140.2]
+        assert diag["peak_outbound_magnitude"] == 245.5
+        assert diag["peak_inbound_magnitude"] == 180.3
         assert "timestamp" in diag
 
-    def test_append_diagnostic_rejected(self):
-        """Appending rejected diagnostic should include reason."""
-        trigger = ThresholdTrigger()
-        trigger._append_diagnostic(
-            accepted=False,
-            reason="no_outbound_speed",
-            total_readings=12,
-            outbound_readings=0,
-            inbound_readings=12,
-            peak_inbound_mph=42.1,
-        )
-
-        diagnostics = trigger.drain_diagnostics()
-        assert len(diagnostics) == 1
-        assert diagnostics[0]["accepted"] is False
-        assert diagnostics[0]["reason"] == "no_outbound_speed"
-        assert diagnostics[0]["peak_inbound_mph"] == 42.1
-
-    def test_multiple_diagnostics_accumulate(self):
-        """Multiple diagnostic entries should accumulate."""
-        trigger = PollingTrigger()
-        trigger._append_diagnostic(accepted=False, reason="no_response")
-        trigger._append_diagnostic(accepted=False, reason="parse_failed")
-        trigger._append_diagnostic(accepted=True, reason="accepted")
-
-        diagnostics = trigger.drain_diagnostics()
-        assert len(diagnostics) == 3
-        assert diagnostics[0]["reason"] == "no_response"
-        assert diagnostics[1]["reason"] == "parse_failed"
-        assert diagnostics[2]["reason"] == "accepted"
-
-    def test_default_empty_speed_lists(self):
-        """Speed lists should default to empty when not provided."""
-        trigger = ManualTrigger()
-        trigger._append_diagnostic(accepted=False, reason="timeout")
-
-        diagnostics = trigger.drain_diagnostics()
-        assert diagnostics[0]["all_outbound_speeds"] == []
-        assert diagnostics[0]["all_inbound_speeds"] == []
-
-    def test_all_trigger_types_have_diagnostics(self):
-        """All trigger types should support diagnostics via base class."""
-        triggers = [
-            PollingTrigger(),
-            ThresholdTrigger(),
-            ManualTrigger(),
-        ]
-        for trigger in triggers:
-            trigger._append_diagnostic(accepted=False, reason="test")
-            assert len(trigger.drain_diagnostics()) == 1
-
-    def test_diagnostic_includes_magnitude_fields(self):
-        """Diagnostics should include peak magnitude fields."""
-        trigger = PollingTrigger()
-        trigger._append_diagnostic(
-            accepted=True,
-            reason="accepted",
-            peak_outbound_magnitude=245.5,
-            peak_inbound_magnitude=180.3,
-        )
-        diagnostics = trigger.drain_diagnostics()
-        assert diagnostics[0]["peak_outbound_magnitude"] == 245.5
-        assert diagnostics[0]["peak_inbound_magnitude"] == 180.3
-
-    def test_diagnostic_magnitude_defaults_to_zero(self):
-        """Magnitude fields should default to 0 when not provided."""
-        trigger = PollingTrigger()
-        trigger._append_diagnostic(accepted=False, reason="test")
-        diagnostics = trigger.drain_diagnostics()
-        assert diagnostics[0]["peak_outbound_magnitude"] == 0.0
-        assert diagnostics[0]["peak_inbound_magnitude"] == 0.0
-
     def test_capture_activity_summary_counts_valid_outbound(self):
-        """Capture summary should split directions and apply the sound-trigger floor."""
-        trigger = PollingTrigger()
+        trigger = SoundTrigger()
 
         class StubProcessor:
             def process_standard(self, capture):
@@ -1534,8 +1452,7 @@ class TestTriggerStrategyDiagnostics:
         assert summary["valid_peak_outbound_mph"] == 68.0
 
     def test_activity_diagnostic_uses_summary_fields(self):
-        """Activity diagnostics should preserve summary fields and latency."""
-        trigger = PollingTrigger()
+        trigger = SoundTrigger()
         summary = {
             "total_readings": 3,
             "outbound_readings": 2,
@@ -2935,7 +2852,7 @@ class TestShutdownPreservesRollingBuffer:
         """
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         monitor.radar = MagicMock()
         return monitor
 
@@ -2974,9 +2891,9 @@ class TestShutdownPreservesRollingBuffer:
             "disconnect() must call stop() so the capture thread shuts down"
         )
 
-    def test_processing_failure_reports_capture_calculation_and_failure(self):
+    def test_processing_failure_preserves_accepted_trigger_metadata(self, monkeypatch):
         """UI feedback must cover capture and FFT work, then clear on failure."""
-        from openflight.rolling_buffer import RollingBufferMonitor
+        from openflight.rolling_buffer import RollingBufferMonitor, monitor as monitor_module
 
         monitor = RollingBufferMonitor(port=None, trigger_type="sound")
         capture = IQCapture(
@@ -3000,7 +2917,20 @@ class TestShutdownPreservesRollingBuffer:
 
             @staticmethod
             def drain_diagnostics():
-                return []
+                return [
+                    {
+                        "accepted": True,
+                        "reason": "accepted",
+                        "response_bytes": 32768,
+                        "total_readings": 12,
+                        "outbound_readings": 8,
+                        "inbound_readings": 4,
+                        "peak_outbound_mph": 150.0,
+                        "peak_inbound_mph": 40.0,
+                        "all_outbound_speeds": [150.0],
+                        "all_inbound_speeds": [40.0],
+                    }
+                ]
 
             @staticmethod
             def reset():
@@ -3014,13 +2944,78 @@ class TestShutdownPreservesRollingBuffer:
 
         monitor.trigger = OneCaptureTrigger()
         monitor.processor = FailingProcessor()
-        monitor._diagnostic_callback = None
+        diagnostics = []
+
+        def failing_diagnostic(event):
+            diagnostics.append(event)
+            raise RuntimeError("UI disconnected")
+
+        monitor._diagnostic_callback = failing_diagnostic
         monitor._processing_callback = states.append
         monitor._running = True
+        session_logger = MagicMock()
+        session_logger.log_trigger_event.side_effect = RuntimeError("disk full")
+        monkeypatch.setattr(monitor_module, "get_session_logger", lambda: session_logger)
 
         monitor._capture_loop()
 
         assert states == ["capturing", "calculating", "failed"]
+        event = session_logger.log_trigger_event.call_args.kwargs
+        assert event["accepted"] is False
+        assert event["reason"] == "processing_failed"
+        assert event["response_bytes"] == 32768
+        assert event["total_readings"] == 12
+        assert session_logger.log_trigger_event.call_count == 1
+        assert len(diagnostics) == 1
+
+    def test_processing_exception_records_the_physical_trigger(self, monkeypatch):
+        from openflight.rolling_buffer import RollingBufferMonitor, monitor as monitor_module
+
+        monitor = RollingBufferMonitor(port=None, trigger_type="sound")
+        capture = IQCapture(
+            sample_time=0.0,
+            trigger_time=0.068,
+            i_samples=[2048] * 16,
+            q_samples=[2048] * 16,
+        )
+
+        class OneCaptureTrigger:
+            calls = 0
+
+            def wait_for_trigger(self, **_kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return capture
+                monitor._running = False
+                return None
+
+            @staticmethod
+            def drain_diagnostics():
+                return [{"accepted": True, "reason": "accepted", "response_bytes": 4096}]
+
+            @staticmethod
+            def reset():
+                return None
+
+        class ExplodingProcessor:
+            @staticmethod
+            def process_capture(*_args, **_kwargs):
+                raise RuntimeError("FFT failed")
+
+        session_logger = MagicMock()
+        monkeypatch.setattr(monitor_module, "get_session_logger", lambda: session_logger)
+        monkeypatch.setattr(monitor_module.time, "sleep", lambda _delay: None)
+        monitor.trigger = OneCaptureTrigger()
+        monitor.processor = ExplodingProcessor()
+        monitor._diagnostic_callback = None
+        monitor._running = True
+
+        monitor._capture_loop()
+
+        event = session_logger.log_trigger_event.call_args.kwargs
+        assert event["accepted"] is False
+        assert event["reason"] == "processing_error"
+        assert event["response_bytes"] == 4096
 
     @pytest.mark.parametrize("reason", ["parse_failed", "no_outbound_speed"])
     def test_rejected_started_capture_clears_processing_feedback(self, reason):
@@ -3172,19 +3167,16 @@ class TestRollingBufferStartupMode:
         )
         assert not monitor.radar.configure_for_rolling_buffer.called
 
-    def test_non_sound_trigger_can_configure_rolling_buffer_runtime(self):
+    def test_speed_trigger_defers_runtime_configuration(self):
         from openflight.rolling_buffer import RollingBufferMonitor
 
-        monitor = RollingBufferMonitor(port=None, trigger_type="manual", pre_trigger_segments=12)
+        monitor = RollingBufferMonitor(port=None, trigger_type="speed", pre_trigger_segments=12)
         monitor.radar = MagicMock()
 
         assert monitor.connect() is True
 
         monitor.radar.connect.assert_called_once()
-        monitor.radar.configure_for_rolling_buffer.assert_called_once_with(
-            pre_trigger_segments=12,
-            sample_rate_ksps=30,
-        )
+        assert not monitor.radar.configure_for_rolling_buffer.called
         assert not monitor.radar.prepare_persisted_rolling_buffer.called
 
 

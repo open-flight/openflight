@@ -6,18 +6,19 @@ and post-processing for higher resolution speed data and spin detection.
 """
 
 import logging
-import statistics
 import threading
 import time
 from datetime import datetime
 from typing import Callable, List, Optional
 
-from ..launch_monitor import ClubType, Shot, estimate_carry_distance
+from ..clubs import ClubType
+from ..clubs.physics import get_club_physics
+from ..launch_monitor import Shot, estimate_carry_distance, summarize_shots
 from ..ops243 import OPS243Radar, SpeedReading
 from ..session_logger import get_session_logger, log_session_error
 from .processor import RollingBufferProcessor
 from .trigger import create_trigger
-from .types import ProcessedCapture
+from .types import ProcessedCapture, SpeedTimeline
 
 logger = logging.getLogger("openflight.rolling_buffer.monitor")
 
@@ -62,32 +63,7 @@ def get_optimal_spin_for_ball_speed(
             optimal = base_rpm + (upper - ball_speed_mph) * rpm_per_mph
             break
 
-    # Adjust for club type - irons need more spin
-    club_spin_multipliers = {
-        ClubType.DRIVER: 1.0,
-        ClubType.WOOD_3: 1.15,
-        ClubType.WOOD_5: 1.25,
-        ClubType.WOOD_7: 1.32,
-        ClubType.HYBRID_3: 1.45,
-        ClubType.HYBRID_5: 1.55,
-        ClubType.HYBRID_7: 1.65,
-        ClubType.HYBRID_9: 1.75,
-        ClubType.IRON_2: 1.5,
-        ClubType.IRON_3: 1.6,
-        ClubType.IRON_4: 1.8,
-        ClubType.IRON_5: 2.0,
-        ClubType.IRON_6: 2.2,
-        ClubType.IRON_7: 2.5,
-        ClubType.IRON_8: 2.8,
-        ClubType.IRON_9: 3.2,
-        ClubType.PW: 3.6,
-        ClubType.GW: 4.1,
-        ClubType.SW: 4.3,
-        ClubType.LW: 4.6,
-        ClubType.UNKNOWN: 1.0,
-    }
-
-    multiplier = club_spin_multipliers.get(club, 1.0)
+    multiplier = get_club_physics(club).optimal_spin_multiplier
     return optimal * multiplier
 
 
@@ -162,32 +138,7 @@ def estimate_carry_with_spin(
     if club_speed_mph and club_speed_mph > 0:
         smash = ball_speed_mph / club_speed_mph
 
-        # Optimal smash factors by club type
-        optimal_smash = {
-            ClubType.DRIVER: 1.48,
-            ClubType.WOOD_3: 1.44,
-            ClubType.WOOD_5: 1.42,
-            ClubType.WOOD_7: 1.41,
-            ClubType.HYBRID_3: 1.39,
-            ClubType.HYBRID_5: 1.37,
-            ClubType.HYBRID_7: 1.35,
-            ClubType.HYBRID_9: 1.33,
-            ClubType.IRON_2: 1.36,
-            ClubType.IRON_3: 1.35,
-            ClubType.IRON_4: 1.33,
-            ClubType.IRON_5: 1.31,
-            ClubType.IRON_6: 1.29,
-            ClubType.IRON_7: 1.27,
-            ClubType.IRON_8: 1.25,
-            ClubType.IRON_9: 1.23,
-            ClubType.PW: 1.21,
-            ClubType.GW: 1.19,
-            ClubType.SW: 1.18,
-            ClubType.LW: 1.17,
-            ClubType.UNKNOWN: 1.35,
-        }
-
-        target_smash = optimal_smash.get(club, 1.35)
+        target_smash = get_club_physics(club).carry_smash_reference
         smash_delta = target_smash - smash
 
         if smash_delta > 0:
@@ -213,14 +164,13 @@ class RollingBufferMonitor:
     Provides higher temporal resolution (~937 Hz vs ~56 Hz) and optional spin
     detection.
 
-    Recommended configuration uses the existing "speed" trigger. The opt-in
-    "hardware" trigger delegates the threshold edge to the OPS243 internal
-    trigger while preserving the same rolling-buffer processor.
+    Production defaults to the low-latency hardware sound trigger. The speed
+    trigger remains available as a radar-only fallback.
 
     Interface matches LaunchMonitor for compatibility with existing code.
 
     Example:
-        monitor = RollingBufferMonitor()  # Uses speed trigger by default
+        monitor = RollingBufferMonitor()
         monitor.connect()
         monitor.start(shot_callback=on_shot)
 
@@ -233,7 +183,7 @@ class RollingBufferMonitor:
     def __init__(
         self,
         port: Optional[str] = None,
-        trigger_type: str = "speed",
+        trigger_type: str = "sound",
         sample_rate_ksps: int = 30,
         ops_baud: Optional[int] = None,
         **trigger_kwargs,
@@ -249,11 +199,8 @@ class RollingBufferMonitor:
                 driver default (230400). Ignored over USB, where the rate
                 is nominal.
             trigger_type: Trigger strategy:
-                - "speed" (default, recommended): Fast speed trigger per manufacturer
-                - "hardware": OPS243 internal speed trigger
-                - "polling": Continuous capture polling (slower, simpler)
-                - "threshold": Speed threshold trigger
-                - "manual": External trigger for testing
+                - "sound" (default): Persistent hardware-triggered buffer
+                - "speed": Fast speed trigger fallback per manufacturer
             **trigger_kwargs: Arguments for trigger strategy
         """
         radar_kwargs = {} if ops_baud is None else {"uart_baud": ops_baud}
@@ -271,15 +218,16 @@ class RollingBufferMonitor:
         self._diagnostic_callback: Optional[Callable[[dict], None]] = None
         self._processing_callback: Optional[Callable[[str], None]] = None
         self._shots: List[Shot] = []
+        self._shot_sequence_number = 0
         self._current_club: ClubType = ClubType.DRIVER
 
     def connect(self) -> bool:
         """
         Connect to radar and configure based on trigger type.
 
-        For "speed" trigger: Configuration is handled by the trigger strategy
-        For other triggers: Configure for rolling buffer mode with appropriate
-        pre_trigger_segments from the trigger.
+        Sound uses the persisted rolling-buffer configuration. The opt-in
+        hardware trigger configures the OPS243 internal speed trigger. Speed
+        handles its own mode transition when a qualifying speed is detected.
 
         Returns:
             True if successful
@@ -299,21 +247,13 @@ class RollingBufferMonitor:
                 self.trigger.pre_trigger_segments,
                 self.trigger.trigger_magnitude,
             )
-        # Speed trigger handles its own configuration (starts in speed mode)
-        # Other triggers need rolling buffer mode configured upfront
+        # Speed trigger handles its own configuration (starts in speed mode).
         elif self.trigger_type != "speed":
-            # Get pre_trigger_segments from the trigger if available
             pre_trigger_segments = getattr(self.trigger, "pre_trigger_segments", 12)
-            if self.trigger_type == "sound":
-                self.radar.prepare_persisted_rolling_buffer(
-                    pre_trigger_segments=pre_trigger_segments,
-                    sample_rate_ksps=self.sample_rate_ksps,
-                )
-            else:
-                self.radar.configure_for_rolling_buffer(
-                    pre_trigger_segments=pre_trigger_segments,
-                    sample_rate_ksps=self.sample_rate_ksps,
-                )
+            self.radar.prepare_persisted_rolling_buffer(
+                pre_trigger_segments=pre_trigger_segments,
+                sample_rate_ksps=self.sample_rate_ksps,
+            )
             logger.info(
                 "[MONITOR] Rolling buffer mode configured with S#%d, S=%d",
                 pre_trigger_segments,
@@ -412,10 +352,67 @@ class RollingBufferMonitor:
         except Exception:
             logger.warning("[MONITOR] Processing status callback failed", exc_info=True)
 
+    def _record_trigger_event(self, diagnostic: dict, *, accepted: bool, reason: str, **updates):
+        """Persist and publish one complete outcome for a physical trigger."""
+        event = {
+            **diagnostic,
+            **updates,
+            "trigger_type": self.trigger_type,
+            "accepted": accepted,
+            "reason": reason,
+        }
+        event.setdefault("all_outbound_speeds", [])
+        event.setdefault("all_inbound_speeds", [])
+
+        try:
+            session_logger = get_session_logger()
+            if session_logger:
+                session_logger.log_trigger_event(
+                    trigger_type=self.trigger_type,
+                    accepted=accepted,
+                    reason=reason,
+                    response_bytes=event.get("response_bytes", 0),
+                    total_readings=event.get("total_readings", 0),
+                    outbound_readings=event.get("outbound_readings", 0),
+                    inbound_readings=event.get("inbound_readings", 0),
+                    peak_outbound_mph=event.get("peak_outbound_mph", 0),
+                    peak_inbound_mph=event.get("peak_inbound_mph", 0),
+                    all_outbound_speeds=event["all_outbound_speeds"],
+                    all_inbound_speeds=event["all_inbound_speeds"],
+                    ball_speed_mph=event.get("ball_speed_mph"),
+                    club_speed_mph=event.get("club_speed_mph"),
+                    spin_rpm=event.get("spin_rpm"),
+                    carry_yards=event.get("carry_yards"),
+                    latency_ms=event.get("latency_ms"),
+                )
+        except Exception:
+            logger.warning("[MONITOR] Trigger event logging failed", exc_info=True)
+
+        try:
+            if self._diagnostic_callback:
+                self._diagnostic_callback(event)
+        except Exception:
+            logger.warning("[MONITOR] Trigger diagnostic callback failed", exc_info=True)
+
+    @staticmethod
+    def _timeline_diagnostic(timeline: SpeedTimeline) -> dict:
+        """Summarize processed readings for the final trigger event."""
+        outbound = [reading.speed_mph for reading in timeline.readings if reading.is_outbound]
+        inbound = [reading.speed_mph for reading in timeline.readings if not reading.is_outbound]
+        return {
+            "total_readings": len(timeline.readings),
+            "outbound_readings": len(outbound),
+            "inbound_readings": len(inbound),
+            "peak_outbound_mph": max(outbound, default=0),
+            "peak_inbound_mph": max(inbound, default=0),
+            "all_outbound_speeds": outbound,
+            "all_inbound_speeds": inbound,
+        }
+
     def _emit_diagnostics(self, wall_clock_ms: float = 0):
-        """Drain trigger diagnostics and emit them to logger and UI."""
+        """Emit rejected triggers and retain accepted capture metadata."""
         diagnostics = self.trigger.drain_diagnostics()
-        session_logger = get_session_logger()
+        accepted_diagnostic = {}
 
         for diag in diagnostics:
             diag["trigger_type"] = self.trigger_type
@@ -424,30 +421,25 @@ class RollingBufferMonitor:
             latency = diag.pop("trigger_latency_ms", None) or wall_clock_ms
             diag["latency_ms"] = latency
 
-            # Log to session JSONL
-            if session_logger:
-                session_logger.log_trigger_diagnostic(
-                    trigger_type=self.trigger_type,
-                    accepted=diag["accepted"],
-                    reason=diag.get("reason", ""),
-                    response_bytes=diag.get("response_bytes", 0),
-                    total_readings=diag.get("total_readings", 0),
-                    outbound_readings=diag.get("outbound_readings", 0),
-                    inbound_readings=diag.get("inbound_readings", 0),
-                    peak_outbound_mph=diag.get("peak_outbound_mph", 0),
-                    peak_inbound_mph=diag.get("peak_inbound_mph", 0),
-                    all_outbound_speeds=diag.get("all_outbound_speeds"),
-                    all_inbound_speeds=diag.get("all_inbound_speeds"),
-                    latency_ms=latency,
-                )
+            if diag["accepted"]:
+                accepted_diagnostic = diag
+                continue
 
-            # Emit to UI via WebSocket
-            if self._diagnostic_callback:
-                self._diagnostic_callback(diag)
+            self._record_trigger_event(
+                diag,
+                accepted=False,
+                reason=diag.get("reason", ""),
+            )
+
+        return accepted_diagnostic
 
     def _capture_loop(self):
         """Main capture loop - wait for trigger, process, emit shot."""
         while self._running:
+            capture = None
+            trigger_diagnostic = {}
+            trigger_event_recorded = False
+            trigger_latency_ms = 0.0
             try:
                 trigger_start = time.time()
 
@@ -477,7 +469,7 @@ class RollingBufferMonitor:
                 trigger_latency_ms = (time.time() - trigger_start) * 1000
 
                 # Always drain trigger diagnostics (captures in-loop rejections)
-                self._emit_diagnostics(trigger_latency_ms)
+                trigger_diagnostic = self._emit_diagnostics(trigger_latency_ms)
 
                 if capture is None:
                     if capture_started:
@@ -503,32 +495,14 @@ class RollingBufferMonitor:
                 if processed is None:
                     self._notify_processing("failed")
                     logger.warning("[MONITOR] Failed to process capture")
-                    # Emit diagnostic for processing failure
-                    diag = {
-                        "timestamp": capture.trigger_time if capture else 0,
-                        "accepted": False,
-                        "reason": "processing_failed",
-                        "trigger_type": self.trigger_type,
-                        "latency_ms": trigger_latency_ms,
-                        "response_bytes": 0,
-                        "total_readings": 0,
-                        "outbound_readings": 0,
-                        "inbound_readings": 0,
-                        "peak_outbound_mph": 0,
-                        "peak_inbound_mph": 0,
-                        "all_outbound_speeds": [],
-                        "all_inbound_speeds": [],
-                    }
-                    session_logger = get_session_logger()
-                    if session_logger:
-                        session_logger.log_trigger_diagnostic(
-                            trigger_type=self.trigger_type,
-                            accepted=False,
-                            reason="processing_failed",
-                            latency_ms=trigger_latency_ms,
-                        )
-                    if self._diagnostic_callback:
-                        self._diagnostic_callback(diag)
+                    self._record_trigger_event(
+                        trigger_diagnostic,
+                        accepted=False,
+                        reason="processing_failed",
+                        timestamp=capture.trigger_time,
+                        latency_ms=trigger_latency_ms,
+                    )
+                    trigger_event_recorded = True
                     continue
 
                 # For speed trigger, use the trigger speed as club speed if not found in capture
@@ -554,6 +528,8 @@ class RollingBufferMonitor:
                 shot = self._create_shot(processed)
 
                 if shot:
+                    self._shot_sequence_number += 1
+                    shot.shot_number = self._shot_sequence_number
                     self._shots.append(shot)
                     logger.info(
                         "[MONITOR] Shot detected: ball=%.1f mph, club=%s, spin=%s",
@@ -574,11 +550,9 @@ class RollingBufferMonitor:
                     # Log raw I/Q data and trigger events to session logger
                     session_logger = get_session_logger()
                     if session_logger:
-                        shot_number = len(self._shots)
-
                         # Log raw I/Q data for offline analysis
                         session_logger.log_rolling_buffer_capture(
-                            shot_number=shot_number,
+                            shot_number=shot.shot_number,
                             sample_time=capture.sample_time,
                             trigger_time=capture.trigger_time,
                             i_samples=capture.i_samples,
@@ -672,74 +646,34 @@ class RollingBufferMonitor:
                             spin_rejection_reason=shot.spin_rejection_reason,
                         )
 
-                        # Log accepted trigger event
-                        session_logger.log_trigger_event(
-                            trigger_type=self.trigger_type,
-                            accepted=True,
-                            peak_speed_mph=shot.ball_speed_mph,
-                            readings_count=len(processed.timeline.readings),
-                            latency_ms=trigger_latency_ms,
-                        )
-
-                        # Log detailed trigger diagnostic
-                        all_outbound = [r for r in processed.timeline.readings if r.is_outbound]
-                        all_inbound = [r for r in processed.timeline.readings if not r.is_outbound]
-                        session_logger.log_trigger_diagnostic(
-                            trigger_type=self.trigger_type,
-                            accepted=True,
-                            reason="accepted",
-                            total_readings=len(processed.timeline.readings),
-                            outbound_readings=len(all_outbound),
-                            inbound_readings=len(all_inbound),
-                            peak_outbound_mph=max((r.speed_mph for r in all_outbound), default=0),
-                            peak_inbound_mph=max((r.speed_mph for r in all_inbound), default=0),
-                            all_outbound_speeds=[r.speed_mph for r in all_outbound],
-                            all_inbound_speeds=[r.speed_mph for r in all_inbound],
-                            latency_ms=trigger_latency_ms,
-                            ball_speed_mph=shot.ball_speed_mph,
-                            club_speed_mph=shot.club_speed_mph,
-                            spin_rpm=shot.spin_rpm,
-                            carry_yards=shot.estimated_carry_yards,
-                        )
-
-                    # Emit diagnostic to UI
-                    if self._diagnostic_callback:
-                        self._diagnostic_callback(
-                            {
-                                # Correlation key used when the slower IWR6843
-                                # result enriches this same UI history row.
-                                "timestamp": shot.timestamp.isoformat(),
-                                "accepted": True,
-                                "reason": "accepted",
-                                "trigger_type": self.trigger_type,
-                                "latency_ms": trigger_latency_ms,
-                                "response_bytes": 0,
-                                "total_readings": len(processed.timeline.readings),
-                                "outbound_readings": 0,
-                                "inbound_readings": 0,
-                                "peak_outbound_mph": shot.ball_speed_mph,
-                                "peak_inbound_mph": 0,
-                                "all_outbound_speeds": [],
-                                "all_inbound_speeds": [],
-                                "ball_speed_mph": shot.ball_speed_mph,
-                                "club_speed_mph": shot.club_speed_mph,
-                                "spin_rpm": shot.spin_rpm,
-                                "spin_snr": shot.spin_snr,
-                                "spin_candidate_rpm": (
-                                    round(shot.spin_peak_freq_hz * 60)
-                                    if shot.spin_peak_freq_hz is not None
-                                    else None
-                                ),
-                                "spin_rejection_reason": shot.spin_rejection_reason,
-                                "spin_candidates": shot.spin_candidates,
-                                "spin_phase_method": shot.spin_phase_method,
-                                "spin_phase_rpm": shot.spin_phase_rpm,
-                                "spin_phase_snr": shot.spin_phase_snr,
-                                "spin_phase_agreement_pct": shot.spin_phase_agreement_pct,
-                                "spin_phase_confirmed": shot.spin_phase_confirmed,
-                                "carry_yards": shot.estimated_carry_yards,
-                            }
-                        )
+                    self._record_trigger_event(
+                        trigger_diagnostic,
+                        accepted=True,
+                        reason="accepted",
+                        # Correlation key used when the slower IWR6843 result
+                        # enriches this same UI history row.
+                        timestamp=shot.timestamp.isoformat(),
+                        latency_ms=trigger_latency_ms,
+                        **self._timeline_diagnostic(processed.timeline),
+                        ball_speed_mph=shot.ball_speed_mph,
+                        club_speed_mph=shot.club_speed_mph,
+                        spin_rpm=shot.spin_rpm,
+                        spin_snr=shot.spin_snr,
+                        spin_candidate_rpm=(
+                            round(shot.spin_peak_freq_hz * 60)
+                            if shot.spin_peak_freq_hz is not None
+                            else None
+                        ),
+                        spin_rejection_reason=shot.spin_rejection_reason,
+                        spin_candidates=shot.spin_candidates,
+                        spin_phase_method=shot.spin_phase_method,
+                        spin_phase_rpm=shot.spin_phase_rpm,
+                        spin_phase_snr=shot.spin_phase_snr,
+                        spin_phase_agreement_pct=shot.spin_phase_agreement_pct,
+                        spin_phase_confirmed=shot.spin_phase_confirmed,
+                        carry_yards=shot.estimated_carry_yards,
+                    )
+                    trigger_event_recorded = True
 
                     if self._shot_callback:
                         callback_start = time.time()
@@ -749,7 +683,7 @@ class RollingBufferMonitor:
                         logger.info(
                             "[SHOT] #%d: ball=%.1f mph, club=%s, carry=%s yds | "
                             "trigger=%.0fms, process=%.0fms, callback=%.0fms, total=%.0fms",
-                            len(self._shots),
+                            shot.shot_number,
                             shot.ball_speed_mph,
                             "%.1f" % shot.club_speed_mph if shot.club_speed_mph else "N/A",
                             "%.0f" % shot.estimated_carry_yards
@@ -766,36 +700,16 @@ class RollingBufferMonitor:
                         "[MONITOR] Shot validation failed: ball=%.1f mph (min 15 mph)",
                         processed.ball_speed_mph if processed else 0,
                     )
-                    # Emit diagnostic for shot validation failure
-                    diag = {
-                        "timestamp": datetime.now().isoformat(),
-                        "accepted": False,
-                        "reason": "shot_validation_failed",
-                        "trigger_type": self.trigger_type,
-                        "latency_ms": trigger_latency_ms,
-                        "response_bytes": 0,
-                        "total_readings": len(processed.timeline.readings) if processed else 0,
-                        "outbound_readings": 0,
-                        "inbound_readings": 0,
-                        "peak_outbound_mph": processed.ball_speed_mph if processed else 0,
-                        "peak_inbound_mph": 0,
-                        "all_outbound_speeds": [],
-                        "all_inbound_speeds": [],
-                        "ball_speed_mph": processed.ball_speed_mph if processed else None,
-                    }
-                    session_logger = get_session_logger()
-                    if session_logger:
-                        session_logger.log_trigger_diagnostic(
-                            trigger_type=self.trigger_type,
-                            accepted=False,
-                            reason="shot_validation_failed",
-                            peak_outbound_mph=processed.ball_speed_mph if processed else 0,
-                            total_readings=len(processed.timeline.readings) if processed else 0,
-                            latency_ms=trigger_latency_ms,
-                            ball_speed_mph=processed.ball_speed_mph if processed else None,
-                        )
-                    if self._diagnostic_callback:
-                        self._diagnostic_callback(diag)
+                    self._record_trigger_event(
+                        trigger_diagnostic,
+                        accepted=False,
+                        reason="shot_validation_failed",
+                        timestamp=datetime.now().isoformat(),
+                        latency_ms=trigger_latency_ms,
+                        **self._timeline_diagnostic(processed.timeline),
+                        ball_speed_mph=processed.ball_speed_mph,
+                    )
+                    trigger_event_recorded = True
 
                 # Reset trigger for next capture
                 self.trigger.reset()
@@ -803,6 +717,14 @@ class RollingBufferMonitor:
             except Exception as e:
                 self._notify_processing("failed")
                 logger.error("[MONITOR] Capture loop error: %s", e, exc_info=True)
+                if capture is not None and not trigger_event_recorded:
+                    self._record_trigger_event(
+                        trigger_diagnostic,
+                        accepted=False,
+                        reason="processing_error",
+                        timestamp=capture.trigger_time,
+                        latency_ms=trigger_latency_ms,
+                    )
                 log_session_error(
                     "Rolling buffer capture loop error",
                     component="rolling_buffer_monitor",
@@ -1028,45 +950,8 @@ class RollingBufferMonitor:
         return shot_detected[0] if shot_detected else None
 
     def get_session_stats(self) -> dict:
-        """
-        Get statistics for the current session.
-
-        Returns:
-            Dict with shot count, averages, etc.
-        """
-        if not self._shots:
-            return {
-                "shot_count": 0,
-                "avg_ball_speed": 0,
-                "max_ball_speed": 0,
-                "min_ball_speed": 0,
-                "avg_club_speed": None,
-                "avg_smash_factor": None,
-                "avg_carry_est": 0,
-                "avg_spin_rpm": None,
-                "mode": "rolling-buffer",
-            }
-
-        ball_speeds = [s.ball_speed_mph for s in self._shots]
-        club_speeds = [s.club_speed_mph for s in self._shots if s.club_speed_mph]
-        smash_factors = [s.smash_factor for s in self._shots if s.smash_factor]
-
-        # Get spin data
-        spin_rpms = [s.spin_rpm for s in self._shots if s.spin_rpm is not None]
-
-        return {
-            "shot_count": len(self._shots),
-            "avg_ball_speed": statistics.mean(ball_speeds),
-            "max_ball_speed": max(ball_speeds),
-            "min_ball_speed": min(ball_speeds),
-            "std_dev": statistics.stdev(ball_speeds) if len(ball_speeds) > 1 else 0,
-            "avg_club_speed": statistics.mean(club_speeds) if club_speeds else None,
-            "avg_smash_factor": statistics.mean(smash_factors) if smash_factors else None,
-            "avg_carry_est": statistics.mean([s.estimated_carry_yards for s in self._shots]),
-            "avg_spin_rpm": statistics.mean(spin_rpms) if spin_rpms else None,
-            "spin_detection_rate": len(spin_rpms) / len(self._shots) if self._shots else 0,
-            "mode": "rolling-buffer",
-        }
+        """Get statistics for the current session."""
+        return summarize_shots(self._shots, mode="rolling-buffer")
 
     def get_shots(self) -> List[Shot]:
         """Get all detected shots."""

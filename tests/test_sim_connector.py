@@ -5,8 +5,8 @@ import time
 
 import pytest
 
+from openflight.clubs import ClubType
 from openflight.gspro.codec import GSProCodec
-from openflight.launch_monitor import ClubType
 from openflight.sim.codec import build_connector, SimConnector
 from openflight.sim.config import ConnectorConfig
 from openflight.sim.types import ConnectionState, PlayerUpdate, ResolvedShot
@@ -148,6 +148,12 @@ def test_build_connector_opengolfsim_uses_shared_codec_named_ogs():
     # OpenGolfSim reuses the shared OpenConnect (GSPro) codec, named "opengolfsim".
     assert isinstance(c.codec, GSProCodec)
     assert c.name == "opengolfsim"
+
+
+def test_build_connector_partee_uses_shared_codec_named_partee():
+    c = build_connector(ConnectorConfig(type="partee", host="192.168.1.70", port=921))
+    assert isinstance(c.codec, GSProCodec)
+    assert c.name == "partee"
 
 
 def test_build_connector_unknown_type_raises():

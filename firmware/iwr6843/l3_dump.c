@@ -309,6 +309,10 @@ static int16_t g_rawFrame[2][FRAME_COMPLEX * 2];
 #define L3_HWA_OUT_PING_CHANNEL EDMA_TPCC0_REQ_HWACC_0
 #define L3_HWA_OUT_PONG_CHANNEL EDMA_TPCC0_REQ_HWACC_1
 #define L3_HWA_SIGNATURE_CHANNEL EDMA_TPCC0_REQ_FREE_7
+#ifdef L3_IQ8_EDMA_PACK
+#define L3_IQ8_PACK_PING_CHANNEL EDMA_TPCC0_REQ_FREE_8
+#define L3_IQ8_PACK_PONG_CHANNEL EDMA_TPCC0_REQ_FREE_9
+#endif
 #define L3_HWA_OUT_PING_SHADOW EDMA_NUM_DMA_CHANNELS
 #define L3_HWA_OUT_PONG_SHADOW (EDMA_NUM_DMA_CHANNELS + 1U)
 #define L3_HWA_SIGNATURE_SHADOW (EDMA_NUM_DMA_CHANNELS + 2U)
@@ -344,6 +348,9 @@ static uint8_t       gHwaFftConfigured;
 #ifdef HWA_CHAINED_SNAPSHOT_RING
 static Semaphore_Handle gHwaRearmSemaphore;
 static Semaphore_Handle gHwaFreezeSemaphore;
+#ifdef L3_IQ8_EDMA_PACK
+static Semaphore_Handle gIq8EdmaDoneSemaphore;
+#endif
 #endif
 #endif
 static uint8_t       gSensorOpened;
@@ -400,6 +407,14 @@ static volatile uint8_t  gIq8ActiveScratch;
 static volatile uint32_t gIq8PackFrames;
 static volatile uint32_t gIq8PackOverruns;
 static volatile uint32_t gIq8ClippedComponents;
+#ifdef L3_IQ8_EDMA_PACK
+static volatile uint8_t  gIq8EdmaBusy[2];
+static volatile uint32_t gIq8EdmaDone;
+static volatile uint32_t gIq8EdmaErrors;
+static volatile uint32_t gIq8EdmaWaits;
+static uint16_t gIq8FixedScale = 128U;
+static uint8_t  gIq8FixedShift = 7U;
+#endif
 #endif
 #endif
 #endif
@@ -418,6 +433,9 @@ static int32_t l3_cli_captureCfg(int32_t argc, char *argv[]);
 static int32_t l3_cli_phaseCaptureCfg(int32_t argc, char *argv[]);
 #ifdef L3_RING_IQ8
 static int32_t l3_cli_captureFormat(int32_t argc, char *argv[]);
+#ifdef L3_IQ8_EDMA_PACK
+static int32_t l3_cli_iq8Scale(int32_t argc, char *argv[]);
+#endif
 #endif
 #endif
 #ifdef ENABLE_HWA_SMOKE
@@ -496,6 +514,41 @@ static int32_t l3_cli_captureFormat(int32_t argc, char *argv[])
     CLI_write("Capture format: %s\n", l3_captureUsesIq8() ? "iq8" : "iq16");
     return 0;
 }
+
+#ifdef L3_IQ8_EDMA_PACK
+static int32_t l3_cli_iq8Scale(int32_t argc, char *argv[])
+{
+    char *end = NULL;
+    long scale;
+    uint8_t shift = 0U;
+    uint32_t value;
+
+    if (gCaptureActive) {
+        CLI_write("Error: stop the sensor before iq8Scale\n");
+        return -1;
+    }
+    if (argc != 2) {
+        CLI_write("Error: iq8Scale needs a power of two from 16 to 256\n");
+        return -1;
+    }
+    scale = strtol(argv[1], &end, 10);
+    if (argv[1] == end || end == NULL || *end != '\0' || scale < 16L ||
+        scale > 256L || (((uint32_t)scale & ((uint32_t)scale - 1U)) != 0U)) {
+        CLI_write("Error: iq8Scale needs a power of two from 16 to 256\n");
+        return -1;
+    }
+    value = (uint32_t)scale;
+    while (value > 1U) {
+        value >>= 1U;
+        shift++;
+    }
+    gIq8FixedScale = (uint16_t)scale;
+    gIq8FixedShift = shift;
+    CLI_write("IQ8 fixed scale: %u (HWA shift %u)\n",
+              (unsigned)gIq8FixedScale, (unsigned)gIq8FixedShift);
+    return 0;
+}
+#endif
 #endif
 
 static int32_t l3_finalizeCapturePlan(uint16_t loops)
@@ -1232,9 +1285,15 @@ static int32_t l3_configHwaProcessParam(uint8_t paramIdx, uint8_t outChannel,
     paramCfg.dest.dstSign = HWA_SAMPLES_SIGNED;
     paramCfg.dest.dstConjugate = HWA_FEATURE_BIT_DISABLE;
 #ifdef L3_RING_IQ8
-    /* Keep four more HWA output bits than the original fixed-IQ8 path. The
-     * rearm task chooses a per-frame power-of-two scale before ring packing. */
-    paramCfg.dest.dstScale = l3_captureUsesIq8() ? L3_IQ8_HWA_SHIFT : 0U;
+    /* EDMA compaction copies the low byte of each signed HWA result, so the
+     * configurable HWA shift performs the quantization before that copy. */
+#ifdef L3_IQ8_EDMA_PACK
+    paramCfg.dest.dstScale =
+        l3_captureUsesIq8() ? gIq8FixedShift : 0U;
+#else
+    paramCfg.dest.dstScale =
+        l3_captureUsesIq8() ? L3_IQ8_HWA_SHIFT : 0U;
+#endif
 #else
     paramCfg.dest.dstScale = 0U;
 #endif
@@ -1425,6 +1484,7 @@ static int8_t l3_quantizeIq8(int16_t sample, uint16_t scale)
 #endif
 
 #ifdef L3_RING_IQ8
+#ifndef L3_IQ8_EDMA_PACK
 #ifdef L3_IQ8_SPARSE_SCALE
 static uint8_t l3_iq8SampledPackShift(const int16_t *source,
                                       uint32_t components)
@@ -1540,6 +1600,112 @@ static void l3_packIq8CompletedFrame(uint32_t slot, uint8_t scratch)
         (uint16_t)(L3_IQ8_HWA_SCALE << packShift);
     gIq8PackFrames++;
 }
+#else
+static void l3_iq8EdmaDoneCB(uintptr_t arg, uint8_t tcCode)
+{
+    uint8_t scratch = (uint8_t)(arg - 1U);
+
+    (void)tcCode;
+    if (scratch < 2U) {
+        gIq8EdmaBusy[scratch] = 0U;
+        gIq8EdmaDone++;
+        gIq8PackFrames++;
+    } else {
+        gIq8EdmaErrors++;
+    }
+    if (gIq8EdmaDoneSemaphore != NULL) {
+        Semaphore_post(gIq8EdmaDoneSemaphore);
+    }
+}
+
+static int32_t l3_startIq8EdmaPack(uint32_t slot, uint8_t scratch)
+{
+    EDMA_channelConfig_t channelCfg;
+    EDMA_paramSetConfig_t *param;
+    uint8_t channel;
+    uint32_t components;
+    int32_t errCode;
+
+    if (slot >= gCapturePlan.totalFrames || scratch >= 2U) {
+        return -1;
+    }
+    components = gFrameBytes[slot];
+    if (components == 0U || components > 0xFFFFU) {
+        return -1;
+    }
+    channel = scratch == 0U ? L3_IQ8_PACK_PING_CHANNEL
+                            : L3_IQ8_PACK_PONG_CHANNEL;
+
+    memset((void *)&channelCfg, 0, sizeof(channelCfg));
+    channelCfg.channelId = channel;
+    channelCfg.channelType = (uint8_t)EDMA3_CHANNEL_TYPE_DMA;
+    channelCfg.paramId = channel;
+    channelCfg.eventQueueId = 1U;
+    channelCfg.transferCompletionCallbackFxn = l3_iq8EdmaDoneCB;
+    channelCfg.transferCompletionCallbackFxnArg = (uintptr_t)(scratch + 1U);
+
+    param = &channelCfg.paramSetConfig;
+    param->sourceAddress = SOC_translateAddress(
+        (uint32_t)&g_iq16FrameScratch[scratch][0],
+        SOC_TranslateAddr_Dir_TO_EDMA, NULL);
+    param->destinationAddress = SOC_translateAddress(
+        (uint32_t)&g_ring[gFrameOffset[slot]],
+        SOC_TranslateAddr_Dir_TO_EDMA, NULL);
+    param->aCount = 1U;
+    param->bCount = (uint16_t)components;
+    param->cCount = 1U;
+    param->bCountReload = (uint16_t)components;
+    param->sourceBindex = (int16_t)sizeof(int16_t);
+    param->destinationBindex = 1;
+    param->sourceCindex = 0;
+    param->destinationCindex = 0;
+    param->linkAddress = EDMA_NULL_LINK_ADDRESS;
+    param->transferCompletionCode = channel;
+    param->transferType = (uint8_t)EDMA3_SYNC_AB;
+    param->sourceAddressingMode = (uint8_t)EDMA3_ADDRESSING_MODE_LINEAR;
+    param->destinationAddressingMode = (uint8_t)EDMA3_ADDRESSING_MODE_LINEAR;
+    param->fifoWidth = (uint8_t)EDMA3_FIFO_WIDTH_8BIT;
+    param->isStaticSet = true;
+    param->isEarlyCompletion = false;
+    param->isFinalTransferInterruptEnabled = true;
+    param->isIntermediateTransferInterruptEnabled = false;
+    param->isFinalChainingEnabled = false;
+    param->isIntermediateChainingEnabled = false;
+
+    (void)EDMA_disableChannel(gEdmaHandle, channel, EDMA3_CHANNEL_TYPE_DMA);
+    gFrameIq8Scale[slot] = gIq8FixedScale;
+    gIq8EdmaBusy[scratch] = 1U;
+    errCode = EDMA_configChannel(gEdmaHandle, &channelCfg, false);
+    if (errCode == EDMA_NO_ERROR) {
+        errCode = EDMA_startDmaTransfer(gEdmaHandle, channel);
+    }
+    if (errCode != EDMA_NO_ERROR) {
+        gIq8EdmaBusy[scratch] = 0U;
+        gIq8EdmaErrors++;
+        return -1;
+    }
+    return 0;
+}
+
+static void l3_waitForIq8EdmaScratch(uint8_t scratch)
+{
+    uint8_t waited = 0U;
+
+    while (scratch < 2U && gIq8EdmaBusy[scratch]) {
+        if (!waited) {
+            gIq8EdmaWaits++;
+            waited = 1U;
+        }
+        Semaphore_pend(gIq8EdmaDoneSemaphore, BIOS_WAIT_FOREVER);
+    }
+}
+
+static void l3_waitForAllIq8Edma(void)
+{
+    l3_waitForIq8EdmaScratch(0U);
+    l3_waitForIq8EdmaScratch(1U);
+}
+#endif
 #endif
 
 static uint32_t l3_snapshotBinStartForNextFrame(void)
@@ -1898,6 +2064,7 @@ static void l3_hwaRearmTask(UArg arg0, UArg arg1)
 #ifdef L3_RING_IQ8
             uint8_t hadPending = 0U;
             uint8_t pendingScratch = 0U;
+            uint8_t nextScratch = 0U;
             uint32_t pendingSlot = 0U;
 #endif
             int32_t errCode;
@@ -1956,7 +2123,10 @@ static void l3_hwaRearmTask(UArg arg0, UArg arg1)
                     gHwaRearmPending = 0U;
                     freezeAfterPack = 1U;
                 } else {
-                    gIq8ActiveScratch ^= 1U;
+                    nextScratch = gIq8ActiveScratch ^ 1U;
+#ifndef L3_IQ8_EDMA_PACK
+                    gIq8ActiveScratch = nextScratch;
+#endif
                 }
                 Hwi_restore(key);
             }
@@ -1964,8 +2134,17 @@ static void l3_hwaRearmTask(UArg arg0, UArg arg1)
             if (freezeAfterPack) {
 #ifdef L3_RING_IQ8
                 if (hadPending) {
+#ifdef L3_IQ8_EDMA_PACK
+                    (void)l3_startIq8EdmaPack(pendingSlot, pendingScratch);
+#else
                     l3_packIq8CompletedFrame(pendingSlot, pendingScratch);
+#endif
                 }
+#ifdef L3_IQ8_EDMA_PACK
+                if (l3_captureUsesIq8()) {
+                    l3_waitForAllIq8Edma();
+                }
+#endif
 #endif
                 if (gHwaFreezeSemaphore != NULL) {
                     Semaphore_post(gHwaFreezeSemaphore);
@@ -1975,6 +2154,12 @@ static void l3_hwaRearmTask(UArg arg0, UArg arg1)
                 Hwi_restore(key);
                 continue;
             }
+#if defined(L3_RING_IQ8) && defined(L3_IQ8_EDMA_PACK)
+            if (l3_captureUsesIq8()) {
+                l3_waitForIq8EdmaScratch(nextScratch);
+                gIq8ActiveScratch = nextScratch;
+            }
+#endif
             errCode = l3_restartCompletedHwaFrame();
             if (errCode == 0) {
                 gHwaRearms++;
@@ -1983,7 +2168,11 @@ static void l3_hwaRearmTask(UArg arg0, UArg arg1)
             }
 #ifdef L3_RING_IQ8
             if (l3_captureUsesIq8() && hadPending) {
+#ifdef L3_IQ8_EDMA_PACK
+                (void)l3_startIq8EdmaPack(pendingSlot, pendingScratch);
+#else
                 l3_packIq8CompletedFrame(pendingSlot, pendingScratch);
+#endif
             }
 #endif
             key = Hwi_disable();
@@ -2479,7 +2668,12 @@ static int32_t l3_cli_stats(int32_t argc, char *argv[])
               (unsigned)gCapturePlan.usedBytes,
               (unsigned)l3_captureCapacityBytes());
     CLI_write("iq8_packed=%u iq8_overrun=%u iq8_clipped=%u pending=%u pre_seen=%u "
-              "post_kept=%u post_seen=%u stride=%u\n",
+              "post_kept=%u post_seen=%u stride=%u"
+#ifdef L3_IQ8_EDMA_PACK
+              " iq8_edma_done=%u iq8_edma_err=%u iq8_edma_wait=%u "
+              "iq8_busy=%u/%u iq8_scale=%u"
+#endif
+              "\n",
               (unsigned)gIq8PackFrames,
               (unsigned)gIq8PackOverruns,
               (unsigned)gIq8ClippedComponents,
@@ -2487,7 +2681,16 @@ static int32_t l3_cli_stats(int32_t argc, char *argv[])
               (unsigned)gPreFramesCaptured,
               (unsigned)gPostFramesCaptured,
               (unsigned)gPostFramesObserved,
-              (unsigned)gCapturePlan.postStride);
+              (unsigned)gCapturePlan.postStride
+#ifdef L3_IQ8_EDMA_PACK
+              , (unsigned)gIq8EdmaDone,
+              (unsigned)gIq8EdmaErrors,
+              (unsigned)gIq8EdmaWaits,
+              (unsigned)gIq8EdmaBusy[0],
+              (unsigned)gIq8EdmaBusy[1],
+              (unsigned)gIq8FixedScale
+#endif
+              );
 #else
     CLI_write("frames=%u wraps=%u active=%d calib=0x%x rf_faults=%u "
               "hwa_frames=%u hwa_out=%u hwa_rearms=%u hwa_rearm_err=%u "
@@ -3037,6 +3240,16 @@ static int32_t l3_cli_sensorStart(int32_t argc, char *argv[])
     gIq8PackFrames = 0U;
     gIq8PackOverruns = 0U;
     gIq8ClippedComponents = 0U;
+#ifdef L3_IQ8_EDMA_PACK
+    gIq8EdmaBusy[0] = 0U;
+    gIq8EdmaBusy[1] = 0U;
+    gIq8EdmaDone = 0U;
+    gIq8EdmaErrors = 0U;
+    gIq8EdmaWaits = 0U;
+    while (Semaphore_pend(gIq8EdmaDoneSemaphore, BIOS_NO_WAIT)) {
+        /* Discard completion signals from the previous capture. */
+    }
+#endif
     memset((void *)gFrameIq8Scale, 0, sizeof(gFrameIq8Scale));
 #endif
 #endif
@@ -3207,6 +3420,13 @@ static void l3_initTask(UArg arg0, UArg arg1)
     if (gHwaFreezeSemaphore == NULL) {
         return;
     }
+#if defined(CONFIGURABLE_CAPTURE) && defined(L3_RING_IQ8) && \
+    defined(L3_IQ8_EDMA_PACK)
+    gIq8EdmaDoneSemaphore = Semaphore_create(0, &semaphoreParams, NULL);
+    if (gIq8EdmaDoneSemaphore == NULL) {
+        return;
+    }
+#endif
     Task_Params_init(&taskParams);
     taskParams.priority = L3_HWA_REARM_TASK_PRIORITY;
     taskParams.stackSize = 2U * 1024U;
@@ -3263,6 +3483,11 @@ static void l3_initTask(UArg arg0, UArg arg1)
     cliCfg.tableEntry[9].cmd           = "captureFormat";
     cliCfg.tableEntry[9].helpString    = "captureFormat iq16|iq8";
     cliCfg.tableEntry[9].cmdHandlerFxn = l3_cli_captureFormat;
+#ifdef L3_IQ8_EDMA_PACK
+    cliCfg.tableEntry[10].cmd           = "iq8Scale";
+    cliCfg.tableEntry[10].helpString    = "iq8Scale 16|32|64|128|256";
+    cliCfg.tableEntry[10].cmdHandlerFxn = l3_cli_iq8Scale;
+#endif
 #endif
 #endif
     CLI_open(&cliCfg);

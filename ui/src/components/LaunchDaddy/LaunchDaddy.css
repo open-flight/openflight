@@ -1,47 +1,13 @@
 /* =============================================================================
-   LAUNCH DADDY MODE - MAXIMUM CHAOS ENERGY
-   "The longest hitter of the golf ball in the world"
+   LAUNCH DADDY MODE
+   Overlay explosion/shake stays; app chrome uses shared instrument tokens.
    ============================================================================= */
-
-@import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Bebas+Neue&display=swap');
-
-/* CSS Variables for Launch Daddy Mode */
-:root {
-  --ld-fire-orange: #ff6b00;
-  --ld-fire-red: #ff2400;
-  --ld-fire-yellow: #ffd700;
-  --ld-chrome-gold: #ffe55c;
-  --ld-chrome-dark: #b8860b;
-  --ld-plasma-blue: #00d4ff;
-  --ld-electric-purple: #9d00ff;
-  --ld-explosion-white: #fffaf0;
-}
-
-/* =============================================================================
-   GLOBAL LAUNCH DADDY OVERRIDES
-   ============================================================================= */
-
-.app--launch-daddy {
-  --color-gold: var(--ld-fire-orange);
-  --color-gold-bright: var(--ld-fire-yellow);
-  --color-gold-dim: var(--ld-fire-red);
-  --color-gold-glow: rgba(255, 107, 0, 0.6);
-  background:
-    radial-gradient(ellipse at 50% 100%, rgba(255, 36, 0, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 0% 50%, rgba(255, 107, 0, 0.1) 0%, transparent 40%),
-    radial-gradient(ellipse at 100% 50%, rgba(255, 107, 0, 0.1) 0%, transparent 40%), var(--color-bg-deep);
-}
-
-.app--launch-daddy::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-}
 
 /* Screen shake on explosion */
+.app--launch-daddy {
+  background: var(--color-bg);
+}
+
 .app--launch-daddy.app--exploding {
   animation: screen-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
@@ -81,17 +47,7 @@
 }
 
 /* =============================================================================
-   LAUNCH DADDY HEADER
-   ============================================================================= */
-
-.app--launch-daddy .header {
-  background: linear-gradient(180deg, rgba(255, 107, 0, 0.2) 0%, rgba(255, 36, 0, 0.1) 50%, transparent 100%);
-  border-bottom: 2px solid var(--ld-fire-orange);
-  box-shadow: 0 4px 30px rgba(255, 107, 0, 0.3);
-}
-
-/* =============================================================================
-   LAUNCH DADDY BRANDING
+   LAUNCH DADDY BRANDING (in-header chrome)
    ============================================================================= */
 
 .launch-daddy-brand {
@@ -99,16 +55,17 @@
   align-items: center;
   gap: 12px;
   padding: 4px 16px;
-  background: linear-gradient(135deg, rgba(255, 107, 0, 0.2), rgba(255, 36, 0, 0.1));
-  border: 1px solid rgba(255, 107, 0, 0.4);
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .launch-daddy-brand:hover {
-  background: linear-gradient(135deg, rgba(255, 107, 0, 0.3), rgba(255, 36, 0, 0.2));
-  box-shadow: 0 0 20px rgba(255, 107, 0, 0.4);
+  border-color: var(--color-accent);
 }
 
 .launch-daddy-brand__icon {
@@ -128,110 +85,27 @@
 }
 
 .launch-daddy-brand__text {
-  font-family: 'Black Ops One', cursive;
   font-size: 1.1rem;
   letter-spacing: 0.05em;
-  background: linear-gradient(180deg, var(--ld-chrome-gold) 0%, var(--ld-fire-orange) 50%, var(--ld-fire-red) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 2px 4px rgba(255, 107, 0, 0.5));
+  color: var(--color-accent);
   text-transform: uppercase;
 }
 
 /* =============================================================================
-   LAUNCH DADDY SHOT DISPLAY
+   OVERLAY — fire tokens scoped here only
    ============================================================================= */
 
-.app--launch-daddy .shot-display {
-  background: linear-gradient(145deg, rgba(255, 36, 0, 0.08) 0%, rgba(255, 107, 0, 0.05) 50%, rgba(18, 18, 26, 1) 100%);
-  border: 2px solid rgba(255, 107, 0, 0.3);
-  box-shadow:
-    0 0 40px rgba(255, 107, 0, 0.2),
-    inset 0 0 60px rgba(255, 36, 0, 0.05);
+.launch-daddy-overlay,
+.launch-daddy-explosion,
+.launch-daddy-particle,
+.launch-daddy-stratosphere,
+.launch-daddy-fire-border {
+  --ld-fire-orange: #ff6b00;
+  --ld-fire-red: #ff2400;
+  --ld-fire-yellow: #ffd700;
+  --ld-chrome-gold: #ffe55c;
+  --ld-explosion-white: #fffaf0;
 }
-
-.app--launch-daddy .shot-display::before {
-  background: radial-gradient(circle at top right, rgba(255, 107, 0, 0.15) 0%, transparent 70%);
-}
-
-.app--launch-daddy .shot-display--latest {
-  animation: fire-glow 2s ease-out;
-}
-
-@keyframes fire-glow {
-  0% {
-    box-shadow:
-      0 0 0 0 rgba(255, 107, 0, 0.8),
-      0 0 60px rgba(255, 36, 0, 0.6),
-      inset 0 0 40px rgba(255, 107, 0, 0.3);
-  }
-  50% {
-    box-shadow:
-      0 0 0 20px rgba(255, 107, 0, 0),
-      0 0 100px rgba(255, 36, 0, 0.4),
-      inset 0 0 20px rgba(255, 107, 0, 0.1);
-  }
-  100% {
-    box-shadow:
-      0 0 0 0 rgba(255, 107, 0, 0),
-      0 0 40px rgba(255, 107, 0, 0.2),
-      inset 0 0 0 rgba(255, 107, 0, 0);
-  }
-}
-
-/* Speed gauge fire theme */
-.app--launch-daddy .speed-gauge__value {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 8rem;
-  background: linear-gradient(
-    180deg,
-    var(--ld-explosion-white) 0%,
-    var(--ld-chrome-gold) 20%,
-    var(--ld-fire-orange) 60%,
-    var(--ld-fire-red) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 30px rgba(255, 107, 0, 0.8));
-  text-shadow: none;
-}
-
-.app--launch-daddy .speed-gauge__label {
-  font-family: 'Black Ops One', cursive;
-  color: var(--ld-fire-orange);
-  letter-spacing: 0.2em;
-}
-
-/* Metric cards fire theme */
-.app--launch-daddy .metric-card {
-  background: rgba(255, 107, 0, 0.05);
-  border: 1px solid rgba(255, 107, 0, 0.2);
-}
-
-.app--launch-daddy .metric-card--primary {
-  background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(255, 36, 0, 0.1));
-  border-color: rgba(255, 107, 0, 0.4);
-  box-shadow: 0 0 20px rgba(255, 107, 0, 0.2);
-}
-
-.app--launch-daddy .metric-card--primary .metric-card__value {
-  background: linear-gradient(180deg, var(--ld-chrome-gold) 0%, var(--ld-fire-orange) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 10px rgba(255, 107, 0, 0.6));
-}
-
-.app--launch-daddy .metric-card__label {
-  font-family: 'Black Ops One', cursive;
-  letter-spacing: 0.1em;
-}
-
-/* =============================================================================
-   EXPLOSION OVERLAY
-   ============================================================================= */
 
 .launch-daddy-explosion {
   position: fixed;
@@ -302,7 +176,6 @@
   }
 }
 
-/* Particle system */
 .launch-daddy-explosion__particles {
   position: absolute;
   inset: 0;
@@ -357,10 +230,6 @@
     opacity: 0;
   }
 }
-
-/* =============================================================================
-   STRATOSPHERE LAUNCH ANIMATION
-   ============================================================================= */
 
 .launch-daddy-stratosphere {
   position: fixed;
@@ -420,20 +289,11 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: 'Black Ops One', cursive;
   font-size: 4rem;
+  font-weight: 800;
   text-align: center;
-  background: linear-gradient(
-    180deg,
-    var(--ld-explosion-white) 0%,
-    var(--ld-chrome-gold) 30%,
-    var(--ld-fire-orange) 70%,
-    var(--ld-fire-red) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 20px rgba(255, 107, 0, 0.8));
+  color: var(--color-accent);
+  filter: drop-shadow(0 0 20px var(--color-accent));
   animation: text-slam 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.3s both;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -459,9 +319,8 @@
   top: calc(50% + 60px);
   left: 50%;
   transform: translateX(-50%);
-  font-family: 'Bebas Neue', sans-serif;
   font-size: 1.5rem;
-  color: var(--ld-chrome-gold);
+  color: var(--color-accent);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   animation: subtitle-fade 0.5s ease-out 0.6s both;
@@ -477,10 +336,6 @@
     transform: translateX(-50%) translateY(0);
   }
 }
-
-/* =============================================================================
-   FIRE BORDER EFFECT
-   ============================================================================= */
 
 .launch-daddy-fire-border {
   position: fixed;
@@ -518,96 +373,4 @@
     opacity: 1;
     height: 80px;
   }
-}
-
-/* =============================================================================
-   SECRET ACTIVATION INDICATOR
-   ============================================================================= */
-
-.launch-daddy-secret-indicator {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  gap: 6px;
-  z-index: 100;
-}
-
-.launch-daddy-secret-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 107, 0, 0.2);
-  border: 1px solid rgba(255, 107, 0, 0.3);
-  transition: all 0.2s ease;
-}
-
-.launch-daddy-secret-dot--active {
-  background: var(--ld-fire-orange);
-  box-shadow: 0 0 10px var(--ld-fire-orange);
-  animation: dot-pulse 0.3s ease-out;
-}
-
-@keyframes dot-pulse {
-  0% {
-    transform: scale(1.5);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-/* =============================================================================
-   WAITING STATE - LAUNCH DADDY STYLE
-   ============================================================================= */
-
-.app--launch-daddy .shot-display__waiting-text {
-  font-family: 'Black Ops One', cursive;
-  color: var(--ld-fire-orange);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.app--launch-daddy .golf-ball-indicator__ball {
-  box-shadow:
-    inset -8px -8px 20px rgba(0, 0, 0, 0.15),
-    0 4px 20px rgba(0, 0, 0, 0.3),
-    0 0 30px rgba(255, 107, 0, 0.3);
-  animation: ball-fire-breathe 2s ease-in-out infinite;
-}
-
-@keyframes ball-fire-breathe {
-  0%,
-  100% {
-    box-shadow:
-      inset -8px -8px 20px rgba(0, 0, 0, 0.15),
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 0 20px rgba(255, 107, 0, 0.3);
-  }
-  50% {
-    box-shadow:
-      inset -8px -8px 20px rgba(0, 0, 0, 0.15),
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 0 40px rgba(255, 107, 0, 0.6),
-      0 0 60px rgba(255, 36, 0, 0.3);
-  }
-}
-
-/* =============================================================================
-   NAV BUTTONS - LAUNCH DADDY STYLE
-   ============================================================================= */
-
-.app--launch-daddy .nav__button--active {
-  background: rgba(255, 107, 0, 0.15);
-  border-color: rgba(255, 107, 0, 0.4);
-  color: var(--ld-fire-orange);
-}
-
-.app--launch-daddy .nav__button--active::before {
-  background: linear-gradient(90deg, var(--ld-fire-red), var(--ld-fire-orange), var(--ld-fire-yellow));
-}
-
-.app--launch-daddy .nav__badge {
-  background: linear-gradient(135deg, var(--ld-fire-orange), var(--ld-fire-red));
-  box-shadow: 0 0 10px rgba(255, 107, 0, 0.5);
 }

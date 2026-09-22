@@ -1,16 +1,19 @@
 """Tests for the ballistics flight simulator and launch resolution."""
 
+import math
 from datetime import datetime
 
 import pytest
 
 from openflight.ballistics import (
     CLUB_TYPICAL_SPIN_RPM,
+    SPIN_DECAY_RATE,
     LaunchConditions,
     resolve_launch,
     simulate,
 )
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 
 
 def _shot(**kwargs) -> Shot:
@@ -136,10 +139,17 @@ class TestSimulate:
         assert traj.points[-1].t == pytest.approx(traj.flight_time_s, rel=0.01)
 
     def test_spin_decays_over_flight(self):
-        traj = simulate(_driver(spin_rpm=3000))
+        initial_spin = 3000
+        traj = simulate(_driver(spin_rpm=initial_spin))
         final_spin = traj.points[-1].spin_rpm
-        # 4%/s for ~6s flight → ~80% of initial
-        assert 2300 < final_spin < 2900
+
+        # Assert the decay law itself rather than a hardcoded window, so the
+        # test stays valid when aero coefficients change the flight time.
+        expected = initial_spin * math.exp(-SPIN_DECAY_RATE * traj.flight_time_s)
+        assert final_spin == pytest.approx(expected, rel=1e-3)
+
+        # Sanity: spin must fall, but not collapse over a single flight.
+        assert 0.6 * initial_spin < final_spin < initial_spin
 
     def test_flight_time_reasonable(self):
         traj = simulate(_driver())

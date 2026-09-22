@@ -54,8 +54,12 @@ def _estimate(capture):
         ball_height_m=0.040,
     )
     return estimate_lcmf_v1(
-        raw, cal, ball_speed_mph=capture["ball_speed_mph"], club="7i",
-        net_range_m=4.064, tx_order="normal",
+        raw,
+        cal,
+        ball_speed_mph=capture["ball_speed_mph"],
+        club="7i",
+        net_range_m=4.064,
+        tx_order="normal",
     )
 
 
@@ -103,3 +107,94 @@ def test_collapsed_channel_no_longer_drags_the_answer():
     mean_angle = sum(angles) / len(angles)
     assert 14.0 <= mean_angle <= 22.0, f"7-iron mean {mean_angle:.1f} deg is implausible"
     assert all(12.0 <= angle <= 26.0 for angle in angles), angles
+
+
+def test_impact_is_located_early_in_the_ring_on_every_capture():
+    """Impact lands at slot 2-4 of 18, never at the slot 6 club.py assumed.
+
+    This is the defect that made club path fit the follow-through on every
+    shot. The freeze is requested by a UART CLI command and `l3_dump.c` samples
+    the ring position when that command is parsed, so the trigger frame lands
+    late by a variable 2-4 frames.
+
+    These captures come from the 18-frame ring. The v3 firmware allocates 13
+    pre-trigger frames instead of 6, which moves impact to roughly slot 9-11
+    and is what gives club path enough approach history -- so the slot bound
+    below is deliberately expressed against `n_frames`, not hard-coded to 18.
+    """
+    frame_period_s = 4e-3
+    slots = []
+    for capture in _captures():
+        result = _estimate(capture)
+        assert result.impact_t_s is not None, (
+            f"shot {capture['shot_number']} produced no impact time: {result.status}"
+        )
+        slots.append(result.impact_t_s / frame_period_s)
+
+    assert len(slots) == 7
+    assert all(1.0 <= slot <= 5.0 for slot in slots), (
+        f"impact slots {[round(s, 1) for s in slots]} do not match the measured "
+        "2026-07-25 range of 1.7-4.1; a change here means the trigger latency "
+        "or the ring layout moved"
+    )
+
+
+def test_club_is_found_pre_impact_with_a_plausible_speed_projection():
+    """The clubhead's approach is trackable on every capture.
+
+    What this pins is the part that does NOT depend on the firmware: with the
+    window anchored to the measured impact and the search gate capped at the
+    tee, the approaching clubhead is found and its radial speed is a plausible
+    fraction of the OPS club speed. Before those two fixes the tracker found
+    the follow-through instead, at a projection factor of 0.27-0.58.
+
+    Club path itself is still expected to be REJECTED on these captures for
+    want of frames: the 18-frame ring leaves only 2-4 pre-impact frames against
+    CLUB_MIN_FRAMES=4. That is the limit the v3 ring lifts, so this test
+    deliberately asserts the tracking property rather than an accepted path.
+    """
+    from openflight.iwr6843.club import CLUB_SPEED_PROJECTION_RANGE, estimate_club_path
+    from openflight.iwr6843.replay import build_replay_calibration
+
+    rows = [json.loads(line) for line in SESSION.read_text().splitlines() if line.strip()]
+    club_speeds = {
+        r["shot_number"]: r.get("club_speed_mph") for r in rows if r.get("type") == "shot_detected"
+    }
+    cal = build_replay_calibration(
+        "config/iwr6843_calibration_reference.json",
+        tee_range_m=1.372,
+        tilt_deg=5.5,
+        radar_height_m=0.229,
+        ball_height_m=0.040,
+    )
+
+    low, high = CLUB_SPEED_PROJECTION_RANGE
+    projections = []
+    for capture in _captures():
+        shot_number = capture["shot_number"]
+        club_speed_mph = club_speeds.get(shot_number)
+        assert club_speed_mph, f"shot {shot_number} has no OPS club speed"
+        raw = (DUMPS / Path(capture["capture_path"]).name).read_bytes()
+        measurement = _estimate(capture)
+        result = estimate_club_path(
+            raw,
+            cal,
+            ops_club_speed_mph=club_speed_mph,
+            impact_t_s=measurement.impact_t_s,
+            tdm_sign=measurement.tdm_sign_used or 1,
+        )
+        assert result.range_rate_ms is not None, (
+            f"shot {shot_number}: no club track in the pre-impact window ({result.status})"
+        )
+        projections.append(abs(result.range_rate_ms) / (club_speed_mph / 2.23694))
+
+    assert len(projections) == 7
+    assert all(0.70 <= p <= 1.30 for p in projections), (
+        f"projections {[round(p, 2) for p in projections]} left the plausible "
+        "band; 0.27-0.58 would mean the follow-through is being tracked again"
+    )
+    in_gate = [p for p in projections if low <= p <= high]
+    assert len(in_gate) >= 6, (
+        f"only {len(in_gate)}/7 projections pass the identity gate "
+        f"({low}, {high}): {[round(p, 2) for p in projections]}"
+    )

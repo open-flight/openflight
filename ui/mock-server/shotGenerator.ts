@@ -2,6 +2,7 @@
  * Club-keyed gaussian shot generation, ported from Python MockLaunchMonitor.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { Shot, SpinQuality } from '../src/types/shot.js';
 
 /** [avg_ball_speed, std_dev, smash_factor] */
@@ -110,7 +111,8 @@ export function estimateCarryYards(ballSpeedMph: number): number {
 
 export interface GenerateShotOptions {
   club: string;
-  playerName: string;
+  profileId: string;
+  profileName: string;
   ballSpeed?: number;
 }
 
@@ -120,8 +122,7 @@ export function generateShot(options: GenerateShotOptions): Shot {
   const [avgSpin, spinStd] = CLUB_SPIN[club] ?? CLUB_SPIN.unknown!;
   const [avgLaunch, launchStd] = CLUB_LAUNCH[club] ?? CLUB_LAUNCH.unknown!;
 
-  const ballSpeed =
-    options.ballSpeed ?? Math.max(50, Math.min(200, gauss(avgSpeed, speedStd)));
+  const ballSpeed = options.ballSpeed ?? Math.max(50, Math.min(200, gauss(avgSpeed, speedStd)));
   const smashFactor = smash + uniform(-0.03, 0.03);
   const clubSpeed = ballSpeed / smashFactor;
   const spinRpm = Math.max(1000, gauss(avgSpin, spinStd));
@@ -143,7 +144,8 @@ export function generateShot(options: GenerateShotOptions): Shot {
     estimated_carry_yards: carry,
     carry_range: [Math.round(carry * 0.95), Math.round(carry * 1.05)],
     club,
-    player_name: options.playerName,
+    profile_id: options.profileId,
+    profile_name: options.profileName,
     timestamp: new Date().toISOString(),
     peak_magnitude: null,
     launch_angle_vertical: Math.round(launchV * 10) / 10,
@@ -158,5 +160,13 @@ export function generateShot(options: GenerateShotOptions): Shot {
     spin_quality: spinQuality(spinConfidence),
     spin_source: 'calculated',
     carry_spin_adjusted: carry,
+    camera_replay: {
+      id: `mock-${randomUUID()}`,
+      frame_count: 99,
+      trigger_frame: 73,
+      playback_fps: 60,
+      duration_seconds: 1.65,
+      display_mirror_horizontal: true,
+    },
   };
 }

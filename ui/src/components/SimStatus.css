@@ -10,12 +10,12 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  transition: all var(--transition-smooth);
+  transition: all var(--transition-fast);
 }
 
 .sim-status__name {
@@ -29,7 +29,7 @@
 .sim-status__dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--radius);
 }
 
 /* Connected */
@@ -47,10 +47,10 @@
 .sim-status__pill--warn {
   background: rgba(251, 191, 36, 0.1);
   border: 1px solid rgba(251, 191, 36, 0.35);
-  color: #fbbf24;
+  color: var(--color-warning);
 }
 .sim-status__pill--warn .sim-status__dot {
-  background: #fbbf24;
+  background: var(--color-warning);
   animation: blink 1s infinite;
 }
 
@@ -69,10 +69,10 @@
 .sim-status__pill--off {
   background: rgba(148, 163, 184, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.25);
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--color-text-muted);
 }
 .sim-status__pill--off .sim-status__dot {
-  background: var(--color-text-muted, #94a3b8);
+  background: var(--color-text-muted);
 }
 
 @media (max-height: 500px) {

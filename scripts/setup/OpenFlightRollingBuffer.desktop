@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=OpenFlight Rolling Mode
-Comment=Golf Launch Monitor Kiosk (GPIO Sound Trigger with S! software trigger)
-Exec=lxterminal -e /home/coleman/openflight/scripts/start-kiosk.sh
-Icon=applications-games
-Terminal=false
-Type=Application
-Categories=Game;Sports;

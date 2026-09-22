@@ -101,6 +101,21 @@ fi
 # Phase 1: Dependencies
 # ──────────────────────────────────────────────────────────────────────
 
+# Camera shot replay converts frames to H.264 only after the user selects
+# Replay. FFmpeg is a system binary, so it cannot be managed by uv.
+if [[ "$PLATFORM" == "pi" ]]; then
+    if command -v ffmpeg &> /dev/null; then
+        log "FFmpeg found ✓"
+    else
+        log "Installing FFmpeg for camera shot replay..."
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+        log "FFmpeg installed ✓"
+    fi
+elif ! command -v ffmpeg &> /dev/null; then
+    warn "FFmpeg not found. It is required only for on-demand camera shot replay."
+fi
+
 # Check for Python 3.9+
 log "Checking Python version..."
 if command -v python3 &> /dev/null; then
@@ -274,11 +289,8 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
     # --- Desktop shortcut ---
     echo ""
     if confirm "Add an OpenFlight shortcut to the desktop?" "N"; then
-        mkdir -p "$HOME/Desktop"
-        sed -e "s|/home/coleman/openflight|$PROJECT_DIR|g" \
-            "$SCRIPT_DIR/OpenFlight.desktop" > "$HOME/Desktop/OpenFlight.desktop"
-        chmod +x "$HOME/Desktop/OpenFlight.desktop"
-        log "Desktop shortcut added ✓"
+        "$SCRIPT_DIR/install_desktop_launcher.sh"
+        log "Desktop shortcut setup complete ✓"
     fi
 
     # --- Cloud sync (opt-in) ---

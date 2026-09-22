@@ -36,25 +36,24 @@ from validate_ballistics import (  # noqa: E402  (path set up above)
 
 TRACKMAN_CSV = _REPO_ROOT / "session_logs" / "OpenFlight-Test.Normalized.csv"
 
-# Per-club RMSE ceilings in yards, seeded from the measured baseline on
-# c9d0cc7 (2026-08-18) with a small tolerance for float/platform drift:
+# Per-club RMSE ceilings in yards. Ratcheted down after the aero coefficients
+# were re-fit against this same capture (see ballistics.py CD_/CL_ constants).
 #
-#   club              n   rmse    mae    bias
-#   7-iron            9   11.64  11.00  +11.00
-#   driver            8   38.60  37.18  -37.18
-#   pitching wedge    7   13.56  13.16  +11.02
-#   OVERALL          24   24.52  20.36   -5.05
+#                    before re-fit        after re-fit
+#   club            rmse      bias       rmse     bias
+#   7-iron         11.64   +11.00        2.96   +1.52
+#   driver         38.60   -37.18        1.75   -0.45
+#   pitching wedge 13.56   +11.02        6.26   -2.96
+#   OVERALL        24.52    -5.05        3.97   -0.45
 #
-# The driver number is large because Cl is mis-fit at low spin parameter
-# (CL_HALF_SP=0.15 sits above the driver's whole Sp range, so the lift curve
-# never leaves its low-lift regime). Fixing the aero constants should drop
-# driver RMSE substantially -- when it does, lower these ceilings.
+# Ceilings sit slightly above the measured values to absorb float/platform
+# drift. Lower them again if the model improves; never raise them.
 RMSE_BUDGET_YARDS = {
-    "driver": 40.0,
-    "7-iron": 13.0,
-    "pitching wedge": 15.0,
+    "driver": 3.0,
+    "7-iron": 4.0,
+    "pitching wedge": 7.5,
 }
-OVERALL_RMSE_BUDGET_YARDS = 26.0
+OVERALL_RMSE_BUDGET_YARDS = 5.0
 
 # The reference capture is a fixed, committed file: if the shot count changes,
 # the fixture changed and every budget above needs re-deriving.

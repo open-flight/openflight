@@ -132,6 +132,29 @@ def test_capture_monitor_keeps_valid_raw_in_memory_without_writing_dump(tmp_path
     monitor.stop()
 
 
+def test_capture_monitor_notifies_trigger_observers(tmp_path):
+    config = tmp_path / "radar.cfg"
+    config.write_text("sensorStart\n", encoding="utf-8")
+    raw = _raw_dump()
+    observed = []
+    monitor = IWR6843CaptureMonitor(
+        config_path=config,
+        output_dir=tmp_path / "dumps",
+        radar=FakeRadar(raw),
+        button_factory=FakeButton,
+        trigger_observers=[observed.append],
+    )
+    monitor.start()
+
+    edge = time.time()
+    assert monitor.notify_trigger(edge)
+    capture = monitor.capture_for_shot(edge, timeout_s=1.0)
+
+    assert capture is not None and capture.valid
+    assert observed == [edge]
+    monitor.stop()
+
+
 def test_capture_monitor_records_temperature_report_from_dump_header(tmp_path):
     config = tmp_path / "radar.cfg"
     config.write_text("sensorStart\n", encoding="utf-8")

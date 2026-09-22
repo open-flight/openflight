@@ -1,5 +1,6 @@
 type LogoSize = 'small' | 'medium' | 'large';
-type LogoVariant = 'color' | 'light' | 'dark';
+/** `mono` matches the design doc's uploads/logo.svg: every path one flat tint. */
+type LogoVariant = 'color' | 'light' | 'dark' | 'mono';
 
 interface LogoProps {
   size?: LogoSize;
@@ -9,9 +10,9 @@ interface LogoProps {
 function getColor(variant: LogoVariant) {
   switch (variant) {
     case 'light':
-      return '#d4af37'; // var(--color-gold)
     case 'dark':
-      return '##1A3617';
+    case 'mono':
+      return 'currentColor';
     case 'color':
       return null;
     default:
@@ -38,7 +39,7 @@ export default function Logo({ size = 'medium', variant = 'color' }: LogoProps) 
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="175 90 375 320" width={logoWidth}>
-      <g stroke="#1A3617" stroke-width="0" stroke-linejoin="round" stroke-linecap="round">
+      <g stroke="#1A3617" strokeWidth="0" strokeLinejoin="round" strokeLinecap="round">
         {/* O Base / C Shape */}
         <path
           d="M 280 150 A 100 100 0 1 1 280 350 A 100 100 0 1 1 280 150 Z M 280 190 A 60 60 0 1 0 280 310 A 60 60 0 1 0 280 190 Z"

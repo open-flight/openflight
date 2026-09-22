@@ -33,15 +33,17 @@ def test_kld7_is_installed_by_default():
 
 
 def test_camera_dependencies_are_not_installed_by_default():
-    """Camera tracking packages should not be part of the base install."""
+    """Camera-only packages should not be part of the base install."""
     dependencies = _pyproject()["project"]["dependencies"]
 
+    assert not any(_requirement_name(dep) == "opencv-python-headless" for dep in dependencies)
     assert not any(dep.startswith("trackers ") for dep in dependencies)
     assert not any(dep.startswith("supervision") for dep in dependencies)
 
 
-def test_camera_extra_is_disabled_until_camera_support_returns():
-    """The camera extra should not pull fragile camera packages in setup."""
+def test_camera_extra_installs_portable_image_processing_dependency():
+    """OpenCV is opt-in while Picamera2 remains an OS-managed Pi package."""
     camera_dependencies = _pyproject()["project"]["optional-dependencies"]["camera"]
 
-    assert camera_dependencies == []
+    assert any(_requirement_name(dep) == "opencv-python-headless" for dep in camera_dependencies)
+    assert not any(_requirement_name(dep) == "picamera2" for dep in camera_dependencies)

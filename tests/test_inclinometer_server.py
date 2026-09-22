@@ -150,16 +150,14 @@ def test_session_log_records_orientation_used_for_shot(tmp_path):
         "effective_iwr_tilt_deg": 16.0,
     }
 
-    logger.log_shot(
+    shot = Shot(
         ball_speed_mph=100.0,
         club_speed_mph=70.0,
-        smash_factor=1.43,
-        estimated_carry_yards=180.0,
-        club="7-iron",
+        timestamp=datetime.now(),
         peak_magnitude=10.0,
-        readings_count=1,
         inclinometer=orientation,
     )
+    logger.log_shot(shot)
 
     entry = json.loads(logger.session_path.read_text().strip().splitlines()[-1])
     assert entry["type"] == "shot_detected"

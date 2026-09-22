@@ -9,7 +9,7 @@
   flex: 1 1 220px;
   min-width: 220px;
   padding: var(--space-sm);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: rgba(148, 163, 184, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.2);
 }
@@ -61,7 +61,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  border-radius: 3px;
+  border-radius: var(--radius);
   font-size: 0.5625rem;
   font-weight: 700;
 }
@@ -73,7 +73,7 @@
 
 .sim-shot-badges__badge--estimated {
   background: rgba(251, 191, 36, 0.18);
-  color: #fbbf24;
+  color: var(--color-warning);
 }
 
 .sim-shot-badges__summary {

@@ -22,7 +22,9 @@ import math
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from .launch_monitor import SPIN_CONFIDENCE_HIGH, ClubType, Shot
+from .clubs import ClubType
+from .clubs.physics import CLUB_PHYSICS
+from .launch_monitor import SPIN_CONFIDENCE_HIGH, Shot
 
 MPH_TO_MPS = 0.44704
 MPS_TO_MPH = 1.0 / MPH_TO_MPS
@@ -44,10 +46,23 @@ AIR_DENSITY_STD = 1.225  # kg/m³ at sea level, 15 °C ISA
 # These are simple parametric forms consistent with Bearman & Harvey (1976)
 # and Kensrud & Smith (2018) for dimpled balls past the drag crisis
 # (Re ~ 5e4–2e5), which covers the full range of realistic golf shots.
-CD_BASE = 0.205
-CD_SPIN_COEFF = 0.18
-CL_SATURATION = 0.32
-CL_HALF_SP = 0.15
+#
+# Fitted with scripts/analysis/sweep_ballistic_coeffs.py against the committed
+# TrackMan capture (session_logs/OpenFlight-Test.Normalized.csv, 24 shots,
+# differential evolution + Nelder-Mead, rho=1.184 to match TrackMan "Flat").
+# Overall carry RMSE against TrackMan: 24.52 -> 3.97 yd. The previous
+# CL_HALF_SP of 0.15 sat well above the low-spin driver regime (driver
+# Sp ~ 0.05-0.08), so for drivers the lift curve never left its low-lift
+# regime and driver carry ran ~37 yd short. Irons and wedges (Sp ~ 0.21-0.63)
+# were already past CL_HALF_SP and ran long instead, which is why the error
+# flipped sign by club. Resulting Cl is ~0.13-0.16 for drivers, rising to
+# ~0.22-0.23 for irons and wedges; the iron/wedge values sit inside the
+# 0.18-0.25 band the cited sources report, while the driver values remain
+# below it.
+CD_BASE = 0.19071
+CD_SPIN_COEFF = 0.31588
+CL_SATURATION = 0.25544
+CL_HALF_SP = 0.04758
 
 # Exponential spin decay: ω(t) = ω₀·exp(-rate·t).
 # ~4%/s per Kiratidis & Leinweber (2018); small but matters over ~6 s flights.
@@ -68,27 +83,7 @@ SAMPLE_INTERVAL_S = 0.05
 # Club-typical spin (RPM) from TrackMan PGA Tour averages.
 # Used as fallback when measured spin is missing or low-confidence.
 CLUB_TYPICAL_SPIN_RPM: dict[ClubType, float] = {
-    ClubType.DRIVER: 2700,
-    ClubType.WOOD_3: 3500,
-    ClubType.WOOD_5: 4200,
-    ClubType.WOOD_7: 4800,
-    ClubType.HYBRID_3: 4400,
-    ClubType.HYBRID_5: 4900,
-    ClubType.HYBRID_7: 5300,
-    ClubType.HYBRID_9: 5800,
-    ClubType.IRON_2: 4000,
-    ClubType.IRON_3: 4500,
-    ClubType.IRON_4: 5000,
-    ClubType.IRON_5: 5400,
-    ClubType.IRON_6: 6000,
-    ClubType.IRON_7: 6500,
-    ClubType.IRON_8: 7500,
-    ClubType.IRON_9: 8500,
-    ClubType.PW: 9000,
-    ClubType.GW: 9500,
-    ClubType.SW: 10000,
-    ClubType.LW: 10500,
-    ClubType.UNKNOWN: 5000,
+    club: physics.typical_spin_rpm for club, physics in CLUB_PHYSICS.items()
 }
 
 

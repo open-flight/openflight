@@ -30,8 +30,10 @@ from openflight.iwr6843.tracking import BallTrack, Geometry
 
 TDM_TAU_S = 45e-6  # first -> second chirp offset inside one loop
 TX2_VERTICAL_TDM_TAU_S = 2 * TDM_TAU_S  # TX1 -> TX3 offset in the 3-TX loop
-# IWR6843LEVM TX2 is displaced lambda/2 from the TX1/TX3 phase center on
-# the orthogonal axis (SWRU585). The enclosure rotates that axis horizontal.
+# IWR6843LEVM antenna geometry (SWRU585): TX2 is displaced D=lambda/2
+# from the TX1/TX3 phase center on the board's orthogonal axis. The OpenFlight
+# enclosure rotates that axis into horizontal, but rotation does not change
+# the electrical baseline length.
 LEVM_TX2_AXIS_BASELINE_LAMBDA = 0.5
 TX_ORDERS = frozenset({"normal", "reversed"})
 TDM_SIGN_POLICIES = frozenset({"auto", "negative", "positive"})
@@ -42,7 +44,13 @@ def tx2_phase_to_axis_angle_rad(
     *,
     orthogonal_angle_rad: float | np.ndarray = 0.0,
 ) -> float | np.ndarray:
-    """Convert LEVM TX2 residual phase to its displaced-axis angle."""
+    """Convert LEVM TX2 residual phase to its displaced-axis angle.
+
+    The measured phase is ``2*pi*(D/lambda)*direction_cosine``. For the
+    LEVM's ``D=lambda/2`` TX2 baseline this becomes ``pi*direction_cosine``.
+    ``orthogonal_angle_rad`` optionally removes the other axis' projection;
+    leaving it at zero returns the usual one-axis direction-cosine proxy.
+    """
     phase = np.asarray(phase_rad, dtype=float)
     orthogonal = np.asarray(orthogonal_angle_rad, dtype=float)
     projection = np.cos(orthogonal)
@@ -51,6 +59,18 @@ def tx2_phase_to_axis_angle_rad(
     axis_sine = phase / (2.0 * np.pi * LEVM_TX2_AXIS_BASELINE_LAMBDA * projection)
     angle = np.arcsin(np.clip(axis_sine, -1.0, 1.0))
     return float(angle) if angle.ndim == 0 else angle
+
+
+def tx2_axis_angle_to_phase_rad(
+    angle_rad: float | np.ndarray,
+    *,
+    orthogonal_angle_rad: float | np.ndarray = 0.0,
+) -> float | np.ndarray:
+    """Inverse of :func:`tx2_phase_to_axis_angle_rad` for LEVM geometry."""
+    angle = np.asarray(angle_rad, dtype=float)
+    orthogonal = np.asarray(orthogonal_angle_rad, dtype=float)
+    phase = 2.0 * np.pi * LEVM_TX2_AXIS_BASELINE_LAMBDA * np.sin(angle) * np.cos(orthogonal)
+    return float(phase) if phase.ndim == 0 else phase
 
 
 def validate_tx_order(tx_order: str) -> str:
@@ -180,7 +200,7 @@ def snapshot_series(
         tdm_sign = measure_tdm_sign(mti, track, geo)
     if tdm_sign not in (-1, +1):
         raise ValueError("tdm_sign must be -1 or +1")
-    noise = float(np.median(np.abs(mti) ** 2))
+    noise = max(float(np.median(np.abs(mti) ** 2)), 1e-12)
     k = max(1, int(coherent_loops))
     out: list[tuple[float, float, np.ndarray, float]] = []
     for frame in range(geo.n_frames):
@@ -264,9 +284,12 @@ def angle_points(
 def circular_median(values: list[float]) -> float:
     """Median of angles, wrapping correctly across +/-pi."""
     array = np.asarray(values, dtype=float)
-    scores = [
-        np.median(np.abs(np.angle(np.exp(1j * (array - candidate))))) for candidate in array
-    ]
+    # Score every observed angle as the candidate in one small matrix. The
+    # horizontal estimators call this hundreds of times per shot (usually for
+    # four RX phases); constructing a separate NumPy pipeline per candidate
+    # made this otherwise tiny robust statistic a measurable hot path.
+    wrapped_distances = np.abs(np.angle(np.exp(1j * (array[:, np.newaxis] - array[np.newaxis, :]))))
+    scores = np.median(wrapped_distances, axis=0)
     return float(array[int(np.argmin(scores))])
 
 
@@ -306,3 +329,45 @@ def tx2_phase_at(
     if not phases:
         return None
     return circular_median(phases), weight
+
+
+def tx2_reference_phases_at(
+    tdm: np.ndarray,
+    frame: int,
+    loop: int,
+    local_bin: int,
+    *,
+    velocity_ms: float,
+    tdm_sign: int,
+    n_rx: int,
+) -> tuple[float, float, float] | None:
+    """Separate TX2-vs-TX1 and TX2-vs-TX3 phases for temporal fusion.
+
+    Unlike :func:`tx2_phase_at`, this does not average the two vertical
+    reference voltages. Their unequal gains and elevation-dependent phase can
+    cancel in voltage space. Keeping both normalized phase differences lets
+    the experimental club-path estimator unwrap each through time before
+    averaging their motion, avoiding the 180-degree midpoint branch flips
+    seen on real V6 captures.
+    """
+    tx1 = tdm[frame, loop, 0, :, local_bin]
+    tx2 = tdm[frame, loop, 1, :, local_bin] * np.exp(
+        -1j * tdm_sign * 4.0 * np.pi * velocity_ms * TDM_TAU_S / LAM
+    )
+    tx3 = tdm[frame, loop, 2, :, local_bin] * np.exp(
+        -1j * tdm_sign * 4.0 * np.pi * velocity_ms * TX2_VERTICAL_TDM_TAU_S / LAM
+    )
+    phase_tx1 = [
+        float(np.angle(np.conj(tx1[rx]) * tx2[rx]))
+        for rx in range(n_rx)
+        if abs(tx1[rx]) * abs(tx2[rx]) > 0
+    ]
+    phase_tx3 = [
+        float(np.angle(np.conj(tx3[rx]) * tx2[rx]))
+        for rx in range(n_rx)
+        if abs(tx3[rx]) * abs(tx2[rx]) > 0
+    ]
+    if not phase_tx1 or not phase_tx3:
+        return None
+    weight = float(np.mean(np.abs(tx2) * np.sqrt(np.maximum(np.abs(tx1) * np.abs(tx3), 0.0))))
+    return circular_median(phase_tx1), circular_median(phase_tx3), weight

@@ -92,6 +92,7 @@ def set_show_raw_readings(enabled: bool):
 
 
 _CLOCK_RE = re.compile(r'"?Clock"?\s*:\s*"?(-?\d+(?:\.\d+)?)"?')
+_OPS243_FIRMWARE_RE = re.compile(r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)")
 
 
 def _parse_ops_clock(response: str) -> Optional[float]:
@@ -162,7 +163,10 @@ class OPS243Radar:
     # Default serial settings per datasheet
     DEFAULT_BAUD = 57600
     DEFAULT_TIMEOUT = 1.0
-    REQUIRED_INTERNAL_TRIGGER_FIRMWARE = "1.3.1"
+    INTERNAL_TRIGGER_FIRMWARE_MINIMUM = (1, 3, 2)
+    REQUIRED_INTERNAL_TRIGGER_FIRMWARE = ".".join(
+        str(part) for part in INTERNAL_TRIGGER_FIRMWARE_MINIMUM
+    )
 
     # Target rate on the J3 UART. At 230,400 a dump moves in ~1.8s; the
     # 19,200 factory default would take 21s and miss every shot.
@@ -786,13 +790,19 @@ class OPS243Radar:
             return response
 
     def validate_internal_trigger_firmware(self) -> str:
-        """Require the OPS243 firmware release validated for internal triggering."""
+        """Require a compatible OPS243-A firmware release for internal triggering."""
         version = self._probe_firmware_version()
         required = self.REQUIRED_INTERNAL_TRIGGER_FIRMWARE
-        if version != required:
+        match = _OPS243_FIRMWARE_RE.fullmatch(version or "")
+        parsed = (
+            tuple(int(match.group(part)) for part in ("major", "minor", "patch")) if match else None
+        )
+        minimum = self.INTERNAL_TRIGGER_FIRMWARE_MINIMUM
+        if parsed is None or parsed[:2] != minimum[:2] or parsed < minimum:
             detected = f"v{version}" if version else "no response"
             raise RuntimeError(
-                f"Internal hardware trigger requires OPS243 firmware v{required}; "
+                f"Internal hardware trigger requires OPS243-A firmware v{required} "
+                "or newer in the 1.3 release train; "
                 f"detected {detected}. Update the OPS243 before using --trigger hardware."
             )
         return version

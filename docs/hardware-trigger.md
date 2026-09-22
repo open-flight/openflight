@@ -4,12 +4,13 @@ OpenFlight’s `hardware` trigger mode lets the OPS243-A decide when a rolling-b
 
 ## OPS243 firmware prerequisite
 
-Hardware-trigger mode requires **OPS243-A firmware v1.3.1**, the release used for
-the validation sessions. The driver queries `?V` before sending the internal
-trigger setup commands and fails fast if the reported version is different or
-unavailable. Update the physical OPS243 using the manufacturer’s firmware
-procedure before running `--trigger hardware`; this application does not flash
-the radar.
+Hardware-trigger mode requires **OPS243-A firmware v1.3.2 or newer in the 1.3
+release train**. Firmware v1.3.1 has a vendor data-sequence bug and is rejected.
+The driver queries `?V` before sending the internal trigger setup commands and
+fails fast if the reported version is from an older or different release train,
+malformed, or unavailable. Update the physical OPS243 using the manufacturer’s
+firmware procedure before running `--trigger hardware`; this application does
+not flash the radar.
 
 ## Methodology
 

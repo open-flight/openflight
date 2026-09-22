@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="A clean Tier 1 shot, two frames" role="img" viewBox="0 0 800 300" width="800" height="300">
+<style>
+  svg {
+    --bg:#0a0a0f; --card:#12121a; --elev:#1a1a24; --hover:#222230;
+    --gold:#d4af37; --gold-bright:#f4cf47; --gold-dim:#a68b2a;
+    --cream:#f5f0e6; --cream-dim:rgba(245,240,230,.72);
+    --cream-muted:rgba(245,240,230,.5);
+    --ok:#4ade80; --info:#60a5fa; --warn:#fbbf24; --bad:#f87171;
+    --line:rgba(245,240,230,.12);
+    font-family: Outfit, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  }
+  .svg-lbl{fill:var(--cream-dim);font-size:13px}
+  .svg-lbl-sm{fill:var(--cream-muted);font-size:11.5px}
+  .svg-strong{fill:var(--cream);font-size:13px;font-weight:600}
+  .svg-mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style>
+<rect x="0" y="0" width="800" height="300" rx="8" fill="var(--bg)"/>
+
+<line stroke="var(--gold-dim)" stroke-width="2" x1="60" x2="760" y1="240" y2="240"></line>
+<!-- tee anchor -->
+<circle cx="90" cy="232" fill="var(--cream)" r="7"></circle>
+<text class="svg-lbl-sm" text-anchor="middle" x="90" y="222">tee (anchor)</text>
+<!-- two ball frames climbing -->
+<circle cx="320" cy="177" fill="var(--gold-bright)" r="6.5"></circle>
+<circle cx="560" cy="120" fill="var(--gold-bright)" r="6.5"></circle>
+<text class="svg-lbl-sm" fill="var(--gold)" text-anchor="end" x="312" y="168">frame 1 · 25 ms</text>
+<text class="svg-lbl-sm" fill="var(--gold)" text-anchor="end" x="552" y="112">frame 2 · 54 ms</text>
+<!-- image points well below (big maxsep) -->
+<circle cx="320" cy="268" fill="none" r="5" stroke="var(--bad)" stroke-width="1.6"></circle>
+<circle cx="560" cy="256" fill="none" r="5" stroke="var(--bad)" stroke-width="1.6"></circle>
+<text class="svg-lbl-sm" fill="var(--bad)" x="600" y="276">floor image (far below → big maxsep)</text>
+<!-- fit line through tee + the two frames -->
+<line stroke="var(--ok)" stroke-width="2.5" x1="90" x2="660" y1="232" y2="96"></line>
+<text class="svg-strong" fill="var(--ok)" x="666" y="96">line through tee + 2 frames</text>
+<text class="svg-lbl-sm" fill="var(--ok)" x="666" y="113">= launch angle</text>
+<!-- maxsep bracket on frame 2 (largest separation) -->
+<line stroke="var(--gold-bright)" stroke-width="1.4" x1="560" x2="560" y1="120" y2="256"></line>
+<text class="svg-lbl-sm" fill="var(--gold-bright)" x="574" y="192">maxsep</text>
+</svg>

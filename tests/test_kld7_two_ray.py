@@ -12,6 +12,7 @@ import math
 import numpy as np
 import pytest
 
+from openflight.clubs import ClubType
 from openflight.kld7.radc import WAVELENGTH_M, extract_launch_angle
 from openflight.kld7.two_ray import (
     _TOUR_LAUNCH_DEG,
@@ -29,7 +30,6 @@ from openflight.kld7.two_ray import (
     estimate_two_ray,
     two_ray_fit,
 )
-from openflight.launch_monitor import ClubType
 
 FT_TO_M = 0.3048
 G_FT_S2 = 32.17

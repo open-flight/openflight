@@ -1,0 +1,49 @@
+.segmented-control {
+  display: flex;
+  width: 100%;
+  align-items: stretch;
+  gap: 3px;
+  padding: 3px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.segmented-control__button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+  cursor: pointer;
+  /* Group focus ring lives on .segmented-control; individual outlines make
+     unselected options look like standalone buttons. */
+  outline: none;
+}
+
+.segmented-control__button:focus,
+.segmented-control__button:focus-visible {
+  outline: none;
+}
+
+.segmented-control__button--active {
+  background: var(--color-accent-block);
+  color: var(--color-accent-fg);
+  font-weight: 700;
+}
+
+@media (max-height: 500px) {
+  .segmented-control__button {
+    min-height: 38px;
+  }
+}

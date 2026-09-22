@@ -76,6 +76,7 @@ class IWR6843CaptureMonitor:
         button_factory: Callable | None = None,
         match_tolerance_s: float = 0.75,
         save_dumps: bool = False,
+        trigger_observers: list[Callable[[float], None]] | None = None,
     ):
         self.config_path = Path(config_path)
         self.output_dir = Path(output_dir).expanduser()
@@ -94,6 +95,7 @@ class IWR6843CaptureMonitor:
         self._captures: deque[IWR6843Capture] = deque()
         self._condition = threading.Condition()
         self._worker: threading.Thread | None = None
+        self._trigger_observers = list(trigger_observers or [])
 
     @property
     def port(self) -> str:
@@ -182,6 +184,11 @@ class IWR6843CaptureMonitor:
             self._last_edge_timestamp = edge_timestamp
             self._events.put_nowait(edge_timestamp)
             self._condition.notify_all()
+        for observer in self._trigger_observers:
+            try:
+                observer(edge_timestamp)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.warning("[IWR6843] Trigger observer failed", exc_info=True)
         return True
 
     def _validate_dump(self, raw: bytes) -> dict:

@@ -12,6 +12,13 @@
   </a>
 </p>
 
+<p align="center">
+  Related projects:
+  <a href="https://github.com/open-flight/openflight-enclosure">Enclosure</a>
+  &middot;
+  <a href="https://github.com/open-flight/openflight-mobile">Mobile App</a>
+</p>
+
 > [!WARNING]
 > **This project is in active development.** Features may be incomplete, unstable, or change without notice. Contributions and bug reports are welcome!
 
@@ -48,27 +55,27 @@ Without an angle radar you still get ball speed, club speed, smash factor,
 experimental spin, and estimated carry. The angle radar adds measured launch
 angle and experimental club path.
 
-> **⚠️ The K-LD7 angle radars are deprecated.** The supported angle radar is now the **TI IWR6843**. Don't buy K-LD7s for a new build; their software support remains for existing builds only. See the [full parts list](docs/PARTS.md) for details and links.
+> **⚠️ The K-LD7 angle radars are deprecated.** The supported angle radar is now the **TI IWR6843**. Don't buy K-LD7s for a new build; their software support remains for existing builds only. See the [full parts list](docs/get-started/parts.md) for details and links.
 
-> **The IWR6843 needs custom firmware** — the stock TI demo doesn't expose the raw radar cube OpenFlight needs. A validated prebuilt image ships in `firmware/releases/`, so flashing it doesn't require the TI toolchain. See the [IWR6843 Operator Guide](docs/iwr6843/README.md).
+> **The IWR6843 needs custom firmware** — the stock TI demo doesn't expose the raw radar cube OpenFlight needs. A validated prebuilt image ships in `firmware/releases/`, so flashing it doesn't require the TI toolchain. See the [IWR6843 Operator Guide](docs/iwr6843/index.md).
 
 ## Getting Started
 
 ### 1. Get the parts
 
-See the **[Parts List](docs/PARTS.md)** for everything you need with purchase links.
+See the **[Parts List](docs/get-started/parts.md)** for everything you need with purchase links.
 
 ### 2. Wire it up
 
-Follow the **[Sound Trigger Wiring Guide](docs/sound-trigger-wiring.md)** to connect the SEN-14262 to the OPS243-A. The (deprecated) K-LD7 modules connect via USB — no wiring needed. The OPS243 also has an opt-in internal speed-trigger path, which requires OPS243-A firmware v1.3.1; see the **[Internal Hardware Trigger Guide](docs/hardware-trigger.md)**.
+Follow the **[Sound Trigger Wiring Guide](docs/build/sound-trigger.md)** to connect the SEN-14262 to the OPS243-A. The (deprecated) K-LD7 modules connect via USB — no wiring needed. The OPS243 also has an opt-in internal speed-trigger path, which requires OPS243-A firmware v1.3.2 or newer in the 1.3 release train; see the **[Internal Hardware Trigger Guide](docs/hardware-trigger.md)**.
 
 **Adding the IWR6843 angle radar?** The Pi cannot power both radars over USB, so
 the OPS243 moves to the Pi's GPIO UART header while the TI board takes the USB
 port. Do it in this order, validating each step before the next — doing both at
 once makes any failure ambiguous:
 
-1. **[Move the OPS243 from USB to the Pi GPIO UART](docs/ops243-uart-migration.md)** — rewire and confirm the OPS still triggers on its own.
-2. **[IWR6843 Operator Guide](docs/iwr6843/README.md)** — wire, flash the firmware, mount, aim, and measure geometry.
+1. **[Move the OPS243 from USB to the Pi GPIO UART](docs/build/ops243-uart.md)** — rewire and confirm the OPS still triggers on its own.
+2. **[IWR6843 Operator Guide](docs/iwr6843/index.md)** — wire, flash the firmware, mount, aim, and measure geometry.
 
 If your OPS243-A has **WiFi**, you cannot use the GPIO UART — its WiFi module
 already drives the radar's UART receive line. Use a separately powered USB hub
@@ -87,17 +94,13 @@ cd openflight
 The script installs everything and walks you through the one-time hardware
 configuration (radar flash setup, legacy K-LD7 device naming, auto-start, and
 optional cloud sync) with prompts. It's safe to re-run any time.
-See the **[Raspberry Pi Setup Guide](docs/raspberry-pi-setup.md)** for
-details and troubleshooting.
+See the **[Raspberry Pi Setup Guide](docs/setup/raspberry-pi.md)** for details and troubleshooting. Touchscreen installations can use the **[Startup Splash Screen](docs/setup/splash-screen.md)** guide to install a terminal-free desktop launcher with immediate startup progress.
 
 ### 4. Hit balls
 
 ```bash
 # Default: rolling buffer mode with sound trigger
 scripts/start-kiosk.sh
-
-# Opt-in OPS243 internal hardware trigger (30 ksps, S#6)
-scripts/start-kiosk.sh --trigger hardware
 
 # With the IWR6843 angle radar (OPS243 on the Pi GPIO UART).
 # Geometry values are examples — measure your own; see the operator guide.
@@ -121,10 +124,17 @@ scripts/start-kiosk.sh --battery geekworm
 ```
 
 The IWR6843 example values are not universal. Measure the geometry from the
-antenna center and follow the [operator guide](docs/iwr6843/README.md#measure-the-geometry);
+antenna center and follow the [operator guide](docs/iwr6843/mounting.md#measure-the-geometry);
 wrong values bias the result instead of producing an obvious startup error.
 
-Then open http://localhost:8080 or use the touchscreen.
+Then open http://localhost:8080 or use the touchscreen. Footer tabs switch
+between Live, Stats, Shots, Camera, Players, and Debug. Tap the footer logo for
+units, theme, and language; the footer power icon opens shutdown confirmation.
+On Live, tap a metric to pin it top-left while keeping all metrics visible. Use
+the Replay action on camera-backed shots to open a touch-friendly slow-motion
+impact clip. The MP4 is generated only when Replay is selected and is cached
+beside the raw camera capture. For a TV or tablet, use
+[TV Display Mode](#tv-display-mode).
 
 ### 5. Sync to the cloud (optional)
 
@@ -141,7 +151,7 @@ openflight-cloud status     # linked? queued? parked?
 ```
 
 Once linked, sessions sync automatically (on session end and via a ~10-minute
-timer that heals wifi outages). See the **[Cloud Sync Guide](docs/cloud-sync.md)**
+timer that heals wifi outages). See the **[Cloud Sync Guide](docs/using/cloud-sync.md)**
 for details.
 
 ### TV Display Mode
@@ -169,7 +179,7 @@ For air swings and speed-stick training, OpenFlight can use the OPS243-A fast
 speed stream directly instead of waiting for impact audio. Start it with
 `scripts/start-kiosk.sh --swing-speed`; the server emits `swing_speed` events
 with peak club speed, rep duration, reading count, and session stats. See the
-**[Swing Speed Training Guide](docs/swing-speed-training.md)** for setup and
+**[Swing Speed Training Guide](docs/using/swing-speed.md)** for setup and
 tuning options.
 
 ## How It Works
@@ -206,7 +216,7 @@ Place the OPS243-A **3-5 feet behind the tee**, pointing down the target line:
 ```
 
 The IWR6843 has stricter mounting and measurement requirements; use the
-[operator guide](docs/iwr6843/README.md#mount-and-aim-the-radar) rather than assuming it
+[operator guide](docs/iwr6843/mounting.md#mount-and-aim-the-radar) rather than assuming it
 shares the OPS243 position.
 
 ## Configuration
@@ -247,7 +257,7 @@ monitor.disconnect()
 ## Limitations
 
 - **Cosine error**: If ball doesn't travel directly toward/away from radar, measured speed will be slightly lower than actual
-- **Spin detection**: The live multitaper value is experimental and is not used for carry by default. Short indoor flight windows and multipath make individual readings unreliable; see [Rolling Buffer and Spin Detection](docs/rolling_buffer_spin_detection.md).
+- **Spin detection**: The live multitaper value is experimental and is not used for carry by default. Short indoor flight windows and multipath make individual readings unreliable; see [Rolling Buffer and Spin Detection](docs/how-it-works/rolling-buffer.md).
 - **K-LD7 speed aliasing** (deprecated hardware): The K-LD7 max speed is 62 mph, so it's used only for angle/distance, not speed
 
 ## Hardware Diagnostic
@@ -260,7 +270,7 @@ uv run python scripts/hardware-test/diagnose.py
 
 The diagnostic checks the OPS243 transport, rolling-buffer persistence,
 software and hardware triggers, and any connected K-LD7 radars. IWR6843 builds
-use the [operator guide's first-capture checks](docs/iwr6843/README.md#verify-the-first-capture).
+use the [operator guide's first-capture checks](docs/iwr6843/verify.md#verify-the-first-capture).
 
 Missing optional hardware (like the horizontal K-LD7) is reported as a skip rather than a failure. Pass `--require-all` to fail on skips, or `--no-interactive` to skip the sound-trigger prompt in unattended runs.
 
@@ -306,27 +316,31 @@ uv run pytest tests/ -v
 
 ## Documentation
 
-- **[Parts List](docs/PARTS.md)** — What to buy
-- **[Sound Trigger Wiring](docs/sound-trigger-wiring.md)** — How to wire the sound trigger
-- **[Internal Hardware Trigger](docs/hardware-trigger.md)** — OPS243 internal trigger methodology and Pi retest checklist
-- **[Raspberry Pi Setup](docs/raspberry-pi-setup.md)** — Full setup guide
-- **[Battery Monitoring](docs/battery/README.md)** — Provider architecture, UI states, and shared Pi support
-- **[Geekworm X1202/X1206 Operator Guide](docs/battery/geekworm.md)** — Batteries, Pi setup, native telemetry, and warnings
-- **[IWR6843 Operator Guide](docs/iwr6843/README.md)** — Wire, flash, mount, aim, and calibrate the angle radar
-- **[LIS3DH Inclinometer Setup](docs/inclinometer/README.md)**: Add enclosure-level compensation to IWR6843 tilt
-- **[OPS243 USB → GPIO UART Migration](docs/ops243-uart-migration.md)** — Required before adding the IWR6843
-- **[IWR6843 Firmware Developer Guide](firmware/README.md)** — Build the firmware from source (not needed to flash the prebuilt image)
-- **[Simulator Connectors](docs/simulator/README.md)** — Stream shots to GSPro, OpenGolfSim, and others
-- **[Cloud Sync](docs/cloud-sync.md)** — Push filtered sessions to FlightWeb
-- **[Rolling Buffer & Spin Detection](docs/rolling_buffer_spin_detection.md)** — Production capture and experimental spin details
-- **[Dechirped-Sideband Spin Replay](docs/spin-dechirp-replay.md)** — Next-gen spin estimator test bench
-- **[Camera and YOLO Experiments](docs/yolo-performance-tuning.md)** — Optional, non-production vision work
-- **[Legacy K-LD7 Setup](docs/kld7.md)** — Existing K-LD7 builds only
-- **[K-LD7 Ball Detection Theory](docs/kld7-ball-detection-theory.md)** — How angle detection works (deprecated hardware)
-- **[K-LD7 Session Review](docs/kld7-session-review.md)** — Offline review workflow for session JSONL files (deprecated hardware)
-- **[Observability & Log Shipping](docs/observability.md)** — Ship logs to Grafana Cloud
+📖 **Full documentation site: <https://openflight.dev/docs/>**
+
+Build it locally with `make docs` (serves at `localhost:8000`).
+
+- **[Parts List](docs/get-started/parts.md)** — What to buy
+- **[Sound Trigger Wiring](docs/build/sound-trigger.md)** — How to wire the sound trigger
+- **[Raspberry Pi Setup](docs/setup/raspberry-pi.md)** — Full setup guide
+- **[Battery Monitoring](docs/using/battery.md)** — Provider architecture, UI states, and shared Pi support
+- **[Geekworm X1202/X1206 Operator Guide](docs/build/battery.md)** — Batteries, Pi setup, native telemetry, and warnings
+- **[IWR6843 Operator Guide](docs/iwr6843/index.md)** — Wire, flash, mount, aim, and calibrate the angle radar
+- **[LIS3DH Inclinometer Setup](docs/build/inclinometer.md)**: Add enclosure-level compensation to IWR6843 tilt
+- **[OPS243 USB → GPIO UART Migration](docs/build/ops243-uart.md)** — Required before adding the IWR6843
+- **[IWR6843 Firmware Developer Guide](docs/development/firmware.md)** — Build the firmware from source (not needed to flash the prebuilt image)
+- **[Enclosure & Case](docs/build/enclosure.md)** — The printed IARC v3 case
+- **[Hardware Diagnostic](docs/setup/raspberry-pi.md)** — Pi setup, auto-start, and troubleshooting
+- **[Simulator Connectors](docs/using/simulator/index.md)** — Stream shots to GSPro, OpenGolfSim, PAR-TEE, and others
+- **[Cloud Sync](docs/using/cloud-sync.md)** — Push filtered sessions to FlightWeb
+- **[Rolling Buffer & Spin Detection](docs/how-it-works/rolling-buffer.md)** — Production capture and experimental spin details
+- **[Dechirped-Sideband Spin Replay](docs/development/spin-replay.md)** — Next-gen spin estimator test bench
+- **[Camera and YOLO Experiments](docs/development/camera-yolo.md)** — Optional, non-production vision work
+- **[Legacy K-LD7 Setup](docs/legacy/index.md)** — Existing K-LD7 builds only
+- **[K-LD7 Ball Detection Theory](docs/legacy/ball-detection-theory.md)** — How angle detection works (deprecated hardware)
+- **[Observability & Log Shipping](docs/using/observability.md)** — Ship logs to Grafana Cloud
 - **[Contributing Guide](CONTRIBUTING.md)** — How to contribute
-- **[Changelog](docs/CHANGELOG.md)** — Version history
+- **[Changelog](docs/changelog.md)** — Version history
 
 ## License
 

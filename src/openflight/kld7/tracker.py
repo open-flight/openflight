@@ -4,7 +4,6 @@ Deprecated: the K-LD7 angle radars are deprecated (superseded by a more
 capable radar chip). Kept for existing builds only.
 """
 
-import base64
 import glob
 import logging
 import threading
@@ -14,9 +13,9 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import Optional
 
-from ..launch_monitor import ClubType
+from ..clubs import ClubType
 from ..serial_latency import log_usb_serial_latency_timer
-from .radc import RADC_PAYLOAD_BYTES, VERTICAL_FLIGHT_WINDOW_NET_DISTANCE_FT
+from .radc import VERTICAL_FLIGHT_WINDOW_NET_DISTANCE_FT
 from .types import KLD7Angle, KLD7Frame
 
 logger = logging.getLogger(__name__)
@@ -154,16 +153,6 @@ class KLD7Tracker:
         buffer_seconds: float = 2.0,
         angle_offset_deg: float = 0.0,
         base_freq: int = 0,
-        radc_speed_tolerance_mph: float = 10.0,
-        radc_centroid_floor_frac: float = 0.5,
-        radc_spectrum_source: str = "f1a",
-        radc_ops_bin_outlier_tol: int = 25,
-        radc_ops_bin_outlier_penalty: float = 10.0,
-        radc_ops_anchored_peak_min_snr: float = 5.0,
-        radc_vertical_impact_energy_threshold: float = 3.0,
-        radc_horizontal_impact_energy_threshold: float = 1.85,
-        radc_horizontal_retry_impact_energy_threshold: float = 0.5,
-        radc_horizontal_angle_limit_deg: float = 15.0,
         vertical_estimator: str = "naive",
         mount_tilt_deg: float = 18.0,
         ball_distance_ft: float = 5.5,
@@ -176,18 +165,6 @@ class KLD7Tracker:
         self.buffer_seconds = buffer_seconds
         self.angle_offset_deg = angle_offset_deg
         self.base_freq = base_freq
-        self.radc_speed_tolerance_mph = radc_speed_tolerance_mph
-        self.radc_centroid_floor_frac = radc_centroid_floor_frac
-        self.radc_spectrum_source = radc_spectrum_source
-        self.radc_ops_bin_outlier_tol = radc_ops_bin_outlier_tol
-        self.radc_ops_bin_outlier_penalty = radc_ops_bin_outlier_penalty
-        self.radc_ops_anchored_peak_min_snr = radc_ops_anchored_peak_min_snr
-        self.radc_vertical_impact_energy_threshold = radc_vertical_impact_energy_threshold
-        self.radc_horizontal_impact_energy_threshold = radc_horizontal_impact_energy_threshold
-        self.radc_horizontal_retry_impact_energy_threshold = (
-            radc_horizontal_retry_impact_energy_threshold
-        )
-        self.radc_horizontal_angle_limit_deg = radc_horizontal_angle_limit_deg
         self.vertical_estimator = vertical_estimator
         self.mount_tilt_deg = mount_tilt_deg
         self.ball_distance_ft = ball_distance_ft
@@ -840,7 +817,7 @@ class KLD7Tracker:
 
         return None
 
-    def snapshot_buffer(self, include_radc_payload: bool = False) -> list:
+    def snapshot_buffer(self) -> list:
         """Return a serializable snapshot of the current ring buffer.
 
         Call this BEFORE get_angle_for_shot/reset to capture raw data
@@ -859,10 +836,6 @@ class KLD7Tracker:
                 entry["read_duration_ms"] = frame.read_duration_ms
             if frame.radc is not None:
                 entry["has_radc"] = True
-                if include_radc_payload:
-                    entry["radc_b64"] = base64.b64encode(frame.radc).decode("ascii")
-                    entry["radc_payload_bytes"] = len(frame.radc)
-                    entry["radc_payload_valid"] = len(frame.radc) == RADC_PAYLOAD_BYTES
             frames.append(entry)
         return frames
 

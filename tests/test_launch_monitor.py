@@ -2,10 +2,9 @@
 
 import pytest
 from datetime import datetime
-
+from openflight.clubs import ClubType
 from openflight.launch_monitor import (
     Shot,
-    ClubType,
     estimate_carry_distance,
     adjust_carry_for_launch_angle,
 )

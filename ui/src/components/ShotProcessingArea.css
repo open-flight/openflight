@@ -1,0 +1,40 @@
+.shot-processing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--color-bg) 45%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.shot-processing-card {
+  width: min(360px, calc(100% - 32px));
+  padding: 28px 24px;
+  border: 1px solid var(--color-border-emphasis);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 42%);
+}
+
+.shot-processing-status {
+  position: absolute;
+  top: var(--space-sm);
+  left: 50%;
+  z-index: 30;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--space-md));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.shot-processing-status .progress-indicator {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+}
+
+@media (max-height: 500px) {
+  .shot-processing-card {
+    padding: 20px 22px;
+  }
+}

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Tier 2 boost and the thin-shot ambiguity" role="img" viewBox="0 0 800 300" width="800" height="300">
+<style>
+  svg {
+    --bg:#0a0a0f; --card:#12121a; --elev:#1a1a24; --hover:#222230;
+    --gold:#d4af37; --gold-bright:#f4cf47; --gold-dim:#a68b2a;
+    --cream:#f5f0e6; --cream-dim:rgba(245,240,230,.72);
+    --cream-muted:rgba(245,240,230,.5);
+    --ok:#4ade80; --info:#60a5fa; --warn:#fbbf24; --bad:#f87171;
+    --line:rgba(245,240,230,.12);
+    font-family: Outfit, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  }
+  .svg-lbl{fill:var(--cream-dim);font-size:13px}
+  .svg-lbl-sm{fill:var(--cream-muted);font-size:11.5px}
+  .svg-strong{fill:var(--cream);font-size:13px;font-weight:600}
+  .svg-mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style>
+<rect x="0" y="0" width="800" height="300" rx="8" fill="var(--bg)"/>
+
+<!-- left: the boost -->
+<text class="svg-strong" text-anchor="middle" x="200" y="30">the boost</text>
+<line stroke="var(--cream-muted)" stroke-width="1.3" x1="70" x2="370" y1="250" y2="250"></line>
+<circle cx="90" cy="250" fill="var(--cream)" r="6"></circle>
+<line stroke="var(--bad)" stroke-width="2.5" x1="90" x2="340" y1="250" y2="205"></line>
+<text class="svg-lbl-sm" fill="var(--bad)" x="346" y="206">measured (suppressed)</text>
+<line stroke="var(--warn)" stroke-width="2.5" x1="90" x2="330" y1="250" y2="120"></line>
+<text class="svg-lbl-sm" fill="var(--warn)" x="336" y="118">after +boost ≈ tour avg</text>
+<path d="M300 134 A 222 222 0 0 0 315 192" fill="none" marker-end="url(#arrU)" stroke="var(--gold-bright)" stroke-width="2"></path>
+<text class="svg-lbl-sm" fill="var(--gold-bright)" text-anchor="end" x="250" y="150">+4°</text>
+<defs><marker id="arrU" markerHeight="9" markerWidth="9" orient="auto" refX="4" refY="4.5">
+<path d="M0 0 L9 4.5 L0 9 z" fill="var(--gold-bright)"></path></marker></defs>
+<!-- right: the ambiguity -->
+<text class="svg-strong" fill="var(--bad)" text-anchor="middle" x="600" y="30">the honest catch</text>
+<line stroke="var(--cream-muted)" stroke-width="1.3" x1="470" x2="760" y1="250" y2="250"></line>
+<circle cx="490" cy="250" fill="var(--cream)" r="6"></circle>
+<!-- two identical low readings -->
+<line stroke="var(--bad)" stroke-width="3" x1="490" x2="730" y1="250" y2="212"></line>
+<text class="svg-lbl-sm" fill="var(--bad)" x="660" y="238">same low reading…</text>
+<!-- both boosted to same place -->
+<line stroke="var(--warn)" stroke-dasharray="5 4" stroke-width="2" x1="490" x2="720" y1="250" y2="120"></line>
+<text class="svg-lbl-sm" fill="var(--warn)" x="600" y="120">…both boosted here</text>
+<text class="svg-lbl-sm" text-anchor="middle" x="615" y="290">a suppressed 17° and a genuinely-thin 9°<tspan dy="15" x="615">look identical to the radar</tspan></text>
+</svg>

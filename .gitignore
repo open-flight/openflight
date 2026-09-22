@@ -4,7 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+# Anchored: an unanchored `build/` also swallows docs/build/, the enclosure
+# section of the docs site.
+/build/
 develop-eggs/
 dist/
 downloads/
@@ -76,6 +78,10 @@ ui/playwright-report/
 ui/test-results/
 
 .superpowers/
+
+# Zensical docs site build output
+/site/
+.cache/
 
 #Markdown preview files
 .crossnote/config.js

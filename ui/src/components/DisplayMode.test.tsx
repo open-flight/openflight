@@ -1,15 +1,13 @@
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { CameraStatus } from '../stores/useCameraStore';
+import type { CameraCaptureSettings } from '../stores/useCameraStore';
 import type { Shot } from '../types/shot';
 import { DisplayMode } from './DisplayMode';
 
-const cameraStatus: CameraStatus = {
+const captureSettings: CameraCaptureSettings = {
   available: true,
   enabled: true,
-  streaming: true,
-  ball_detected: false,
-  ball_confidence: 0,
+  running: true,
 };
 
 const shot: Shot = {
@@ -37,12 +35,42 @@ const shot: Shot = {
 
 describe('DisplayMode', () => {
   it('renders latest shot metrics and recent shot strip', () => {
-    const html = renderToString(<DisplayMode connected cameraStatus={cameraStatus} latestShot={shot} shots={[shot]} />);
+    const html = renderToString(
+      <DisplayMode connected captureSettings={captureSettings} latestShot={shot} shots={[shot]} />
+    );
 
     expect(html).toContain('OpenFlight Display');
     expect(html).toContain('151.2');
     expect(html).toContain('261');
     expect(html).toContain('Socket connected');
     expect(html).toContain('display-shot-chip__number');
+    expect(html).toContain('metric-card--emphasis');
+    expect(html).not.toContain('display-metric');
+  });
+
+  it('does not request a preview when camera capture is unavailable', () => {
+    const html = renderToString(
+      <DisplayMode connected captureSettings={{ available: false }} latestShot={shot} shots={[shot]} />
+    );
+
+    expect(html).not.toContain('/api/camera/preview.jpg');
+    expect(html).toContain('Camera unavailable');
+  });
+
+  it('shows rejection details for status-only experimental club metrics', () => {
+    const rejectedShot: Shot = {
+      ...shot,
+      club_angle_deg: null,
+      club_path_deg: null,
+      experimental_attack_angle_status: 'rejected_no_club_track',
+      experimental_club_path_status: 'rejected_no_pre_impact_frames',
+    };
+
+    const html = renderToString(
+      <DisplayMode connected captureSettings={captureSettings} latestShot={rejectedShot} shots={[rejectedShot]} />
+    );
+
+    expect(html).toContain('experimental · rejected: no club track');
+    expect(html).toContain('experimental · rejected: no pre impact frames');
   });
 });

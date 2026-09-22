@@ -15,13 +15,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import __version__
-from .kld7.radc import RADC_PAYLOAD_BYTES
-from .ops243 import SpeedReading
+from .launch_monitor import Shot
 
 # Version of the session JSONL format itself. Bump on breaking changes to
 # entry structure; additive changes (new fields, new entry types) do not
 # require a bump. Consumed by offline analysis and (eventually) cloud sync.
-SESSION_FORMAT_VERSION = 1
+SESSION_FORMAT_VERSION = 2
 
 
 @dataclass
@@ -36,13 +35,13 @@ class SessionMetadata:
     camera_model: Optional[str]
     config: Dict[str, Any]
     mode: str  # "rolling-buffer" or "mock"
-    trigger_type: Optional[str]  # For rolling-buffer mode: "polling", "threshold", etc.
+    trigger_type: Optional[str]  # For rolling-buffer mode: "sound" or "speed"
     # Globally unique session identity for cloud sync dedupe. The
     # timestamp-based session_id stays for filenames and display; this
     # UUID travels inside the data so renamed/copied session files keep
     # their identity (see docs/cloud-sync-design.md).
     session_uuid: str = ""
-    format_version: int = 1
+    format_version: int = SESSION_FORMAT_VERSION
     app_version: str = ""
 
 
@@ -57,9 +56,7 @@ class SessionLogger:
     Log entry types:
     - session_start: Session metadata
     - session_end: Session summary
-    - reading_accepted: Reading that passed all filters
     - shot_detected: A shot was recorded
-    - shot_camera: Camera tracking data for a shot
     - config_change: Radar configuration changed
     - error: Processing failures (component, context, optional exception metadata)
     """
@@ -83,7 +80,6 @@ class SessionLogger:
 
         self._session_id: Optional[str] = None
         self._session_file: Optional[Any] = None
-        self._raw_file: Optional[Any] = None
         self._session_path: Optional[Path] = None
         self._raw_path: Optional[Path] = None
 
@@ -96,7 +92,6 @@ class SessionLogger:
 
         # Counters for session summary
         self._stats = {
-            "readings_accepted": 0,
             "shots_detected": 0,
             "errors": 0,
         }
@@ -149,7 +144,6 @@ class SessionLogger:
 
         # Open log files
         self._session_file = open(self._session_path, "w")
-        self._raw_file = open(self._raw_path, "w")
 
         # Setup raw radar logging to file
         self._setup_raw_logging()
@@ -253,11 +247,6 @@ class SessionLogger:
         summary = {
             "end_time": end_time.isoformat(),
             "stats": self._stats.copy(),
-            "shot_rate": (
-                self._stats["shots_detected"] / max(1, self._stats["readings_accepted"])
-                if self._stats["readings_accepted"] > 0
-                else 0
-            ),
         }
 
         self._write_entry("session_end", summary)
@@ -268,10 +257,6 @@ class SessionLogger:
             if self._session_file:
                 self._session_file.close()
                 self._session_file = None
-
-        if self._raw_file:
-            self._raw_file.close()
-            self._raw_file = None
 
         # Remove logging handlers
         for handler in self._raw_logger.handlers[:]:
@@ -304,189 +289,52 @@ class SessionLogger:
             self._session_file.write(line)
             self._session_file.flush()
 
-    def log_accepted_reading(self, reading: SpeedReading):
-        """Log a reading that passed all filters and will be processed."""
-        if not self.enabled:
-            return
-
-        self._stats["readings_accepted"] += 1
-
-        self._write_entry(
-            "reading_accepted",
-            {
-                "speed": reading.speed,
-                "direction": reading.direction.value,
-                "magnitude": reading.magnitude,
-            },
-        )
-
     def log_shot(
         self,
-        ball_speed_mph: float,
-        club_speed_mph: Optional[float],
-        smash_factor: Optional[float],
-        estimated_carry_yards: float,
-        club: str,
-        peak_magnitude: Optional[float],
-        readings_count: int,
-        readings: Optional[List[Dict]] = None,
-        spin_rpm: Optional[float] = None,
-        spin_confidence: Optional[float] = None,
-        spin_method: Optional[str] = None,
-        spin_quality: Optional[str] = None,
-        spin_multipath_fade_hz: Optional[float] = None,
-        spin_snr: Optional[float] = None,
-        spin_modulation_depth: Optional[float] = None,
-        spin_peak_freq_hz: Optional[float] = None,
-        spin_seam_cycles: Optional[float] = None,
-        spin_at_lower_rail: Optional[bool] = None,
-        spin_at_upper_rail: Optional[bool] = None,
-        spin_candidates: Optional[List[Dict]] = None,
-        spin_phase_method: Optional[str] = None,
-        spin_phase_rpm: Optional[float] = None,
-        spin_phase_snr: Optional[float] = None,
-        spin_phase_agreement_pct: Optional[float] = None,
-        spin_phase_confirmed: Optional[bool] = None,
-        spin_rejection_reason: Optional[str] = None,
-        carry_spin_adjusted: Optional[float] = None,
-        mode: str = "rolling-buffer",
-        launch_angle_vertical: Optional[float] = None,
-        launch_angle_horizontal: Optional[float] = None,
-        launch_angle_confidence: Optional[float] = None,
-        launch_angle_vertical_confidence: Optional[float] = None,
-        launch_angle_horizontal_confidence: Optional[float] = None,
-        launch_angle_vertical_source: Optional[str] = None,
-        launch_angle_horizontal_source: Optional[str] = None,
-        angle_source: Optional[str] = None,
-        club_angle_deg: Optional[float] = None,
-        club_path_deg: Optional[float] = None,
-        spin_axis_deg: Optional[float] = None,
+        shot: Shot,
         pipeline_ms: Optional[Dict] = None,
-        impact_timestamp: Optional[float] = None,
-        player_name: Optional[str] = None,
-        inclinometer: Optional[Dict] = None,
     ):
-        """
-        Log a detected shot with all metrics.
-
-        Args:
-            ball_speed_mph: Ball speed in MPH
-            club_speed_mph: Estimated club speed
-            smash_factor: Calculated smash factor
-            estimated_carry_yards: Estimated carry distance
-            club: Club type used
-            peak_magnitude: Peak radar magnitude
-            readings_count: Number of readings in the shot window
-            readings: Optional list of individual readings that comprised the shot
-            spin_rpm: Spin rate in RPM (rolling buffer mode only)
-            spin_confidence: Confidence of spin detection (rolling buffer mode only)
-            spin_method: Estimator that produced the spin candidate
-            spin_quality: Quality assessment ("high", "medium", "low", "experimental")
-            spin_multipath_fade_hz: Fitted two-ray fade frequency
-            spin_snr: Signal-to-noise ratio of spin detection
-            spin_modulation_depth: Envelope std/mean ratio
-            spin_peak_freq_hz: Frequency of the picked envelope-FFT peak
-            spin_seam_cycles: Seam cycles in analysis window
-            spin_at_lower_rail: True when peak landed near the low rail
-            spin_at_upper_rail: True when peak landed near the high rail
-            spin_candidates: Ranked envelope-FFT spin peaks for offline analysis
-            spin_phase_method: Phase confirmation method, if attempted
-            spin_phase_rpm: Phase-derived spin candidate, if available
-            spin_phase_snr: Phase-derived candidate SNR
-            spin_phase_agreement_pct: Envelope/phase agreement percentage
-            spin_phase_confirmed: True when phase recovered a low-SNR spin
-            spin_rejection_reason: Human-readable reason if spin was rejected
-            carry_spin_adjusted: Carry distance adjusted for spin (rolling buffer mode only)
-            mode: Radar mode ("rolling-buffer" or "mock")
-            impact_timestamp: Host epoch timestamp aligned to impact/OPS trigger time
-            inclinometer: Enclosure orientation and effective IWR tilt used for the shot
-        """
+        """Log a shot using the canonical raw shot schema."""
         if not self.enabled:
             return
 
         self._stats["shots_detected"] += 1
-
-        data = {
-            "shot_number": self._stats["shots_detected"],
-            "ball_speed_mph": ball_speed_mph,
-            "club_speed_mph": club_speed_mph,
-            "smash_factor": smash_factor,
-            "estimated_carry_yards": estimated_carry_yards,
-            "club": club,
-            "player_name": player_name,
-            "peak_magnitude": peak_magnitude,
-            "readings_count": readings_count,
-            "readings": readings,
-            "spin_rpm": spin_rpm,
-            "spin_confidence": spin_confidence,
-            "spin_method": spin_method,
-            "spin_quality": spin_quality,
-            "spin_multipath_fade_hz": spin_multipath_fade_hz,
-            "spin_snr": spin_snr,
-            "spin_modulation_depth": spin_modulation_depth,
-            "spin_peak_freq_hz": spin_peak_freq_hz,
-            "spin_candidate_rpm": (
-                round(spin_peak_freq_hz * 60) if spin_peak_freq_hz is not None else None
-            ),
-            "spin_seam_cycles": spin_seam_cycles,
-            "spin_at_lower_rail": spin_at_lower_rail,
-            "spin_at_upper_rail": spin_at_upper_rail,
-            "spin_candidates": spin_candidates,
-            "spin_phase_method": spin_phase_method,
-            "spin_phase_rpm": spin_phase_rpm,
-            "spin_phase_snr": spin_phase_snr,
-            "spin_phase_agreement_pct": spin_phase_agreement_pct,
-            "spin_phase_confirmed": spin_phase_confirmed,
-            "spin_rejection_reason": spin_rejection_reason,
-            "carry_spin_adjusted": carry_spin_adjusted,
-            "mode": mode,
-            "launch_angle_vertical": launch_angle_vertical,
-            "launch_angle_horizontal": launch_angle_horizontal,
-            "launch_angle_confidence": launch_angle_confidence,
-            "launch_angle_vertical_confidence": launch_angle_vertical_confidence,
-            "launch_angle_horizontal_confidence": launch_angle_horizontal_confidence,
-            "launch_angle_vertical_source": launch_angle_vertical_source,
-            "launch_angle_horizontal_source": launch_angle_horizontal_source,
-            "impact_timestamp": impact_timestamp,
-        }
-
-        if angle_source is not None:
-            data["angle_source"] = angle_source
-        if club_angle_deg is not None:
-            data["club_angle_deg"] = club_angle_deg
-        if club_path_deg is not None:
-            data["club_path_deg"] = club_path_deg
-        if spin_axis_deg is not None:
-            data["spin_axis_deg"] = spin_axis_deg
+        data = shot.to_dict()
+        if data["shot_number"] is None:
+            data["shot_number"] = self._stats["shots_detected"]
         if pipeline_ms is not None:
             data["pipeline_ms"] = pipeline_ms
-        if inclinometer is not None:
-            data["inclinometer"] = inclinometer
 
         self._write_entry("shot_detected", data)
 
-    def log_camera_data(
+    def log_camera_capture(
         self,
+        *,
         shot_number: int,
-        launch_angle_vertical: Optional[float],
-        launch_angle_horizontal: Optional[float],
-        confidence: Optional[float],
-        positions_tracked: int,
-        launch_detected: bool,
+        shot_timestamp: Optional[float],
+        trigger_timestamp: Optional[float],
+        capture_path: Optional[str],
+        metadata: Optional[Dict] = None,
+        capture_error: Optional[str] = None,
     ):
-        """Log camera tracking data for a shot."""
+        """Log a high-speed camera clip saved for offline shot correlation."""
         if not self.enabled:
             return
 
         self._write_entry(
-            "shot_camera",
+            "camera_capture",
             {
                 "shot_number": shot_number,
-                "launch_angle_vertical": launch_angle_vertical,
-                "launch_angle_horizontal": launch_angle_horizontal,
-                "confidence": confidence,
-                "positions_tracked": positions_tracked,
-                "launch_detected": launch_detected,
+                "shot_timestamp": shot_timestamp,
+                "trigger_timestamp": trigger_timestamp,
+                "trigger_delta_ms": (
+                    (trigger_timestamp - shot_timestamp) * 1000.0
+                    if shot_timestamp is not None and trigger_timestamp is not None
+                    else None
+                ),
+                "capture_path": capture_path,
+                "capture_error": capture_error,
+                "metadata": metadata or {},
             },
         )
 
@@ -498,33 +346,12 @@ class SessionLogger:
         buffer_frames: list,
         ball_angle: Optional[Dict] = None,
         club_angle: Optional[Dict] = None,
-        raw_payload_expected: Optional[bool] = None,
     ):
-        """Log raw K-LD7 ring buffer alongside OPS243 shot for correlation analysis."""
+        """Log K-LD7 frame timing alongside OPS243 shot data."""
         if not self.enabled:
             return
 
-        radc_frame_count = sum(
-            1 for frame in buffer_frames if frame.get("has_radc") or frame.get("radc_b64")
-        )
-        radc_payload_count = sum(1 for frame in buffer_frames if frame.get("radc_b64"))
-        radc_payload_valid_count = sum(
-            1
-            for frame in buffer_frames
-            if frame.get("radc_b64") and frame.get("radc_payload_bytes") == RADC_PAYLOAD_BYTES
-        )
-        radc_payload_invalid_count = sum(
-            1
-            for frame in buffer_frames
-            if frame.get("radc_b64")
-            and frame.get("radc_payload_bytes") is not None
-            and frame.get("radc_payload_bytes") != RADC_PAYLOAD_BYTES
-        )
-        radc_payload_complete = (
-            radc_frame_count > 0
-            and radc_payload_count == radc_frame_count
-            and radc_payload_invalid_count == 0
-        )
+        radc_frame_count = sum(1 for frame in buffer_frames if frame.get("has_radc"))
         self._write_entry(
             "kld7_buffer",
             {
@@ -533,11 +360,6 @@ class SessionLogger:
                 "orientation": orientation,
                 "frame_count": len(buffer_frames),
                 "radc_frame_count": radc_frame_count,
-                "radc_payload_count": radc_payload_count,
-                "radc_payload_valid_count": radc_payload_valid_count,
-                "radc_payload_invalid_count": radc_payload_invalid_count,
-                "radc_payload_expected": raw_payload_expected,
-                "radc_payload_complete": radc_payload_complete,
                 "frames": buffer_frames,
                 "ball_angle": ball_angle,
                 "club_angle": club_angle,
@@ -666,91 +488,29 @@ class SessionLogger:
             return
         self._write_entry("power_status", status)
 
-    def log_iq_reading(
-        self,
-        speed_mph: float,
-        direction: str,
-        magnitude: float,
-        snr: float,
-        peak_bin: int,
-        cfar_validated: bool,
-        block_count: int,
-    ):
-        """
-        Log a speed reading detected from I/Q streaming mode.
-
-        Args:
-            speed_mph: Detected speed in mph
-            direction: "outbound" or "inbound"
-            magnitude: Peak FFT magnitude
-            snr: Signal-to-noise ratio
-            peak_bin: FFT bin of the peak
-            cfar_validated: Whether this was validated by CFAR
-            block_count: Number of I/Q blocks processed
-        """
-        if not self.enabled:
-            return
-
-        self._write_entry(
-            "iq_reading",
-            {
-                "speed_mph": speed_mph,
-                "direction": direction,
-                "magnitude": magnitude,
-                "snr": snr,
-                "peak_bin": peak_bin,
-                "cfar_validated": cfar_validated,
-                "block_count": block_count,
-            },
-        )
-
-    def log_iq_blocks(self, shot_number: int, blocks: List[Dict[str, Any]]):
-        """
-        Log raw I/Q blocks for a shot (for post-session analysis).
-
-        Args:
-            shot_number: Shot number this data belongs to
-            blocks: List of I/Q block data dicts with i_samples, q_samples, timestamp
-        """
-        if not self.enabled:
-            return
-
-        self._write_entry(
-            "iq_blocks",
-            {
-                "shot_number": shot_number,
-                "block_count": len(blocks),
-                "blocks": blocks,
-            },
-        )
-
     def log_trigger_event(
         self,
         trigger_type: str,
         accepted: bool,
-        reason: Optional[str] = None,
-        peak_speed_mph: Optional[float] = None,
-        readings_count: int = 0,
+        reason: str = "",
+        response_bytes: int = 0,
+        total_readings: int = 0,
+        outbound_readings: int = 0,
+        inbound_readings: int = 0,
+        peak_outbound_mph: float = 0.0,
+        peak_inbound_mph: float = 0.0,
+        all_outbound_speeds: Optional[List[float]] = None,
+        all_inbound_speeds: Optional[List[float]] = None,
+        ball_speed_mph: Optional[float] = None,
+        club_speed_mph: Optional[float] = None,
+        spin_rpm: Optional[float] = None,
+        carry_yards: Optional[float] = None,
         latency_ms: Optional[float] = None,
     ):
-        """
-        Log a trigger event (accepted or rejected).
-
-        Useful for diagnosing false triggers at driving ranges where
-        nearby players can trip sound triggers.
-
-        Args:
-            trigger_type: Type of trigger (e.g., "sound", "sound-gpio")
-            accepted: True if trigger led to valid shot detection
-            reason: Reason for rejection (if not accepted)
-            peak_speed_mph: Peak speed detected (if any)
-            readings_count: Number of readings in capture
-            latency_ms: Trigger latency in milliseconds (if measured)
-        """
+        """Log the single enriched event for one physical trigger."""
         if not self.enabled:
             return
 
-        # Track stats
         if "triggers_total" not in self._stats:
             self._stats["triggers_total"] = 0
             self._stats["triggers_accepted"] = 0
@@ -764,80 +524,6 @@ class SessionLogger:
 
         self._write_entry(
             "trigger_event",
-            {
-                "trigger_type": trigger_type,
-                "accepted": accepted,
-                "reason": reason,
-                "peak_speed_mph": peak_speed_mph,
-                "readings_count": readings_count,
-                "latency_ms": latency_ms,
-            },
-        )
-
-    def log_trigger_diagnostic(
-        self,
-        trigger_type: str,
-        accepted: bool,
-        reason: str = "",
-        # Capture metadata
-        response_bytes: int = 0,
-        total_readings: int = 0,
-        outbound_readings: int = 0,
-        inbound_readings: int = 0,
-        peak_outbound_mph: float = 0.0,
-        peak_inbound_mph: float = 0.0,
-        all_outbound_speeds: Optional[List[float]] = None,
-        all_inbound_speeds: Optional[List[float]] = None,
-        # Shot result (if accepted and processed)
-        ball_speed_mph: Optional[float] = None,
-        club_speed_mph: Optional[float] = None,
-        spin_rpm: Optional[float] = None,
-        carry_yards: Optional[float] = None,
-        # Timing
-        latency_ms: Optional[float] = None,
-    ):
-        """
-        Log a detailed trigger diagnostic entry.
-
-        This provides rich diagnostic data for every trigger event,
-        whether accepted or rejected. Used to diagnose why shots
-        don't appear in the UI during field testing.
-
-        Args:
-            trigger_type: Type of trigger (e.g., "sound-gpio")
-            accepted: Whether trigger led to a valid shot
-            reason: Why accepted/rejected (e.g., "no_outbound_speed")
-            response_bytes: Raw bytes received from radar
-            total_readings: Total FFT readings extracted
-            outbound_readings: Outbound readings count
-            inbound_readings: Inbound readings count
-            peak_outbound_mph: Peak outbound speed
-            peak_inbound_mph: Peak inbound speed
-            all_outbound_speeds: All outbound speed values
-            all_inbound_speeds: All inbound speed values
-            ball_speed_mph: Ball speed (if shot accepted)
-            club_speed_mph: Club speed (if detected)
-            spin_rpm: Spin rate (if detected)
-            carry_yards: Estimated carry (if shot accepted)
-            latency_ms: Trigger-to-capture latency
-        """
-        if not self.enabled:
-            return
-
-        # Track detailed stats
-        if "triggers_total" not in self._stats:
-            self._stats["triggers_total"] = 0
-            self._stats["triggers_accepted"] = 0
-            self._stats["triggers_rejected"] = 0
-
-        self._stats["triggers_total"] += 1
-        if accepted:
-            self._stats["triggers_accepted"] += 1
-        else:
-            self._stats["triggers_rejected"] += 1
-
-        self._write_entry(
-            "trigger_diagnostic",
             {
                 "trigger_type": trigger_type,
                 "accepted": accepted,

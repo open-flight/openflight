@@ -18,10 +18,11 @@ from typing import Iterable
 
 import numpy as np
 
+from openflight.clubs import ClubType
 from openflight.iwr6843.calibration import Calibration
 from openflight.iwr6843.lcmf import LCMFResult, estimate_lcmf_v1
 from openflight.iwr6843.shot import ShotMeasurement
-from openflight.launch_monitor import ClubType, Shot
+from openflight.launch_monitor import Shot
 
 
 def parse_club(value: str | None) -> ClubType:

@@ -10,7 +10,8 @@ import time
 from datetime import datetime
 from typing import List
 
-from openflight.launch_monitor import ClubType, Shot
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 from openflight.sim.codec import build_connectors
 from openflight.sim.config import ConnectorConfig
 from openflight.sim.resolver import resolve_shot

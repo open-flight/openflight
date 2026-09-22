@@ -5,7 +5,7 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from openflight.launch_monitor import ClubType
+from openflight.clubs import ClubType
 from openflight.rolling_buffer import (
     IQCapture,
     ProcessedCapture,
@@ -91,6 +91,26 @@ def test_process_capture_uses_multitaper_estimator(monkeypatch):
     assert processed.spin.spin_rpm > 0
 
 
+def test_process_capture_does_not_repeat_standard_fft_windows(monkeypatch):
+    """Standard windows are a subset of the overlapping FFT timeline."""
+    processor = RollingBufferProcessor()
+    process_block = processor._process_block
+    calls = 0
+
+    def count_process_block(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return process_block(*args, **kwargs)
+
+    monkeypatch.setattr(processor, "_process_block", count_process_block)
+
+    assert processor.process_capture(_modulated_capture()) is not None
+    expected_overlapping_windows = (
+        (4096 - processor.WINDOW_SIZE) // processor.STEP_SIZE_OVERLAP
+    ) + 1
+    assert calls == expected_overlapping_windows
+
+
 def test_multitaper_accepts_short_record_used_by_offline_scoring():
     """The live wrapper must not reintroduce the legacy 600-sample gate."""
     processor = RollingBufferProcessor()
@@ -128,7 +148,7 @@ def test_multitaper_candidate_is_reported_without_confidence_or_rail_gate():
         ),
         capture=capture,
     )
-    monitor = RollingBufferMonitor(port=None, trigger_type="manual")
+    monitor = RollingBufferMonitor(port=None, trigger_type="sound")
     monitor.set_club(ClubType.PW)
 
     shot = monitor._create_shot(processed)

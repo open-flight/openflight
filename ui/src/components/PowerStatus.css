@@ -5,9 +5,9 @@
   min-width: 66px;
   height: 30px;
   padding: 0 var(--space-sm);
-  border: 1px solid rgba(245, 240, 230, 0.18);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
   background: rgba(255, 255, 255, 0.04);
   font-size: 0.75rem;
   font-weight: 700;
@@ -18,29 +18,30 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 25px;
   height: 14px;
+  overflow: visible;
+  padding-right: 0.15rem;
 }
 
 .power-status__battery {
   position: relative;
   display: block;
+  box-sizing: border-box;
   width: 21px;
   height: 12px;
-  padding: 2px;
-  overflow: visible;
+  padding: 1px;
+  overflow: hidden;
   border: 1.5px solid currentColor;
-  border-radius: 3px;
+  border-radius: var(--radius, 0.25rem);
 }
 
-.power-status__battery::after {
+/* Cap sits in flow after the cell, flush with the outer edge. */
+.power-status__icon::after {
   content: '';
-  position: absolute;
-  top: 3px;
-  right: -4px;
   width: 2px;
-  height: 5px;
-  border-radius: 0 2px 2px 0;
+  height: 6px;
+  margin-left: 0.06rem;
+  border-radius: 0 1px 1px 0;
   background: currentColor;
 }
 
@@ -48,18 +49,34 @@
   display: block;
   height: 100%;
   min-width: 1px;
-  border-radius: 1px;
+  border-radius: 0.08rem;
   background: currentColor;
 }
 
 .power-status__bolt {
   position: absolute;
-  left: 8px;
-  top: -2px;
-  width: 9px;
-  height: 15px;
-  color: var(--color-bg-deep);
-  filter: drop-shadow(0 0 1px var(--color-success));
+  z-index: 1;
+  left: 4px;
+  top: -3px;
+  width: 13px;
+  height: 20px;
+  overflow: visible;
+  pointer-events: none;
+  color: inherit;
+}
+
+.power-status__bolt-outline {
+  fill: none;
+  stroke: var(--color-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.power-status__bolt-body {
+  fill: currentColor;
+  stroke: none;
 }
 
 .power-status--plugged_in {
@@ -75,10 +92,82 @@
 }
 
 .power-status--critical,
-.power-status--unavailable {
+.power-status--unavailable,
+.power-status--crit {
   color: var(--color-danger);
   border-color: rgba(248, 113, 113, 0.4);
   background: rgba(248, 113, 113, 0.1);
+}
+
+.power-status--ok {
+  color: var(--color-success);
+}
+
+.power-status--warn {
+  color: var(--color-warning);
+}
+
+/* Footer chrome: same quiet type as units, no chip chrome. */
+.power-status--chrome {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  gap: 0.5rem;
+}
+
+.power-status--chrome.power-status--plugged_in,
+.power-status--chrome.power-status--low,
+.power-status--chrome.power-status--critical,
+.power-status--chrome.power-status--unavailable,
+.power-status--chrome.power-status--ok,
+.power-status--chrome.power-status--warn,
+.power-status--chrome.power-status--crit {
+  border: none;
+  background: transparent;
+}
+
+.power-status--chrome.power-status--ok {
+  color: var(--color-success);
+}
+
+.power-status--chrome.power-status--warn {
+  color: var(--color-warning);
+}
+
+.power-status--chrome.power-status--crit,
+.power-status--chrome.power-status--unavailable {
+  color: var(--color-danger);
+}
+
+.power-status--chrome .power-status__icon::after {
+  width: 0.12rem;
+  height: 0.32rem;
+  border-radius: 0 0.08rem 0.08rem 0;
+}
+
+.power-status--chrome .power-status__icon {
+  height: 0.8rem;
+}
+
+.power-status--chrome .power-status__battery {
+  width: 1.2rem;
+  height: 0.65rem;
+  padding: 0.08rem;
+  border-width: 1.5px;
+}
+
+.power-status--chrome .power-status__bolt {
+  left: 0.12rem;
+  top: -0.28rem;
+  width: 1rem;
+  height: 1.35rem;
 }
 
 .power-warning-overlay {
@@ -99,8 +188,8 @@
   width: min(440px, 100%);
   padding: var(--space-lg);
   border: 1px solid rgba(251, 191, 36, 0.55);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  border-radius: var(--radius);
+  background: var(--color-surface);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
@@ -115,7 +204,7 @@
   width: 58px;
   height: 34px;
   border: 2px solid var(--color-warning);
-  border-radius: 5px;
+  border-radius: var(--radius);
   color: var(--color-warning);
   font-size: 0.8125rem;
   font-weight: 800;
@@ -128,14 +217,14 @@
 
 .power-warning__content h2 {
   margin: 0 0 var(--space-xs);
-  color: var(--text-primary);
+  color: var(--color-text);
   font-size: 1.25rem;
   letter-spacing: 0;
 }
 
 .power-warning__content p {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   line-height: 1.45;
 }
 
@@ -143,9 +232,9 @@
   grid-column: 1 / -1;
   min-height: 44px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--color-warning);
-  color: var(--color-bg-deep);
+  color: var(--color-accent-fg);
   font-size: 0.875rem;
   font-weight: 800;
   cursor: pointer;
@@ -156,7 +245,7 @@
 }
 
 @media (max-height: 500px), (max-width: 760px) {
-  .power-status {
+  .power-status:not(.power-status--chrome) {
     min-width: 58px;
     height: 26px;
     padding: 0 var(--space-xs);

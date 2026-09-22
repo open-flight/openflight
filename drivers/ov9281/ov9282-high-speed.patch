@@ -1,0 +1,307 @@
+--- a/drivers/media/i2c/ov9282.c
++++ b/drivers/media/i2c/ov9282.c
+@@ -29,6 +29,8 @@
+
+ #define OV9282_REG_TIMING_HTS	0x380c
+ #define OV9282_TIMING_HTS_MAX	0x7fff
++#define OV9282_REG_Y_ADDR_START	0x3802
++#define OV9282_REG_Y_ADDR_END	0x3806
+
+ /* Lines per frame */
+ #define OV9282_REG_LPFR		0x380e
+@@ -96,6 +98,12 @@
+ #define OV9282_PIXEL_ARRAY_TOP		8U
+ #define OV9282_PIXEL_ARRAY_WIDTH	1280U
+ #define OV9282_PIXEL_ARRAY_HEIGHT	800U
++
++/* Output-row offset for the experimental vertically sampled strip modes. */
++static int strip_y_offset;
++module_param(strip_y_offset, int, 0664);
++MODULE_PARM_DESC(strip_y_offset,
++		 "Vertical strip offset in output pixels; negative is up, positive is down");
+
+ #define OV9282_REG_MIN		0x00
+ #define OV9282_REG_MAX		0xfffff
+@@ -281,6 +289,9 @@
+ #define MODE_1280_800		0
+ #define MODE_1280_720		1
+ #define MODE_640_400		2
++#define MODE_640_200		3
++#define MODE_640_100		4
++#define MODE_320_200		5
+
+ #define DEFAULT_MODE		MODE_1280_720
+
+@@ -361,6 +372,77 @@
+ 	{0x3809, 0x80},
+ 	{0x380a, 0x01},
+ 	{0x380b, 0x90},
++	{0x3810, 0x00},
++	{0x3811, 0x04},
++	{0x3812, 0x00},
++	{0x3813, 0x04},
++	{0x3814, 0x31},
++	{0x3815, 0x22},
++	{0x3820, 0x60},
++	{0x3821, 0x01},
++	{0x4008, 0x02},
++	{0x4009, 0x05},
++	{0x400c, 0x00},
++	{0x400d, 0x03},
++	{0x4507, 0x03},
++	{0x4509, 0x80},
++};
++
++/*
++ * Experimental high-speed strip mode for impact capture.  It preserves the
++ * proven 640-pixel horizontal sampling and trims the vertical sensor window
++ * to the centered 400 active rows that produce 200 output rows after the
++ * existing 2:1 vertical sampling.
++ */
++static const struct ov9282_reg mode_640x200_regs[] = {
++	{0x3778, 0x10},
++	{0x3800, 0x00},
++	{0x3801, 0x00},
++	{0x3802, 0x00},
++	{0x3803, 0xc8},
++	{0x3804, 0x05},
++	{0x3805, 0x0f},
++	{0x3806, 0x02},
++	{0x3807, 0x67},
++	{0x3808, 0x02},
++	{0x3809, 0x80},
++	{0x380a, 0x00},
++	{0x380b, 0xc8},
++	{0x3810, 0x00},
++	{0x3811, 0x04},
++	{0x3812, 0x00},
++	{0x3813, 0x04},
++	{0x3814, 0x31},
++	{0x3815, 0x22},
++	{0x3820, 0x60},
++	{0x3821, 0x01},
++	{0x4008, 0x02},
++	{0x4009, 0x05},
++	{0x400c, 0x00},
++	{0x400d, 0x03},
++	{0x4507, 0x03},
++	{0x4509, 0x80},
++};
++
++/*
++ * Experimental ultra-high-speed strip mode.  This is the centered 200-row
++ * sensor window that produces 100 output rows after 2:1 vertical sampling.
++ * Horizontal sampling remains identical to the proven 640-pixel modes.
++ */
++static const struct ov9282_reg mode_640x100_regs[] = {
++	{0x3778, 0x10},
++	{0x3800, 0x00},
++	{0x3801, 0x00},
++	{0x3802, 0x01},
++	{0x3803, 0x2c},
++	{0x3804, 0x05},
++	{0x3805, 0x0f},
++	{0x3806, 0x02},
++	{0x3807, 0x03},
++	{0x3808, 0x02},
++	{0x3809, 0x80},
++	{0x380a, 0x00},
++	{0x380b, 0x64},
+ 	{0x3810, 0x00},
+ 	{0x3811, 0x04},
+ 	{0x3812, 0x00},
+@@ -375,6 +457,46 @@
+ 	{0x400d, 0x03},
+ 	{0x4507, 0x03},
+ 	{0x4509, 0x80},
++};
++
++/*
++ * InnoMaker-derived 320x200 impact mode, centered on the active array.
++ * This intentionally trades peripheral field of view for higher cadence.
++ */
++static const struct ov9282_reg mode_320x200_regs[] = {
++	/* Values unique to InnoMaker's controller-programmed 320x200 mode. */
++	{0x3006, 0x0c},
++	{0x3030, 0x04},
++	{0x3620, 0x6f},
++	{0x3778, 0x10},
++	{0x3800, 0x01},
++	{0x3801, 0x50},
++	{0x3802, 0x00},
++	{0x3803, 0x96},
++	{0x3804, 0x04},
++	{0x3805, 0x7f},
++	{0x3806, 0x02},
++	{0x3807, 0x99},
++	{0x3808, 0x01},
++	{0x3809, 0x40},
++	{0x380a, 0x00},
++	{0x380b, 0xc8},
++	{0x3810, 0x00},
++	{0x3811, 0x04},
++	{0x3812, 0x00},
++	{0x3813, 0x04},
++	{0x3814, 0x22},
++	{0x3815, 0x22},
++	{0x3820, 0x60},
++	{0x3821, 0x01},
++	{0x4003, 0x40},
++	{0x4008, 0x04},
++	{0x4009, 0x0b},
++	{0x400c, 0x00},
++	{0x400d, 0x07},
++	{0x4507, 0x00},
++	{0x4509, 0x00},
++	{0x4800, 0x00},
+ };
+
+ /* Supported sensor mode configurations */
+@@ -440,8 +562,79 @@
+ 			.regs = mode_640x400_regs,
+ 		},
+ 	},
++	[MODE_640_200] = {
++		.width = 640,
++		.height = 200,
++		.hblank_min = { 890, 816 },
++		.vblank = 1022,
++		.vblank_min = 22,
++		.vblank_max = 51540,
++		.link_freq_idx = 0,
++		.crop = {
++			.left = OV9282_PIXEL_ARRAY_LEFT,
++			.top = OV9282_PIXEL_ARRAY_TOP + 200,
++			.width = 1280,
++			.height = 400
++		},
++		.reg_list = {
++			.num_of_regs = ARRAY_SIZE(mode_640x200_regs),
++			.regs = mode_640x200_regs,
++		},
++	},
++	[MODE_640_100] = {
++		.width = 640,
++		.height = 100,
++		.hblank_min = { 890, 816 },
++		.vblank = 1022,
++		.vblank_min = 22,
++		.vblank_max = 51540,
++		.link_freq_idx = 0,
++		.crop = {
++			.left = OV9282_PIXEL_ARRAY_LEFT,
++			.top = OV9282_PIXEL_ARRAY_TOP + 300,
++			.width = 1280,
++			.height = 200
++		},
++		.reg_list = {
++			.num_of_regs = ARRAY_SIZE(mode_640x100_regs),
++			.regs = mode_640x100_regs,
++		},
++	},
++	[MODE_320_200] = {
++		.width = 320,
++		.height = 200,
++		/* HTS=728 and VTS=288 are InnoMaker's proven 480 fps timing. */
++		.hblank_min = { 1136, 1136 },
++		.vblank = 88,
++		.vblank_min = 22,
++		.vblank_max = 51540,
++		.link_freq_idx = 0,
++		.crop = {
++			.left = OV9282_PIXEL_ARRAY_LEFT + 480,
++			.top = OV9282_PIXEL_ARRAY_TOP + 150,
++			.width = 320,
++			.height = 200
++		},
++		.reg_list = {
++			.num_of_regs = ARRAY_SIZE(mode_320x200_regs),
++			.regs = mode_320x200_regs,
++		},
++	},
+ };
+
++static int ov9282_strip_y_offset(const struct ov9282_mode *mode)
++{
++	int max_offset;
++
++	if (mode->width == 320 && mode->height == 200)
++		return clamp(strip_y_offset, -75, 75);
++
++	if (!(mode->width == 640 &&
++	      (mode->height == 200 || mode->height == 100)))
++		return 0;
++
++	/* Two native sensor rows produce one output row in the strip modes. */
++	max_offset = (OV9282_PIXEL_ARRAY_HEIGHT - mode->crop.height) / 4;
++	return clamp(strip_y_offset, -max_offset, max_offset);
++}
++
+ /**
+  * to_ov9282() - ov9282 V4L2 sub-device to ov9282 device.
+  * @subdev: pointer to ov9282 V4L2 sub-device
+@@ -544,6 +737,37 @@
+ 	return 0;
+ }
+
++static int ov9282_apply_strip_y_offset(struct ov9282 *ov9282)
++{
++	const struct ov9282_mode *mode = ov9282->cur_mode;
++	int offset = ov9282_strip_y_offset(mode);
++	int sensor_y_start;
++	u32 y_start;
++	u32 y_end;
++	int ret;
++
++	if (mode->width == 320 && mode->height == 200) {
++		/* Preserve InnoMaker's 516-row native window around sensor center. */
++		y_start = 150 + 2 * offset;
++		y_end = 665 + 2 * offset;
++	} else if (mode->width == 640 &&
++		   (mode->height == 200 || mode->height == 100)) {
++		sensor_y_start = mode->crop.top - OV9282_PIXEL_ARRAY_TOP + 2 * offset;
++		y_start = sensor_y_start;
++		/* The sensor window includes the eight dummy rows on each edge. */
++		y_end = y_start + mode->crop.height + 15;
++	} else {
++		return 0;
++	}
++
++	ret = ov9282_write_reg(ov9282, OV9282_REG_Y_ADDR_START, 2, y_start);
++	if (ret)
++		return ret;
++
++	ret = ov9282_write_reg(ov9282, OV9282_REG_Y_ADDR_END, 2, y_end);
++	if (!ret && offset)
++		dev_info(ov9282->dev,
++			 "shifted %ux%u strip by %+d output rows (sensor y %u-%u)",
++			 mode->width, mode->height, offset, y_start, y_end);
++
++	return ret;
++}
++
+ /**
+  * ov9282_update_controls() - Update control ranges based on streaming mode
+  * @ov9282: pointer to ov9282 device
+@@ -930,6 +1154,8 @@
+ 		mutex_lock(&ov9282->mutex);
+ 		sel->r = *__ov9282_get_pad_crop(ov9282, sd_state, sel->pad,
+ 						sel->which);
++		if (sel->which == V4L2_SUBDEV_FORMAT_ACTIVE)
++			sel->r.top += 2 * ov9282_strip_y_offset(ov9282->cur_mode);
+ 		mutex_unlock(&ov9282->mutex);
+
+ 		return 0;
+@@ -1046,6 +1272,12 @@
+ 		return ret;
+ 	}
+
++	ret = ov9282_apply_strip_y_offset(ov9282);
++	if (ret) {
++		dev_err(ov9282->dev, "fail to apply vertical strip offset");
++		return ret;
++	}
++
+ 	/* Setup handler will write actual exposure and gain */
+ 	ret =  __v4l2_ctrl_handler_setup(ov9282->sd.ctrl_handler);
+ 	if (ret) {

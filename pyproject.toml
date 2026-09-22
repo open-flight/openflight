@@ -48,14 +48,10 @@ ui = [
     "python-socketio>=5.10.0",
     "eventlet>=0.35.0",
 ]
-# Camera support for launch angle detection
+# Camera estimators and camera-tab preview encoding. Picamera2 is installed
+# through Raspberry Pi OS because it is coupled to the platform's libcamera.
 camera = [
-    # Camera support is disabled for the radar-only production path.
-    # Re-enable these together with the camera setup path if camera returns.
-    # "opencv-python>=4.13.0.92",
-    # "numpy>=1.20.0",
-    # "picamera2>=0.3.0; sys_platform == 'linux'",
-    # "inference-sdk>=0.9.0",  # Roboflow inference API
+    "opencv-python-headless>=4.8.0",
 ]
 # Analysis tools for I/Q capture data
 analysis = [
@@ -90,6 +86,11 @@ dev = [
     "pre-commit>=4.0.0",
     "pytest>=9.0.3",
     "ruff>=0.1.0",
+]
+# Documentation site. Zensical is pre-1.0, so pin the minor to keep CI and
+# local builds on the same renderer.
+docs = [
+    "zensical>=0.0.57,<0.1",
 ]
 
 [tool.ruff]

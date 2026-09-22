@@ -1,5 +1,4 @@
 import { memo, useState } from 'react';
-import type { CameraStatus } from '../stores/useCameraStore';
 import type { DebugReading, RadarConfig, DebugShotLog } from '../types/socket';
 import type { TriggerDiagnostic, TriggerStatus } from '../types/shot';
 import './DebugPanel.css';
@@ -9,7 +8,6 @@ interface DebugPanelProps {
   readings: DebugReading[];
   shotLogs: DebugShotLog[];
   radarConfig: RadarConfig;
-  cameraStatus: CameraStatus;
   mockMode: boolean;
   onToggle: () => void;
   onUpdateConfig: (config: Partial<RadarConfig>) => void;

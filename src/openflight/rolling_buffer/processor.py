@@ -7,12 +7,14 @@ Based on OmniPreSense AN-027 Rolling Buffer application note.
 
 import json
 import logging
+from collections.abc import Iterator
 from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 from scipy.signal import butter, find_peaks, sosfiltfilt
 
-from ..launch_monitor import SPIN_CONFIDENCE_HIGH, ClubType
+from ..clubs import ClubType
+from ..launch_monitor import SPIN_CONFIDENCE_HIGH
 from .multitaper import estimate_multitaper_spin, repair_clipped_iq
 from .types import (
     ImpactEstimate,
@@ -32,7 +34,7 @@ class RollingBufferProcessor:
     Processes raw I/Q data from rolling buffer mode into speed and spin data.
 
     The processor implements:
-    1. Standard FFT processing (128-sample blocks, ~56 Hz equivalent)
+    1. Standard FFT processing (128-sample blocks, ~234 Hz equivalent)
     2. Overlapping FFT processing (32-sample steps, ~937 Hz)
     3. Secondary FFT for spin detection from speed oscillations
 
@@ -403,53 +405,89 @@ class RollingBufferProcessor:
 
         return results
 
-    def _process_capture(self, capture: IQCapture, step_size: int) -> SpeedTimeline:
-        """
-        Process capture with given step size.
+    def _iter_capture_windows(
+        self,
+        capture: IQCapture,
+        step_size: int,
+    ) -> Iterator[tuple[int, list[SpeedReading]]]:
+        """Yield each FFT window once with its extracted readings.
+
+        The production path needs both the 128-sample standard timeline and
+        the 32-sample overlapping timeline. Standard windows are an exact
+        subset of the overlapping windows, so exposing window boundaries lets
+        ``process_capture`` build both views without repeating FFT work.
 
         Args:
             capture: Raw I/Q capture from radar
             step_size: Samples between FFT windows (128=standard, 32=overlapping)
-
-        Returns:
-            SpeedTimeline with extracted speed readings
         """
-        i_data = np.array(capture.i_samples)
-        q_data = np.array(capture.q_samples)
+        i_data = np.asarray(capture.i_samples)
+        q_data = np.asarray(capture.q_samples)
 
-        readings = []
         start = 0
-
         while start + self.WINDOW_SIZE <= len(i_data):
             i_block = i_data[start : start + self.WINDOW_SIZE]
             q_block = q_data[start : start + self.WINDOW_SIZE]
 
             peaks = self._process_block(i_block, q_block)
             timestamp_ms = (start / self.SAMPLE_RATE) * 1000
-
-            for speed_mph, magnitude, direction in peaks:
-                readings.append(
+            yield (
+                start,
+                [
                     SpeedReading(
                         speed_mph=speed_mph,
                         magnitude=magnitude,
                         timestamp_ms=timestamp_ms,
                         direction=direction,
                     )
-                )
-
+                    for speed_mph, magnitude, direction in peaks
+                ],
+            )
             start += step_size
 
-        sample_rate_hz = self.SAMPLE_RATE / step_size
-
+    def _process_capture(self, capture: IQCapture, step_size: int) -> SpeedTimeline:
+        """Process a capture at one FFT window stride."""
+        readings = [
+            reading
+            for _start, window_readings in self._iter_capture_windows(capture, step_size)
+            for reading in window_readings
+        ]
         return SpeedTimeline(
             readings=readings,
-            sample_rate_hz=sample_rate_hz,
+            sample_rate_hz=self.SAMPLE_RATE / step_size,
             capture=capture,
         )
 
+    def _process_overlapping_with_standard(
+        self,
+        capture: IQCapture,
+    ) -> tuple[SpeedTimeline, SpeedTimeline]:
+        """Build standard and overlapping timelines from one FFT pass."""
+        standard_readings = []
+        overlapping_readings = []
+        for start, window_readings in self._iter_capture_windows(
+            capture,
+            self.STEP_SIZE_OVERLAP,
+        ):
+            overlapping_readings.extend(window_readings)
+            if start % self.STEP_SIZE_STANDARD == 0:
+                standard_readings.extend(window_readings)
+
+        standard = SpeedTimeline(
+            readings=standard_readings,
+            sample_rate_hz=self.SAMPLE_RATE / self.STEP_SIZE_STANDARD,
+            capture=capture,
+        )
+        overlapping = SpeedTimeline(
+            readings=overlapping_readings,
+            sample_rate_hz=self.SAMPLE_RATE / self.STEP_SIZE_OVERLAP,
+            capture=capture,
+        )
+        return standard, overlapping
+
     def process_standard(self, capture: IQCapture) -> SpeedTimeline:
         """
-        Process capture with standard non-overlapping blocks (~56 Hz).
+        Process capture with standard non-overlapping blocks (~234 Hz).
 
         Args:
             capture: Raw I/Q capture from radar
@@ -1781,7 +1819,7 @@ class RollingBufferProcessor:
         # NOT the maximum. A single FFT window with a noise spike at 200 mph
         # would poison max(), but mode-based detection ignores it because
         # the real ball signal appears consistently in many windows.
-        standard = self.process_standard(capture)
+        standard, timeline = self._process_overlapping_with_standard(capture)
         std_outbound = [r for r in standard.readings if r.is_outbound]
         if not std_outbound:
             logger.warning("[PROCESSOR] No outbound readings found")
@@ -1793,9 +1831,6 @@ class RollingBufferProcessor:
             ball_speed_mph,
             len(std_outbound),
         )
-
-        # Process with overlapping FFT for high-resolution timeline (needed for spin)
-        timeline = self.process_overlapping(capture)
 
         if not timeline.readings:
             logger.warning("[PROCESSOR] No valid readings extracted from capture")

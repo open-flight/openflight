@@ -86,6 +86,42 @@ def track_broken(trk: BallTrack | None) -> bool:
     )
 
 
+def impact_time_s(
+    trk: BallTrack | None,
+    geo: Geometry,
+    tee_range_m: float | None,
+    *,
+    range_bias_m: float = 0.0,
+) -> float | None:
+    """When the ball left the tee, from its own fitted range walk.
+
+    Impact's position in the ring CANNOT be assumed. The firmware's freeze is
+    requested by a UART CLI command, and ``l3_dump.c`` samples the ring
+    position when that command is parsed, so the trigger frame lands late by a
+    variable 2-4 frames. Measured on the 2026-07-25 captures, impact fell at
+    slot order 1.7-4.1 of an 18-frame ring against an assumed slot 6 -- which
+    is why the club-path estimator was fitting the follow-through.
+
+    Back-extrapolating the ball's range fit to the tee range locates impact
+    from the data instead. It resolved on 14 of 14 of those captures.
+
+    Returns None when there is no track, no measured tee range, a non-receding
+    fit, or an impact instant outside the captured window.
+    """
+    if trk is None or tee_range_m is None:
+        return None
+    # The radar sits behind the tee, so a real ball recedes. A flat or
+    # approaching fit belongs to something else, and dividing by that slope
+    # would invent an impact time rather than measure one.
+    if trk.slope_bins <= 0.0:
+        return None
+    apparent_tee_range_m = tee_range_m + range_bias_m
+    t_s = (apparent_tee_range_m / geo.range_res_m - trk.intercept_bins) / trk.slope_bins
+    if not 0.0 <= t_s <= geo.capture_duration_s:
+        return None
+    return float(t_s)
+
+
 def club_class(club: str | None) -> str:
     """Free-text club name -> tracker speed-floor class (default on miss).
 

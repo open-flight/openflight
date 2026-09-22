@@ -1,0 +1,268 @@
+[project]
+site_url = "https://openflight.dev/docs/"
+site_name = "OpenFlight Docs"
+
+# Config lives at the repo root so every existing `docs/…` link — from the
+# README, CONTRIBUTING, and between the guides — keeps resolving unchanged.
+docs_dir = "docs"
+site_dir = "site"
+site_description = "Build guide, hardware reference, and internals for OpenFlight — the DIY golf launch monitor you build yourself from off-the-shelf radars."
+site_author = "OpenFlight contributors"
+
+copyright = "Copyright &copy; 2026 OpenFlight contributors &middot; AGPL-3.0"
+
+repo_url = "https://github.com/jewbetcha/openflight"
+repo_name = "jewbetcha/openflight"
+edit_uri = "edit/main/docs/"
+
+nav = [
+  { "Home" = "index.md" },
+
+  { "Get started" = [
+    "get-started/index.md",
+    "get-started/overview.md",
+    "get-started/parts.md",
+    "get-started/build-order.md",
+    "get-started/quick-start.md",
+  ] },
+
+  { "Build" = [
+    "build/index.md",
+    "build/sound-trigger.md",
+    "build/ops243-uart.md",
+    { "IWR6843 angle radar" = [
+      "iwr6843/index.md",
+      "iwr6843/wiring.md",
+      "iwr6843/flashing.md",
+      "iwr6843/mounting.md",
+      "iwr6843/verify.md",
+      "iwr6843/club-path.md",
+      "iwr6843/calibration.md",
+      "iwr6843/troubleshooting.md",
+      "iwr6843/low-confidence-recovery.md",
+    ] },
+    "build/inclinometer.md",
+    "build/battery.md",
+    "build/enclosure.md",
+  ] },
+
+  { "Setup" = [
+    "setup/index.md",
+    "setup/raspberry-pi.md",
+    "setup/rolling-buffer.md",
+    "setup/auto-start.md",
+    "setup/splash-screen.md",
+    "setup/diagnostic.md",
+  ] },
+
+  { "Using OpenFlight" = [
+    "using/index.md",
+    "using/running.md",
+    "using/display.md",
+    "using/swing-speed.md",
+    { "Simulator connectors" = [
+      "using/simulator/index.md",
+      "using/simulator/gspro.md",
+      "using/simulator/opengolfsim.md",
+      "using/simulator/partee.md",
+    ] },
+    "using/cloud-sync.md",
+    "using/battery.md",
+    "using/observability.md",
+  ] },
+
+  { "How it works" = [
+    "how-it-works/index.md",
+    "how-it-works/pipeline.md",
+    "how-it-works/rolling-buffer.md",
+    "how-it-works/launch-angle.md",
+    "how-it-works/ballistics.md",
+    "how-it-works/positioning.md",
+  ] },
+
+  { "Reference" = [
+    "reference/index.md",
+    "reference/cli.md",
+    "reference/configuration.md",
+    "reference/session-log.md",
+    "reference/constants.md",
+    "reference/cloud-uploader-spec.md",
+    "reference/datasheets.md",
+  ] },
+
+  { "Troubleshooting" = [
+    "troubleshooting/index.md",
+  ] },
+
+  { "Development" = [
+    "development/index.md",
+    "development/firmware.md",
+    "development/spin-replay.md",
+    "development/camera-yolo.md",
+    "development/color-palette.md",
+  ] },
+
+  { "Legacy (K-LD7)" = [
+    "legacy/index.md",
+    "legacy/troubleshooting.md",
+    "legacy/ball-detection-theory.md",
+    "legacy/launch-angle-explained.md",
+  ] },
+
+  { "Archive" = [
+    "archive/index.md",
+    { "Design notes" = [
+      "archive/plans/2026-03-03-enhanced-launch-angle-design.md",
+      "archive/plans/2026-03-23-kld7-angle-radar-design.md",
+      "archive/plans/2026-03-28-kld7-integration-design.md",
+      "archive/plans/2026-04-05-kld7-radc-processing-design.md",
+      "archive/plans/2026-04-10-spin-detection-rework-design.md",
+      "archive/specs/2026-04-15-spin-angle-validation-design.md",
+      "archive/specs/2026-04-20-hardware-diagnostic-design.md",
+      "archive/specs/2026-06-09-kld7-prf-probing-design.md",
+      "archive/specs/2026-07-25-iwr6843-club-path-design.md",
+      "archive/specs/2026-08-09-optional-build-items-design.md",
+    ] },
+    { "Implementation plans" = [
+      "archive/plans/2026-03-03-enhanced-launch-angle-plan.md",
+      "archive/plans/2026-03-28-kld7-integration-plan.md",
+      "archive/plans/2026-04-05-kld7-radc-processing-plan.md",
+      "archive/plans/2026-04-06-radc-launch-angle-fullstack.md",
+      "archive/plans/2026-04-10-spin-detection-rework-plan.md",
+      "archive/plans/kld7-club-extraction-TODO.md",
+      "archive/superpowers-plans/2026-04-15-spin-angle-validation.md",
+      "archive/superpowers-plans/2026-04-20-hardware-diagnostic.md",
+      "archive/superpowers-plans/2026-06-09-kld7-prf-probing.md",
+      "archive/superpowers-plans/2026-06-13-sim-connector-abstraction.md",
+      "archive/superpowers-plans/2026-08-09-documentation-audit.md",
+      "archive/plans/2026-08-23-zensical-docs-site-plan.md",
+    ] },
+    { "Pull request notes" = [
+      "archive/prs/2026-04-02-kld7-shot-correlation-pr.md",
+    ] },
+  ] },
+
+  { "Changelog" = "changelog.md" },
+]
+
+extra_css = ["stylesheets/extra.css"]
+
+# MathJax, for the ballistics and signal-processing pages. Loaded site-wide so
+# equations render on every page rather than only where a <script> was pasted.
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+]
+
+[project.theme]
+# variant = "classic"
+# custom_dir = "overrides"
+favicon = "assets/images/openflight-mark.svg"
+logo = "assets/images/openflight-mark.svg"
+language = "en"
+features = [
+  "announce.dismiss",
+  "content.action.edit",
+  "content.action.view",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "content.tooltips",
+  # "header.autohide",
+  # "navigation.expand",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  # "navigation.instant.progress",
+  "navigation.path",
+  # "navigation.prune",
+  "navigation.sections",
+  # 11 top-level sections is a wall in a sidebar; tabs put them across the top.
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+  # "toc.integrate",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+# Matches openflight.dev: DM Serif Display headings (loaded in extra.css),
+# Outfit body, IBM Plex Mono code.
+[project.theme.font]
+text = "Outfit"
+code = "IBM Plex Mono"
+
+# Colors come from stylesheets/extra.css — "custom" suppresses the theme's
+# built-in palettes so the OpenFlight tokens are the only ones in play.
+# Dark first: openflight.dev is a dark-only site, so the docs default to
+# the same look and offer a warm-paper light mode for long-form reading.
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to system preference"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/jewbetcha/openflight"
+name = "OpenFlight on GitHub"
+
+[[project.extra.social]]
+icon = "lucide/globe"
+link = "https://openflight.dev"
+name = "openflight.dev"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.arithmatex.generic = true
+pymdownx.betterem = {}
+pymdownx.caret = {}
+pymdownx.details = {}
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.mark = {}
+pymdownx.smartsymbols = {}
+# pymdownx.snippets.base_path = "includes"
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true
+pymdownx.tasklist.custom_checkbox = true
+pymdownx.tilde = {}

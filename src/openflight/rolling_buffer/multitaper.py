@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 from scipy.signal.windows import dpss
@@ -45,9 +46,20 @@ def repair_clipped_iq(
     return repaired, float(np.mean(clipped))
 
 
+@lru_cache(maxsize=32)
 def _polynomial_design(length: int, order: int = 3) -> np.ndarray:
     coordinate = np.linspace(-1.0, 1.0, length)
-    return np.column_stack([coordinate**degree for degree in range(order + 1)])
+    design = np.column_stack([coordinate**degree for degree in range(order + 1)])
+    design.setflags(write=False)
+    return design
+
+
+@lru_cache(maxsize=16)
+def _dpss_tapers(length: int, time_bandwidth: float, taper_count: int) -> np.ndarray:
+    """Cache immutable tapers reused by equal-length shot windows."""
+    tapers = dpss(length, time_bandwidth, Kmax=taper_count, sym=False)
+    tapers.setflags(write=False)
+    return tapers
 
 
 def _sine_columns(length: int, sample_rate_hz: float, frequency_hz: float) -> np.ndarray:
@@ -132,7 +144,7 @@ def estimate_multitaper_spin(
     polynomial = _polynomial_design(len(values))
     values = values - polynomial @ np.linalg.lstsq(polynomial, values, rcond=None)[0]
 
-    tapers = dpss(len(values), time_bandwidth, Kmax=taper_count, sym=False)
+    tapers = _dpss_tapers(len(values), time_bandwidth, taper_count)
     fft_size = max(8192, 1 << math.ceil(math.log2(len(values) * 8)))
     power = np.zeros(fft_size // 2 + 1, dtype=np.float64)
     for taper in tapers:

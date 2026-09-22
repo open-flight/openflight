@@ -1,9 +1,10 @@
 /**
- * In-memory mock session: shots, club/player, and stats recompute.
+ * In-memory mock session: shots, club/profile, and stats recompute.
  */
 
 import type { SessionStats, Shot, TriggerStatus } from '../src/types/shot.js';
 import type { RadarConfig } from '../src/types/socket.js';
+import type { Profile } from '../src/types/profile.js';
 import { generateShot } from './shotGenerator.js';
 
 function mean(values: number[]): number {
@@ -32,12 +33,8 @@ export function computeSessionStats(shots: Shot[]): SessionStats {
   }
 
   const ballSpeeds = shots.map((s) => s.ball_speed_mph);
-  const clubSpeeds = shots
-    .map((s) => s.club_speed_mph)
-    .filter((v): v is number => v != null);
-  const smashFactors = shots
-    .map((s) => s.smash_factor)
-    .filter((v): v is number => v != null);
+  const clubSpeeds = shots.map((s) => s.club_speed_mph).filter((v): v is number => v != null);
+  const smashFactors = shots.map((s) => s.smash_factor).filter((v): v is number => v != null);
   const spinRpms = shots.map((s) => s.spin_rpm).filter((v): v is number => v != null);
 
   return {
@@ -58,7 +55,11 @@ export function computeSessionStats(shots: Shot[]): SessionStats {
 export class MockSession {
   shots: Shot[] = [];
   club = 'driver';
-  playerName = 'Player 1';
+  profiles: Profile[] = [
+    { id: 'mock-profile-1', name: 'Profile 1', created_at: '2026-01-01T00:00:00Z', settings: {} },
+  ];
+  activeProfileId = 'mock-profile-1';
+  private nextProfileNumber = 2;
   trainingImplement = 'driver';
   debugMode = false;
   radarConfig: RadarConfig = {
@@ -71,22 +72,61 @@ export class MockSession {
   triggersAccepted = 0;
   triggersRejected = 0;
 
-  /** Status-only camera mock — no MJPEG; toggles + fake ball detection. */
-  cameraAvailable = true;
-  cameraEnabled = false;
-  cameraStreaming = false;
-  ballDetected = false;
-  ballConfidence = 0;
-
   getStats(): SessionStats {
     return computeSessionStats(this.shots);
+  }
+
+  get activeProfile(): Profile {
+    return this.profiles.find((profile) => profile.id === this.activeProfileId) ?? this.profiles[0]!;
+  }
+
+  snapshot() {
+    return { profiles: this.profiles, active_profile_id: this.activeProfile.id };
+  }
+
+  addProfile(rawName: unknown): void {
+    const name = String(rawName ?? '').trim().slice(0, 40);
+    if (!name || this.profiles.length >= 12) return;
+    const profile: Profile = {
+      id: `mock-profile-${this.nextProfileNumber++}`,
+      name,
+      created_at: new Date().toISOString(),
+      settings: {},
+    };
+    this.profiles.push(profile);
+    this.activeProfileId = profile.id;
+  }
+
+  renameProfile(profileId: unknown, rawName: unknown): void {
+    const name = String(rawName ?? '').trim().slice(0, 40);
+    const profile = this.profiles.find((entry) => entry.id === profileId);
+    if (!name || !profile) return;
+    profile.name = name;
+  }
+
+  removeProfile(profileId: unknown): void {
+    // Same refusals as the real store: never the active one, never the last,
+    // never one that still has session rows (those would be orphaned).
+    if (profileId === this.activeProfileId || this.profiles.length <= 1) return;
+    if (this.shots.some((shot) => shot.profile_id === profileId)) return;
+    this.profiles = this.profiles.filter((entry) => entry.id !== profileId);
+  }
+
+  setActiveProfile(profileId: unknown): void {
+    if (this.profiles.some((entry) => entry.id === profileId)) {
+      this.activeProfileId = String(profileId);
+    }
+  }
+
+  clearProfile(profileId: string): void {
+    this.shots = this.shots.filter((shot) => shot.profile_id !== profileId);
   }
 
   sessionStatePayload(includeMeta = true) {
     const base = {
       stats: this.getStats(),
       shots: this.shots,
-      player_name: this.playerName,
+      club: this.club,
     };
     if (!includeMeta) {
       return base;
@@ -95,10 +135,6 @@ export class MockSession {
       ...base,
       mock_mode: true,
       debug_mode: this.debugMode,
-      camera_available: this.cameraAvailable,
-      camera_enabled: this.cameraEnabled,
-      camera_streaming: this.cameraStreaming,
-      ball_detected: this.ballDetected,
     };
   }
 
@@ -119,19 +155,17 @@ export class MockSession {
     return this.club;
   }
 
-  setPlayer(rawName: unknown): string {
-    const name = String(rawName ?? 'Player 1').trim().slice(0, 40) || 'Player 1';
-    this.playerName = name;
-    return this.playerName;
-  }
-
   setTrainingImplement(implement: string): string {
     this.trainingImplement = implement || 'driver';
     return this.trainingImplement;
   }
 
   simulateShot(): { shot: Shot; stats: SessionStats } {
-    const shot = generateShot({ club: this.club, playerName: this.playerName });
+    const shot = generateShot({
+      club: this.club,
+      profileId: this.activeProfile.id,
+      profileName: this.activeProfile.name,
+    });
     this.shots.push(shot);
     this.triggersTotal += 1;
     this.triggersAccepted += 1;
@@ -157,49 +191,5 @@ export class MockSession {
   updateRadarConfig(partial: Partial<RadarConfig>): RadarConfig {
     this.radarConfig = { ...this.radarConfig, ...partial };
     return this.radarConfig;
-  }
-
-  cameraStatus() {
-    return {
-      available: this.cameraAvailable,
-      enabled: this.cameraEnabled,
-      streaming: this.cameraStreaming,
-      ball_detected: this.ballDetected,
-      ball_confidence: this.ballConfidence,
-    };
-  }
-
-  toggleCamera(): ReturnType<MockSession['cameraStatus']> {
-    this.cameraEnabled = !this.cameraEnabled;
-    if (!this.cameraEnabled) {
-      this.cameraStreaming = false;
-      this.ballDetected = false;
-      this.ballConfidence = 0;
-    }
-    return this.cameraStatus();
-  }
-
-  toggleCameraStream(): ReturnType<MockSession['cameraStatus']> {
-    if (!this.cameraEnabled) {
-      return this.cameraStatus();
-    }
-    this.cameraStreaming = !this.cameraStreaming;
-    return this.cameraStatus();
-  }
-
-  /** Advance fake ball-detection state while the camera is enabled. */
-  tickBallDetection(): { detected: boolean; confidence: number } | null {
-    if (!this.cameraEnabled) {
-      return null;
-    }
-    // ~35% chance of a "detection" flicker each tick
-    if (Math.random() < 0.35) {
-      this.ballDetected = true;
-      this.ballConfidence = 0.55 + Math.random() * 0.4;
-    } else {
-      this.ballDetected = false;
-      this.ballConfidence = Math.random() * 0.25;
-    }
-    return { detected: this.ballDetected, confidence: this.ballConfidence };
   }
 }

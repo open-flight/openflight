@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Two-ray ground reflection geometry" role="img" viewBox="0 0 800 380" width="800" height="380">
+<style>
+  svg {
+    --bg:#0a0a0f; --card:#12121a; --elev:#1a1a24; --hover:#222230;
+    --gold:#d4af37; --gold-bright:#f4cf47; --gold-dim:#a68b2a;
+    --cream:#f5f0e6; --cream-dim:rgba(245,240,230,.72);
+    --cream-muted:rgba(245,240,230,.5);
+    --ok:#4ade80; --info:#60a5fa; --warn:#fbbf24; --bad:#f87171;
+    --line:rgba(245,240,230,.12);
+    font-family: Outfit, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  }
+  .svg-lbl{fill:var(--cream-dim);font-size:13px}
+  .svg-lbl-sm{fill:var(--cream-muted);font-size:11.5px}
+  .svg-strong{fill:var(--cream);font-size:13px;font-weight:600}
+  .svg-mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style>
+<rect x="0" y="0" width="800" height="380" rx="8" fill="var(--bg)"/>
+
+<!-- ground -->
+<line stroke="var(--gold-dim)" stroke-width="2" x1="40" x2="760" y1="220" y2="220"></line>
+<text class="svg-lbl-sm" x="48" y="238">floor (mirror)</text>
+<!-- radar -->
+<rect fill="var(--elev)" height="22" rx="3" stroke="var(--info)" stroke-width="1.5" width="36" x="60" y="198"></rect>
+<text class="svg-lbl-sm" text-anchor="middle" x="78" y="190">radar</text>
+<!-- real ball -->
+<circle cx="560" cy="96" fill="var(--gold-bright)" r="9"></circle>
+<text class="svg-strong" fill="var(--gold)" text-anchor="middle" x="560" y="80">real ball</text>
+<!-- image ball -->
+<circle cx="560" cy="344" fill="none" r="9" stroke="var(--bad)" stroke-dasharray="3 3" stroke-width="2"></circle>
+<text class="svg-lbl" fill="var(--bad)" text-anchor="middle" x="560" y="368">"image" ball (reflection)</text>
+<!-- direct ray -->
+<line stroke="var(--ok)" stroke-width="2.5" x1="96" x2="551" y1="205" y2="100"></line>
+<text class="svg-lbl" fill="var(--ok)" transform="rotate(-13 300 135)" x="300" y="135">direct ray</text>
+<!-- reflected ray: radar -> bounce -> ball -->
+<line stroke="var(--bad)" stroke-width="2" x1="96" x2="330" y1="207" y2="220"></line>
+<line stroke="var(--bad)" stroke-width="2" x1="330" x2="551" y1="220" y2="102"></line>
+<circle cx="330" cy="220" fill="var(--bad)" r="4"></circle>
+<text class="svg-lbl" fill="var(--bad)" x="300" y="252">reflected ray (bounces off floor)</text>
+<!-- image continuation (dashed) -->
+<line opacity=".55" stroke="var(--bad)" stroke-dasharray="4 4" stroke-width="1.2" x1="96" x2="551" y1="207" y2="340"></line>
+<!-- elevation angle arcs at radar -->
+<line stroke="var(--cream-muted)" stroke-dasharray="3 3" stroke-width="1" x1="96" x2="240" y1="207" y2="207"></line>
+<path d="M170 207 A 74 74 0 0 0 161 190" fill="none" stroke="var(--ok)" stroke-width="2"></path>
+<text class="svg-lbl-sm" fill="var(--ok)" x="178" y="200">θ ball (up)</text>
+<path d="M150 207 A 54 54 0 0 1 158 224" fill="none" stroke="var(--bad)" stroke-width="2"></path>
+<text class="svg-lbl-sm" fill="var(--bad)" x="120" y="235">θ image (down)</text>
+</svg>

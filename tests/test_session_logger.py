@@ -3,9 +3,13 @@
 import json
 import threading
 import time
+from datetime import datetime
+
+import pytest
 
 from openflight import session_logger as session_logger_module
-from openflight.kld7.radc import RADC_PAYLOAD_BYTES
+from openflight.clubs import ClubType
+from openflight.launch_monitor import Shot
 from openflight.session_logger import SessionLogger, log_session_error
 
 
@@ -59,16 +63,16 @@ class TestLogSessionError:
         log_session_error("ignored")  # must not raise
 
 
-class TestLogTriggerDiagnostic:
-    """Tests for the trigger diagnostic logging method."""
+class TestLogTriggerEvent:
+    """Tests for the unified trigger event."""
 
     def test_accepted_diagnostic_writes_correct_entry(self, tmp_path):
         """Accepted trigger diagnostic should write all fields."""
         logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound-gpio")
+        logger.start_session(mode="rolling-buffer", trigger_type="sound")
 
-        logger.log_trigger_diagnostic(
-            trigger_type="sound-gpio",
+        logger.log_trigger_event(
+            trigger_type="sound",
             accepted=True,
             reason="accepted",
             response_bytes=32768,
@@ -88,11 +92,10 @@ class TestLogTriggerDiagnostic:
 
         # Read back the JSONL file
         lines = logger.session_path.read_text().strip().split("\n")
-        # Last line should be the trigger_diagnostic
         entry = json.loads(lines[-1])
 
-        assert entry["type"] == "trigger_diagnostic"
-        assert entry["trigger_type"] == "sound-gpio"
+        assert entry["type"] == "trigger_event"
+        assert entry["trigger_type"] == "sound"
         assert entry["accepted"] is True
         assert entry["reason"] == "accepted"
         assert entry["response_bytes"] == 32768
@@ -112,10 +115,10 @@ class TestLogTriggerDiagnostic:
     def test_rejected_diagnostic_writes_reason(self, tmp_path):
         """Rejected trigger diagnostic should include reason."""
         logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound-gpio")
+        logger.start_session(mode="rolling-buffer", trigger_type="sound")
 
-        logger.log_trigger_diagnostic(
-            trigger_type="sound-gpio",
+        logger.log_trigger_event(
+            trigger_type="sound",
             accepted=False,
             reason="no_outbound_speed",
             response_bytes=32768,
@@ -129,7 +132,7 @@ class TestLogTriggerDiagnostic:
         lines = logger.session_path.read_text().strip().split("\n")
         entry = json.loads(lines[-1])
 
-        assert entry["type"] == "trigger_diagnostic"
+        assert entry["type"] == "trigger_event"
         assert entry["accepted"] is False
         assert entry["reason"] == "no_outbound_speed"
         assert entry["outbound_readings"] == 0
@@ -138,87 +141,52 @@ class TestLogTriggerDiagnostic:
         assert entry["ball_speed_mph"] is None
         assert entry["club_speed_mph"] is None
 
-    def test_no_response_diagnostic(self, tmp_path):
-        """No-response trigger should log with minimal fields."""
-        logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound-gpio")
-
-        logger.log_trigger_diagnostic(
-            trigger_type="sound-gpio",
-            accepted=False,
-            reason="no_response",
-            response_bytes=0,
-        )
-
-        lines = logger.session_path.read_text().strip().split("\n")
-        entry = json.loads(lines[-1])
-
-        assert entry["type"] == "trigger_diagnostic"
-        assert entry["accepted"] is False
-        assert entry["reason"] == "no_response"
-        assert entry["response_bytes"] == 0
-        assert entry["total_readings"] == 0
-
     def test_stats_tracking(self, tmp_path):
         """Stats should track accepted/rejected counts."""
         logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound-gpio")
+        logger.start_session(mode="rolling-buffer", trigger_type="sound")
 
-        logger.log_trigger_diagnostic(trigger_type="sound-gpio", accepted=True, reason="accepted")
-        logger.log_trigger_diagnostic(
-            trigger_type="sound-gpio", accepted=False, reason="no_response"
-        )
-        logger.log_trigger_diagnostic(
-            trigger_type="sound-gpio", accepted=False, reason="no_outbound_speed"
-        )
+        logger.log_trigger_event(trigger_type="sound", accepted=True, reason="accepted")
+        logger.log_trigger_event(trigger_type="sound", accepted=False, reason="no_response")
+        logger.log_trigger_event(trigger_type="sound", accepted=False, reason="no_outbound_speed")
 
         assert logger.stats["triggers_total"] == 3
         assert logger.stats["triggers_accepted"] == 1
         assert logger.stats["triggers_rejected"] == 2
 
-    def test_disabled_logger_skips_write(self, tmp_path):
-        """Disabled logger should not write anything."""
-        logger = SessionLogger(log_dir=tmp_path, enabled=False)
-
-        logger.log_trigger_diagnostic(trigger_type="sound-gpio", accepted=True, reason="accepted")
-
-        # No session file created when disabled
-        assert logger.session_path is None
-
-    def test_empty_speed_lists_default(self, tmp_path):
-        """Speed lists should default to empty arrays."""
-        logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound-gpio")
-
-        logger.log_trigger_diagnostic(
-            trigger_type="sound-gpio",
-            accepted=False,
-            reason="parse_failed",
-        )
-
-        lines = logger.session_path.read_text().strip().split("\n")
-        entry = json.loads(lines[-1])
-
-        assert entry["all_outbound_speeds"] == []
-        assert entry["all_inbound_speeds"] == []
-
 
 class TestLogShot:
     """Tests for shot logging."""
+
+    def test_shot_uses_detection_time_shot_number(self, tmp_path):
+        logger = SessionLogger(log_dir=tmp_path, enabled=True)
+        logger.start_session(mode="rolling-buffer", trigger_type="sound")
+
+        shot = Shot(
+            ball_speed_mph=150.0,
+            club_speed_mph=100.0,
+            timestamp=datetime.now(),
+            club=ClubType.DRIVER,
+            shot_number=7,
+            impact_timestamp=1234.5,
+        )
+        logger.log_shot(shot)
+
+        entry = json.loads(logger.session_path.read_text().strip().split("\n")[-1])
+        assert entry["shot_number"] == 7
+        assert entry["impact_timestamp"] == 1234.5
+        assert logger.stats["shots_detected"] == 1
 
     def test_shot_logs_spin_diagnostics(self, tmp_path):
         """Shot entries should preserve rejected-spin diagnostics."""
         logger = SessionLogger(log_dir=tmp_path, enabled=True)
         logger.start_session(mode="rolling-buffer", trigger_type="sound")
 
-        logger.log_shot(
+        shot = Shot(
             ball_speed_mph=120.0,
             club_speed_mph=85.0,
-            smash_factor=1.41,
-            estimated_carry_yards=165.0,
-            club="7-iron",
-            peak_magnitude=None,
-            readings_count=0,
+            timestamp=datetime.now(),
+            club=ClubType.IRON_7,
             spin_snr=2.96,
             spin_peak_freq_hz=95.21484375,
             spin_seam_cycles=4.8,
@@ -244,16 +212,28 @@ class TestLogShot:
             launch_angle_horizontal_confidence=0.6,
             launch_angle_vertical_source="radar",
             launch_angle_horizontal_source="estimated",
+            experimental_attack_angle_deg=-4.9,
+            experimental_attack_angle_status="candidate_available",
+            experimental_club_path_deg=5.8,
+            experimental_club_path_status="rejected_phase_span",
+            iwr6843_horizontal_deg=17.9,
+            iwr6843_horizontal_confidence=0.8,
+            experimental_camera_horizontal_deg=0.6,
+            experimental_camera_horizontal_confidence=0.75,
+            experimental_camera_horizontal_status="camera_assisted_high",
+            experimental_camera_iwr_delta_deg=-17.3,
             impact_timestamp=1234567890.25,
         )
+        logger.log_shot(shot)
 
         lines = logger.session_path.read_text().strip().split("\n")
         entry = json.loads(lines[-1])
 
+        assert set(entry) == set(shot.to_dict()) | {"ts", "type", "shot_number"}
         assert entry["type"] == "shot_detected"
         assert entry["spin_rpm"] is None
         assert entry["spin_snr"] == 2.96
-        assert entry["spin_candidate_rpm"] == 5713
+        assert entry["spin_candidate_rpm"] == pytest.approx(5712.890625)
         assert entry["spin_candidates"][0]["rpm"] == 5713
         assert entry["spin_candidates"][0]["selected"] is True
         assert entry["spin_phase_method"] == "phase_residual"
@@ -266,7 +246,37 @@ class TestLogShot:
         assert entry["launch_angle_horizontal_confidence"] == 0.6
         assert entry["launch_angle_vertical_source"] == "radar"
         assert entry["launch_angle_horizontal_source"] == "estimated"
+        assert entry["experimental_attack_angle_deg"] == -4.9
+        assert entry["experimental_attack_angle_status"] == "candidate_available"
+        assert entry["experimental_club_path_deg"] == 5.8
+        assert entry["experimental_club_path_status"] == "rejected_phase_span"
+        assert entry["iwr6843_horizontal_deg"] == 17.9
+        assert entry["iwr6843_horizontal_confidence"] == 0.8
+        assert entry["experimental_camera_horizontal_deg"] == 0.6
+        assert entry["experimental_camera_horizontal_confidence"] == 0.75
+        assert entry["experimental_camera_horizontal_status"] == "camera_assisted_high"
+        assert entry["experimental_camera_iwr_delta_deg"] == -17.3
         assert entry["impact_timestamp"] == 1234567890.25
+
+    def test_shot_logs_experimental_club_status_without_candidate(self, tmp_path):
+        logger = SessionLogger(log_dir=tmp_path, enabled=True)
+        logger.start_session(mode="rolling-buffer", trigger_type="sound")
+
+        shot = Shot(
+            ball_speed_mph=100.0,
+            club_speed_mph=80.0,
+            timestamp=datetime.now(),
+            club=ClubType.IRON_9,
+            experimental_attack_angle_status="rejected_no_club_track",
+            experimental_club_path_status="rejected_no_pre_impact_frames",
+        )
+        logger.log_shot(shot)
+
+        entry = json.loads(logger.session_path.read_text().strip().split("\n")[-1])
+        assert entry["experimental_attack_angle_deg"] is None
+        assert entry["experimental_attack_angle_status"] == "rejected_no_club_track"
+        assert entry["experimental_club_path_deg"] is None
+        assert entry["experimental_club_path_status"] == "rejected_no_pre_impact_frames"
 
     def test_rolling_buffer_capture_logs_trigger_timing(self, tmp_path):
         """Rolling-buffer captures should preserve host trigger timing fields."""
@@ -297,6 +307,29 @@ class TestLogShot:
         assert entry["trigger_timestamp_delta_from_first_byte_ms"] == 0.0
         assert entry["clock_sync_offset_s"] == 1234567790.114
         assert entry["post_trigger_duration_ms"] == 68.0
+
+
+class TestLogCameraCapture:
+    """Tests for passive high-speed camera capture logging."""
+
+    def test_camera_capture_writes_path_and_timing(self, tmp_path):
+        logger = SessionLogger(log_dir=tmp_path, enabled=True)
+        logger.start_session(mode="rolling-buffer", trigger_type="sound")
+
+        logger.log_camera_capture(
+            shot_number=3,
+            shot_timestamp=100.0,
+            trigger_timestamp=100.012,
+            capture_path="/tmp/camera_003",
+            metadata={"frame_count": 48, "delivered_fps": 287.9},
+        )
+
+        entry = json.loads(logger.session_path.read_text().strip().split("\n")[-1])
+        assert entry["type"] == "camera_capture"
+        assert entry["shot_number"] == 3
+        assert entry["capture_path"] == "/tmp/camera_003"
+        assert entry["trigger_delta_ms"] == pytest.approx(12.0)
+        assert entry["metadata"]["frame_count"] == 48
 
 
 class TestLogKld7Buffer:
@@ -346,99 +379,11 @@ class TestLogKld7Buffer:
         assert entry["orientation"] == "horizontal"
         assert entry["frame_count"] == 2
         assert entry["radc_frame_count"] == 2
-        assert entry["radc_payload_count"] == 0
-        assert entry["radc_payload_valid_count"] == 0
-        assert entry["radc_payload_invalid_count"] == 0
-        assert entry["radc_payload_expected"] is None
-        assert entry["radc_payload_complete"] is False
         assert entry["ball_angle"] == ball
         assert entry["club_angle"] == club, (
             "club_angle must be preserved in the kld7_buffer log entry "
             "so offline analysis can correlate it with the ball angle."
         )
-
-    def test_kld7_buffer_logs_raw_radc_payload_counts(self, tmp_path):
-        """Top-level counts make TrackMan replay readiness obvious per shot."""
-        logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound")
-
-        logger.log_kld7_buffer(
-            shot_number=1,
-            shot_timestamp=1234567890.0,
-            orientation="vertical",
-            buffer_frames=[
-                {"timestamp": 1.0, "has_radc": True, "radc_b64": "AQID"},
-                {"timestamp": 2.0, "has_radc": True},
-                {"timestamp": 3.0},
-            ],
-            raw_payload_expected=True,
-        )
-
-        entry = json.loads(logger.session_path.read_text().strip().split("\n")[-1])
-        assert entry["frame_count"] == 3
-        assert entry["radc_frame_count"] == 2
-        assert entry["radc_payload_count"] == 1
-        assert entry["radc_payload_valid_count"] == 0
-        assert entry["radc_payload_invalid_count"] == 0
-        assert entry["radc_payload_expected"] is True
-        assert entry["radc_payload_complete"] is False
-
-    def test_kld7_buffer_marks_complete_raw_radc_payloads(self, tmp_path):
-        logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound")
-
-        logger.log_kld7_buffer(
-            shot_number=1,
-            shot_timestamp=1234567890.0,
-            orientation="vertical",
-            buffer_frames=[
-                {
-                    "timestamp": 1.0,
-                    "has_radc": True,
-                    "radc_b64": "AQID",
-                    "radc_payload_bytes": RADC_PAYLOAD_BYTES,
-                },
-                {
-                    "timestamp": 2.0,
-                    "has_radc": True,
-                    "radc_b64": "BAUG",
-                    "radc_payload_bytes": RADC_PAYLOAD_BYTES,
-                },
-            ],
-            raw_payload_expected=True,
-        )
-
-        entry = json.loads(logger.session_path.read_text().strip().split("\n")[-1])
-        assert entry["radc_payload_count"] == 2
-        assert entry["radc_payload_valid_count"] == 2
-        assert entry["radc_payload_invalid_count"] == 0
-        assert entry["radc_payload_expected"] is True
-        assert entry["radc_payload_complete"] is True
-
-    def test_kld7_buffer_marks_wrong_size_payloads_incomplete(self, tmp_path):
-        logger = SessionLogger(log_dir=tmp_path, enabled=True)
-        logger.start_session(mode="rolling-buffer", trigger_type="sound")
-
-        logger.log_kld7_buffer(
-            shot_number=1,
-            shot_timestamp=1234567890.0,
-            orientation="vertical",
-            buffer_frames=[
-                {
-                    "timestamp": 1.0,
-                    "has_radc": True,
-                    "radc_b64": "AQID",
-                    "radc_payload_bytes": 3,
-                },
-            ],
-            raw_payload_expected=True,
-        )
-
-        entry = json.loads(logger.session_path.read_text().strip().split("\n")[-1])
-        assert entry["radc_payload_count"] == 1
-        assert entry["radc_payload_valid_count"] == 0
-        assert entry["radc_payload_invalid_count"] == 1
-        assert entry["radc_payload_complete"] is False
 
     def test_kld7_buffer_club_angle_optional(self, tmp_path):
         """Missing club_angle is allowed (e.g. shot before club_speed available)."""
@@ -618,7 +563,7 @@ class TestSessionIdentity:
         parsed = uuid.UUID(entry["session_uuid"])
         assert parsed.version == 4
         assert entry["session_uuid"] != entry["session_id"]
-        assert entry["format_version"] == 1
+        assert entry["format_version"] == 2
         assert entry["app_version"] == openflight.__version__
 
     def test_session_uuid_is_unique_per_session(self, tmp_path):

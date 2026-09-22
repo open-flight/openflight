@@ -28,10 +28,8 @@ from .monitor import (
 from .processor import RollingBufferProcessor
 from .trigger import (
     HardwareTriggeredCapture,
-    ManualTrigger,
-    PollingTrigger,
+    SoundTrigger,
     SpeedTriggeredCapture,
-    ThresholdTrigger,
     TriggerStrategy,
     create_trigger,
 )
@@ -59,9 +57,7 @@ __all__ = [
     # Triggers
     "TriggerStrategy",
     "HardwareTriggeredCapture",
-    "PollingTrigger",
-    "ThresholdTrigger",
-    "ManualTrigger",
+    "SoundTrigger",
     "SpeedTriggeredCapture",
     "create_trigger",
     # Monitor

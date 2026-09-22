@@ -1,72 +1,22 @@
 """
 Golf Launch Monitor data types and carry estimation.
 
-Provides Shot, ClubType, and carry distance estimation used by
+Provides Shot and carry distance estimation used by
 RollingBufferMonitor and the Flask server.
 """
 
+import statistics
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional
 
+from .clubs import ClubType
+from .clubs.physics import get_club_physics
 from .ops243 import SpeedReading
 
 # Spin confidence threshold for "high" quality — used across modules.
 # Measured spin is trusted for physics simulation only above this level.
 SPIN_CONFIDENCE_HIGH = 0.7
-
-
-class ClubType(Enum):
-    """Golf club types for distance estimation."""
-
-    DRIVER = "driver"
-    WOOD_3 = "3-wood"
-    WOOD_5 = "5-wood"
-    WOOD_7 = "7-wood"
-    HYBRID_3 = "3-hybrid"
-    HYBRID_5 = "5-hybrid"
-    HYBRID_7 = "7-hybrid"
-    HYBRID_9 = "9-hybrid"
-    IRON_2 = "2-iron"
-    IRON_3 = "3-iron"
-    IRON_4 = "4-iron"
-    IRON_5 = "5-iron"
-    IRON_6 = "6-iron"
-    IRON_7 = "7-iron"
-    IRON_8 = "8-iron"
-    IRON_9 = "9-iron"
-    PW = "pw"
-    GW = "gw"
-    SW = "sw"
-    LW = "lw"
-    UNKNOWN = "unknown"
-
-
-# Optimal launch angles by club (from TrackMan data)
-_OPTIMAL_LAUNCH = {
-    ClubType.DRIVER: 11.0,
-    ClubType.WOOD_3: 12.5,
-    ClubType.WOOD_5: 14.0,
-    ClubType.WOOD_7: 15.5,
-    ClubType.HYBRID_3: 13.5,
-    ClubType.HYBRID_5: 15.0,
-    ClubType.HYBRID_7: 16.5,
-    ClubType.HYBRID_9: 18.0,
-    ClubType.IRON_2: 13.0,
-    ClubType.IRON_3: 14.5,
-    ClubType.IRON_4: 16.0,
-    ClubType.IRON_5: 17.5,
-    ClubType.IRON_6: 19.0,
-    ClubType.IRON_7: 20.5,
-    ClubType.IRON_8: 23.0,
-    ClubType.IRON_9: 25.5,
-    ClubType.PW: 28.0,
-    ClubType.GW: 30.0,
-    ClubType.SW: 32.0,
-    ClubType.LW: 35.0,
-    ClubType.UNKNOWN: 18.0,
-}
 
 
 def estimate_carry_distance(ball_speed_mph: float, club: ClubType = ClubType.DRIVER) -> float:
@@ -180,7 +130,7 @@ def adjust_carry_for_launch_angle(
     Returns:
         Adjusted carry distance in yards
     """
-    optimal = _OPTIMAL_LAUNCH.get(club, 18.0)
+    optimal = get_club_physics(club).optimal_launch_deg
     angle_delta = launch_angle - optimal
 
     if angle_delta < 0:
@@ -205,6 +155,7 @@ class Shot:
         club_speed_mph: Peak club head speed detected (mph), if available
         smash_factor: Ratio of ball speed to club speed (typically 1.4-1.5 for driver)
         timestamp: When the shot was detected
+        shot_number: Stable session sequence assigned when the server receives the shot
         impact_timestamp: Epoch timestamp aligned to impact/OPS trigger time
         impact_timestamp_kld7: Ball-contact instant used by the K-LD7
             geometry launch-angle estimator. This currently mirrors the
@@ -242,10 +193,12 @@ class Shot:
         carry_spin_adjusted: Carry distance adjusted for spin (yards)
         mode: Shot source — "streaming", "rolling-buffer", or "mock"
         readings_data: Serialized readings for session logging
+        camera_replay: Public replay metadata for a matched high-speed capture
     """
 
     ball_speed_mph: float
     timestamp: datetime
+    shot_number: Optional[int] = None
     impact_timestamp: Optional[float] = None
     impact_timestamp_kld7: Optional[float] = None
     club_speed_mph: Optional[float] = None
@@ -286,11 +239,48 @@ class Shot:
     spin_rejection_reason: Optional[str] = None
     carry_spin_adjusted: Optional[float] = None
     mode: str = "rolling-buffer"
-    player_name: str = "Player 1"
+    profile_id: str = ""
+    profile_name: str = ""
     readings_data: Optional[list] = None
+    camera_replay: Optional[dict] = None
     angle_source: Optional[str] = None  # "radar", "camera", "estimated", or None
     club_angle_deg: Optional[float] = None  # Club angle of attack from K-LD7 (vertical)
     club_path_deg: Optional[float] = None  # Club path: IWR6843, or K-LD7 (deprecated, horizontal)
+    experimental_attack_angle_deg: Optional[float] = None
+    experimental_attack_angle_status: Optional[str] = None
+    experimental_club_path_deg: Optional[float] = None
+    experimental_club_path_status: Optional[str] = None
+    # Camera-fused club delivery: radar AoA candidate + per-club calibration
+    # offset, club path derived from the camera delivery-plane trace. Same
+    # experimental estimator level as the fields above.
+    experimental_fused_attack_angle_deg: Optional[float] = None
+    experimental_fused_club_path_deg: Optional[float] = None
+    experimental_fused_status: Optional[str] = None
+    experimental_fused_attack_angle_confidence: Optional[str] = None
+    experimental_fused_club_path_confidence: Optional[str] = None
+    experimental_camera_trace_deg: Optional[float] = None
+    experimental_aoa_offset_source: Optional[str] = None
+    # Independent horizontal ball-flight evidence. The camera-assisted value
+    # may become the displayed experimental result while the original IWR
+    # value remains available for replay and comparison.
+    iwr6843_horizontal_deg: Optional[float] = None
+    iwr6843_horizontal_confidence: Optional[float] = None
+    experimental_camera_horizontal_deg: Optional[float] = None
+    experimental_camera_horizontal_confidence: Optional[float] = None
+    experimental_camera_horizontal_status: Optional[str] = None
+    experimental_camera_iwr_delta_deg: Optional[float] = None
+    # Transient fitted IWR range trajectory consumed by live camera fusion.
+    # Deliberately excluded from websocket/session serializers.
+    iwr6843_club_range_evidence: object | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
+    iwr6843_ball_range_evidence: object | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
     spin_axis_deg: Optional[float] = None  # Spin axis tilt: 0=backspin, +right(fade), -left(draw)
     inclinometer: Optional[dict] = None  # Stable enclosure orientation used for this shot
 
@@ -378,3 +368,121 @@ class Shot:
         if self.spin_confidence >= 0.4:
             return "medium"
         return "low"
+
+    def to_dict(self) -> dict:
+        """Return the canonical, unrounded representation of this shot."""
+        return {
+            "shot_number": self.shot_number,
+            "ball_speed_mph": self.ball_speed_mph,
+            "ball_speed_raw_mph": self.ball_speed_raw_mph,
+            "club_speed_mph": self.club_speed_mph,
+            "smash_factor": self.smash_factor,
+            "estimated_carry_yards": self.estimated_carry_yards,
+            "carry_range": list(self.estimated_carry_range),
+            "club": self.club.value,
+            "profile_id": self.profile_id,
+            "profile_name": self.profile_name,
+            "timestamp": self.timestamp.isoformat(),
+            "impact_timestamp": self.impact_timestamp,
+            "peak_magnitude": self.peak_magnitude,
+            "readings_count": len(self.readings),
+            "readings": self.readings_data,
+            "mode": self.mode,
+            "launch_angle_vertical": self.launch_angle_vertical,
+            "launch_angle_horizontal": self.launch_angle_horizontal,
+            "launch_angle_confidence": self.launch_angle_confidence,
+            "launch_angle_vertical_confidence": self.launch_angle_vertical_confidence,
+            "launch_angle_horizontal_confidence": self.launch_angle_horizontal_confidence,
+            "launch_angle_vertical_source": self.launch_angle_vertical_source,
+            "launch_angle_horizontal_source": self.launch_angle_horizontal_source,
+            "angle_source": self.angle_source,
+            "club_angle_deg": self.club_angle_deg,
+            "club_path_deg": self.club_path_deg,
+            "experimental_attack_angle_deg": self.experimental_attack_angle_deg,
+            "experimental_attack_angle_status": self.experimental_attack_angle_status,
+            "experimental_club_path_deg": self.experimental_club_path_deg,
+            "experimental_club_path_status": self.experimental_club_path_status,
+            "experimental_fused_attack_angle_deg": self.experimental_fused_attack_angle_deg,
+            "experimental_fused_club_path_deg": self.experimental_fused_club_path_deg,
+            "experimental_fused_status": self.experimental_fused_status,
+            "experimental_fused_attack_angle_confidence": (
+                self.experimental_fused_attack_angle_confidence
+            ),
+            "experimental_fused_club_path_confidence": (
+                self.experimental_fused_club_path_confidence
+            ),
+            "experimental_camera_trace_deg": self.experimental_camera_trace_deg,
+            "experimental_aoa_offset_source": self.experimental_aoa_offset_source,
+            "iwr6843_horizontal_deg": self.iwr6843_horizontal_deg,
+            "iwr6843_horizontal_confidence": self.iwr6843_horizontal_confidence,
+            "experimental_camera_horizontal_deg": self.experimental_camera_horizontal_deg,
+            "experimental_camera_horizontal_confidence": (
+                self.experimental_camera_horizontal_confidence
+            ),
+            "experimental_camera_horizontal_status": self.experimental_camera_horizontal_status,
+            "experimental_camera_iwr_delta_deg": self.experimental_camera_iwr_delta_deg,
+            "camera_replay": dict(self.camera_replay) if self.camera_replay else None,
+            "spin_axis_deg": self.spin_axis_deg,
+            "inclinometer": self.inclinometer,
+            "spin_rpm": self.spin_rpm,
+            "spin_rpm_measured": self.spin_rpm_measured,
+            "spin_source": self.spin_source,
+            "spin_method": self.spin_method,
+            "spin_confidence": self.spin_confidence,
+            "spin_quality": self.spin_quality,
+            "spin_multipath_fade_hz": self.spin_multipath_fade_hz,
+            "spin_snr": self.spin_snr,
+            "spin_modulation_depth": self.spin_modulation_depth,
+            "spin_peak_freq_hz": self.spin_peak_freq_hz,
+            "spin_candidate_rpm": (
+                self.spin_peak_freq_hz * 60 if self.spin_peak_freq_hz is not None else None
+            ),
+            "spin_seam_cycles": self.spin_seam_cycles,
+            "spin_at_lower_rail": self.spin_at_lower_rail,
+            "spin_at_upper_rail": self.spin_at_upper_rail,
+            "spin_candidates": self.spin_candidates,
+            "spin_phase_method": self.spin_phase_method,
+            "spin_phase_rpm": self.spin_phase_rpm,
+            "spin_phase_snr": self.spin_phase_snr,
+            "spin_phase_agreement_pct": self.spin_phase_agreement_pct,
+            "spin_phase_confirmed": self.spin_phase_confirmed,
+            "spin_rejection_reason": self.spin_rejection_reason,
+            "carry_spin_adjusted": self.carry_spin_adjusted,
+        }
+
+
+def summarize_shots(shots: List[Shot], mode: str) -> dict:
+    """Calculate the shared session summary for a list of shots."""
+    summary = {
+        "shot_count": len(shots),
+        "avg_ball_speed": 0,
+        "max_ball_speed": 0,
+        "min_ball_speed": 0,
+        "avg_club_speed": None,
+        "avg_smash_factor": None,
+        "avg_carry_est": 0,
+        "avg_spin_rpm": None,
+        "spin_detection_rate": 0,
+        "mode": mode,
+    }
+    if not shots:
+        return summary
+
+    ball_speeds = [shot.ball_speed_mph for shot in shots]
+    club_speeds = [shot.club_speed_mph for shot in shots if shot.club_speed_mph]
+    smash_factors = [shot.smash_factor for shot in shots if shot.smash_factor]
+    spin_rpms = [shot.spin_rpm for shot in shots if shot.spin_rpm is not None]
+    summary.update(
+        {
+            "avg_ball_speed": statistics.mean(ball_speeds),
+            "max_ball_speed": max(ball_speeds),
+            "min_ball_speed": min(ball_speeds),
+            "std_dev": statistics.stdev(ball_speeds) if len(ball_speeds) > 1 else 0,
+            "avg_club_speed": statistics.mean(club_speeds) if club_speeds else None,
+            "avg_smash_factor": statistics.mean(smash_factors) if smash_factors else None,
+            "avg_carry_est": statistics.mean([shot.estimated_carry_yards for shot in shots]),
+            "avg_spin_rpm": statistics.mean(spin_rpms) if spin_rpms else None,
+            "spin_detection_rate": len(spin_rpms) / len(shots),
+        }
+    )
+    return summary

@@ -12,10 +12,12 @@ describe('SimStatus', () => {
     const statuses: Record<string, SimStatusData> = {
       gspro: { target: 'gspro', state: 'connected', host: '127.0.0.1', port: 921 },
       opengolfsim: { target: 'opengolfsim', state: 'reconnecting', attempt: 2, next_retry_in_s: 4 },
+      partee: { target: 'partee', state: 'connecting', host: '192.168.1.70', port: 921 },
     };
     const html = renderToString(<SimStatus statuses={statuses} />);
     expect(html).toContain('GSPro');
     expect(html).toContain('OpenGolfSim');
+    expect(html).toContain('PAR-TEE');
     expect(html).toContain('sim-status__pill--ok'); // connected
     expect(html).toContain('sim-status__pill--warn'); // reconnecting
   });

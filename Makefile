@@ -1,4 +1,4 @@
-.PHONY: test lint format dev build-ui start
+.PHONY: test lint format dev build-ui start docs docs-build
 
 ## Run Python tests
 test:
@@ -35,3 +35,11 @@ install:
 ## Install pre-commit hooks
 hooks:
 	uv run pre-commit install
+
+## Serve the docs site with live reload at http://localhost:8000
+docs:
+	uv run --group docs zensical serve
+
+## Build the docs site; fails on broken internal links
+docs-build:
+	uv run --group docs zensical build --clean --strict
