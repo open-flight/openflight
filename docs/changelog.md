@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Calculated spin is labeled estimated in simulator output.** Spin produced by
+  `--calculated-spin` keeps its RPM value but no longer appears measured in the
+  simulator badges or session-log provenance, including derived backspin and sidespin.
 - **On-screen keyboard for profile names.** Adding or renaming a profile on the
   Pi kiosk now shows a full-screen keyboard. Chromium in `--kiosk` mode does not
   surface a system keyboard, so the native text field was unusable on the

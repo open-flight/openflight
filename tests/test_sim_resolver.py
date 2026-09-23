@@ -51,8 +51,14 @@ def test_missing_hla_falls_back_to_zero():
     assert r.provenance["hla"] == "estimated"
 
 
-def test_low_spin_confidence_uses_model():
-    shot = _shot(spin_rpm=2500.0, spin_confidence=0.4, club=ClubType.DRIVER)
+@pytest.mark.parametrize("spin_source", [None, "measured", "calculated"])
+def test_low_spin_confidence_uses_model(spin_source):
+    shot = _shot(
+        spin_rpm=4569.0,
+        spin_confidence=0.4,
+        spin_source=spin_source,
+        club=ClubType.DRIVER,
+    )
     r = resolve_shot(shot, PlayerState())
     assert r.total_spin_rpm == SPIN_MODEL_RPM[ClubType.DRIVER]
     assert r.provenance["total_spin"] == "estimated"
@@ -62,6 +68,28 @@ def test_missing_spin_uses_model():
     r = resolve_shot(_shot(club=ClubType.IRON_7), PlayerState())
     assert r.total_spin_rpm == SPIN_MODEL_RPM[ClubType.IRON_7]
     assert r.provenance["total_spin"] == "estimated"
+
+
+@pytest.mark.parametrize("spin_source", [None, "measured", "calculated"])
+@pytest.mark.parametrize("spin_axis", [None, -3.0])
+def test_spin_provenance_preserves_source_and_values(spin_source, spin_axis):
+    shot = _shot(
+        spin_rpm=4569.0,
+        spin_confidence=0.7,
+        spin_source=spin_source,
+        spin_axis_deg=spin_axis,
+    )
+    resolved = resolve_shot(shot, PlayerState())
+
+    assert resolved.total_spin_rpm == 4569.0
+    axis_rad = math.radians(spin_axis or 0.0)
+    assert resolved.back_spin_rpm == pytest.approx(4569.0 * math.cos(axis_rad))
+    assert resolved.side_spin_rpm == pytest.approx(4569.0 * math.sin(axis_rad))
+    expected = "estimated" if spin_source == "calculated" else "measured"
+    assert resolved.provenance["total_spin"] == expected
+    derived = "estimated" if spin_axis is None else expected
+    assert resolved.provenance["back_spin"] == derived
+    assert resolved.provenance["side_spin"] == derived
 
 
 def test_missing_spin_axis_falls_back_to_zero():

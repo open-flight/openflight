@@ -78,6 +78,28 @@ def test_forward_allocates_one_shot_number_across_connectors(server):
     assert a.sent[0].shot_number == b.sent[0].shot_number == 1
 
 
+def test_calculated_spin_stays_estimated_in_simulator_and_ui_payload(server):
+    connector = _FakeConnector("gspro")
+    server.sim_connectors = [connector]
+    shot = _shot()
+    shot.launch_angle_vertical_source = "radar"
+    shot.spin_axis_deg = -3.0
+    assert server._apply_calculated_spin(shot) is True
+    calculated_rpm = shot.spin_rpm
+
+    server._forward_shot_to_simulators(shot)
+
+    assert len(connector.sent) == 1
+    resolved = connector.sent[0]
+    assert resolved.total_spin_rpm == calculated_rpm
+    payloads = [args[1] for args, _ in server._emitted if args[0] == "sim_shot"]
+    assert len(payloads) == 1
+    assert payloads[0]["values"]["total_spin"] == calculated_rpm
+    for field in ("total_spin", "back_spin", "side_spin"):
+        assert resolved.provenance[field] == "estimated"
+        assert payloads[0]["provenance"][field] == "estimated"
+
+
 def test_forward_noop_when_no_connector_connected(server):
     server.sim_connectors = [_FakeConnector("gspro", connected=False)]
     server._forward_shot_to_simulators(_shot())
