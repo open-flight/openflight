@@ -104,7 +104,17 @@ export async function resetSession(socket: Socket) {
   }
 }
 
-export async function gotoApp(page: Page, path = '/') {
+export async function gotoApp(
+  page: Page,
+  path = '/',
+  options: { onboarded?: boolean } = {}
+) {
+  const onboarded = options.onboarded ?? true;
+  if (onboarded) {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('openflight.onboarding.completed:v1', '1');
+    });
+  }
   await page.goto(`${UI_URL}${path}`);
 }
 
