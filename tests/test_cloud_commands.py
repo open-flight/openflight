@@ -98,8 +98,18 @@ class TestPush:
         assert "rolling_buffer_capture" not in printed
 
     def test_relink_stops_and_flags(self, tmp_path):
-        _write_session(tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"})
-        _write_session(tmp_path, "session_b.jsonl", {"type": "session_start", "session_uuid": "b"})
+        _write_session(
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
+        )
+        _write_session(
+            tmp_path,
+            "session_b.jsonl",
+            {"type": "session_start", "session_uuid": "b"},
+            {"type": "shot_detected", "ball_speed_mph": 91},
+        )
         client = FakeClient(
             uploads=[UploadResult(401, action="relink", reason="invalid_or_revoked_token")]
         )
@@ -110,7 +120,10 @@ class TestPush:
 
     def test_park_on_422(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         client = FakeClient(uploads=[UploadResult(422, action="park", reason="invalid_gzip")])
         commands.cmd_push(_linked_config(), tmp_path, client, out=lambda _m: None)
@@ -118,7 +131,10 @@ class TestPush:
 
     def test_quota_sets_cooldown_not_park(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         client = FakeClient(uploads=[UploadResult(402, action="quota", reason="quota_exceeded")])
         commands.cmd_push(_linked_config(), tmp_path, client, out=lambda _m: None)
@@ -127,7 +143,10 @@ class TestPush:
 
     def test_5xx_records_failure_and_leaves_pending(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         client = FakeClient(uploads=[UploadResult(503, action="retry")])
         commands.cmd_push(_linked_config(), tmp_path, client, out=lambda _m: None)
@@ -149,7 +168,10 @@ class TestPush:
 
     def test_skips_sessions_in_cooldown(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         spool.record_cooldown(path, "quota_exceeded", seconds=spool.QUOTA_COOLDOWN_S)
         client = FakeClient(uploads=[UploadResult(201, action="success")])
@@ -157,11 +179,46 @@ class TestPush:
         assert client.uploaded == []
         assert result["deferred"] == 1
 
+    def test_ended_zero_shot_session_is_skipped_not_uploaded(self, tmp_path):
+        path = _write_session(
+            tmp_path,
+            "session_empty.jsonl",
+            {"type": "session_start", "session_uuid": "empty"},
+            {"type": "session_end"},
+        )
+        client = FakeClient(uploads=[UploadResult(201, action="success", shot_count=0)])
+        out = []
+        result = commands.cmd_push(_linked_config(), tmp_path, client, out=out.append)
+
+        assert client.uploaded == []
+        assert spool.is_skipped(path)
+        assert result["skipped_empty"] == 1
+        assert "skipped (0 shots)" in "\n".join(out)
+
+    def test_active_zero_shot_session_waits_for_later_shots(self, tmp_path):
+        path = _write_session(
+            tmp_path,
+            "session_active.jsonl",
+            {"type": "session_start", "session_uuid": "active"},
+        )
+        client = FakeClient(uploads=[UploadResult(201, action="success", shot_count=0)])
+        out = []
+        result = commands.cmd_push(_linked_config(), tmp_path, client, out=out.append)
+
+        assert client.uploaded == []
+        assert not spool.is_skipped(path)
+        assert path in spool.pending_sessions(tmp_path)
+        assert result["deferred"] == 1
+        assert "waiting for shots" in "\n".join(out)
+
 
 class TestPushRetry:
     def test_retry_all_reuploads_parked_session(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         spool.mark_parked(path, reason="max_attempts", attempts=20, last_error="503")
         client = FakeClient(uploads=[UploadResult(201, action="success", shot_count=1)])
@@ -174,7 +231,10 @@ class TestPushRetry:
 
     def test_retry_all_reuploads_cooled_down_session(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_a.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_a.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         spool.record_cooldown(path, "quota_exceeded", seconds=spool.QUOTA_COOLDOWN_S)
         client = FakeClient(uploads=[UploadResult(201, action="success", shot_count=1)])
@@ -193,7 +253,10 @@ class TestPushRetry:
 
     def test_retry_named_session_force_reuploads_pushed(self, tmp_path):
         path = _write_session(
-            tmp_path, "session_20260527_x.jsonl", {"type": "session_start", "session_uuid": "a"}
+            tmp_path,
+            "session_20260527_x.jsonl",
+            {"type": "session_start", "session_uuid": "a"},
+            {"type": "shot_detected", "ball_speed_mph": 90},
         )
         spool.mark_pushed(path, "a", 0)  # previously "uploaded" with 0 shots
         client = FakeClient(uploads=[UploadResult(201, action="success", shot_count=5)])

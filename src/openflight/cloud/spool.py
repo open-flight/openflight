@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 PUSHED_SUFFIX = ".pushed"
 PARKED_SUFFIX = ".parked"
+SKIPPED_SUFFIX = ".skipped"
 STATE_SUFFIX = ".state"
 
 SESSION_GLOB = "session_*.jsonl"
@@ -59,9 +60,18 @@ def is_parked(path: Path) -> bool:
     return _sidecar(path, PARKED_SUFFIX).exists()
 
 
+def is_skipped(path: Path) -> bool:
+    """True if a ``.skipped`` marker exists for this session."""
+    return _sidecar(path, SKIPPED_SUFFIX).exists()
+
+
 def pending_sessions(log_dir: Path) -> List[Path]:
-    """Session files that are neither pushed nor parked."""
-    return [p for p in session_files(log_dir) if not is_pushed(p) and not is_parked(p)]
+    """Session files that are not in a terminal upload state."""
+    return [
+        p
+        for p in session_files(log_dir)
+        if not is_pushed(p) and not is_parked(p) and not is_skipped(p)
+    ]
 
 
 def read_attempts(path: Path) -> int:
@@ -150,6 +160,17 @@ def mark_parked(path: Path, reason: str, attempts: int, last_error: Optional[str
     )
 
 
+def mark_skipped(path: Path, reason: str, shot_count: Optional[int] = None) -> None:
+    """Mark a session as intentionally skipped by upload policy."""
+    _write_json(
+        _sidecar(path, SKIPPED_SUFFIX),
+        {"reason": reason, "shot_count": shot_count, "skipped_at": _now()},
+    )
+    state_path = _sidecar(path, STATE_SUFFIX)
+    if state_path.exists():
+        state_path.unlink()
+
+
 def clear_markers(path: Path, include_pushed: bool = False) -> List[str]:
     """Remove terminal/retry markers so a session becomes pending again.
 
@@ -158,7 +179,7 @@ def clear_markers(path: Path, include_pushed: bool = False) -> List[str]:
     the server already stored (idempotent server-side). Returns the suffixes
     actually removed.
     """
-    suffixes = [PARKED_SUFFIX, STATE_SUFFIX]
+    suffixes = [PARKED_SUFFIX, SKIPPED_SUFFIX, STATE_SUFFIX]
     if include_pushed:
         suffixes.append(PUSHED_SUFFIX)
     cleared: List[str] = []
@@ -175,10 +196,14 @@ def summarize(log_dir: Path) -> Dict[str, int]:
     files = session_files(log_dir)
     pushed = sum(1 for p in files if is_pushed(p))
     parked = sum(1 for p in files if is_parked(p))
-    pending = sum(1 for p in files if not is_pushed(p) and not is_parked(p))
+    skipped = sum(1 for p in files if is_skipped(p))
+    pending = sum(
+        1 for p in files if not is_pushed(p) and not is_parked(p) and not is_skipped(p)
+    )
     return {
         "total": len(files),
         "pushed": pushed,
         "parked": parked,
+        "skipped": skipped,
         "pending": pending,
     }
