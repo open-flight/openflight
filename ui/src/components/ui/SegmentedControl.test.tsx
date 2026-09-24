@@ -39,4 +39,20 @@ describe('SegmentedControl', () => {
     const minHeights = css.match(/min-height:\s*[\d.]+px/g) ?? [];
     expect(minHeights).toEqual(['min-height: 44px']);
   });
+
+  it('shows a real group focus ring for keyboard focus, matching the app-wide :focus-visible convention', () => {
+    const css = readCss();
+
+    expect(css).toMatch(
+      /\.segmented-control:has\(\.segmented-control__button:focus-visible\) \{[^}]*outline: 2px solid var\(--color-accent\);[^}]*outline-offset: 2px;/
+    );
+  });
+
+  it('leaves the individual button outline suppressed so only the group ring shows', () => {
+    const css = readCss();
+
+    expect(css).toMatch(
+      /\.segmented-control__button:focus,\s*\n\s*\.segmented-control__button:focus-visible \{[^}]*outline: none;/
+    );
+  });
 });
