@@ -15,6 +15,10 @@ import numpy as np
 from scipy import ndimage
 
 BALL_DIAMETER_MM = 42.67
+IMPACT_BALL_PATCH_RADIUS_FRAC = 0.4
+IMPACT_BALL_PRESENT_DELTA = 30.0
+IMPACT_PRE_TRIGGER_MAX = 8
+IMPACT_POST_TRIGGER_MAX = 10
 
 
 @dataclass(frozen=True)
@@ -204,6 +208,119 @@ def detect_reference_ball(
     if bright_candidates:
         return min(bright_candidates, key=lambda item: item[0])[1]
     raise ValueError("no stable reference ball found")
+
+
+def detect_impact_reference_ball(
+    frames: np.ndarray,
+    *,
+    trigger_frame_index: int,
+) -> ReferenceBall:  # pylint: disable=no-member
+    """Find the teed ball by its persistent departure around impact."""
+    if frames.ndim != 3 or len(frames) < 20:
+        raise ValueError("frames must have shape (n, height, width) with n >= 20")
+    if not 0 <= trigger_frame_index < len(frames):
+        raise ValueError("trigger frame is outside the capture")
+    try:
+        import cv2
+    except ImportError as exc:  # pragma: no cover - optional camera dependency
+        raise RuntimeError("impact-aware ball detection requires OpenCV") from exc
+
+    before = np.median(frames[:20], axis=0).astype(np.uint8)
+    post_start = min(len(frames) - 6, trigger_frame_index + 6)
+    after = np.median(frames[post_start : min(len(frames), post_start + 14)], axis=0).astype(
+        np.uint8
+    )
+    difference = cv2.absdiff(before, after)
+    height, width = before.shape
+    departure_mask = (difference >= 45).astype(np.uint8)
+    departure_mask[: int(height * 0.62)] = 0
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(departure_mask, 8)
+    candidates = []
+    for label in range(1, count):
+        _x0, _y0, component_width, component_height, area = stats[label]
+        x, y = centroids[label]
+        aspect = component_width / max(component_height, 1)
+        if not (
+            15 <= area <= 650
+            and 0.35 <= aspect <= 2.8
+            and 7 <= max(component_width, component_height) <= 32
+            and width * 0.12 <= x <= width * 0.88
+            and height * 0.62 <= y <= height * 0.95
+        ):
+            continue
+        component = labels == label
+        strength = float(np.mean(difference[component]))
+        brightness = float(np.mean(before[component]))
+        score = (
+            -strength
+            - brightness * 0.2
+            - 20.0 * y / height
+            + abs(math.log(aspect)) * 10.0
+            + abs(max(component_width, component_height) - 16.0)
+        )
+        candidates.append((score, float(x), float(y), int(area)))
+    if not candidates:
+        raise ValueError("no persistent tee-ball departure found")
+    _score, seed_x, seed_y, departure_area = min(candidates)
+
+    bright = (before >= 210).astype(np.uint8)
+    bright_count, _bright_labels, bright_stats, bright_centroids = cv2.connectedComponentsWithStats(
+        bright, 8
+    )
+    refinements = []
+    for label in range(1, bright_count):
+        _x0, _y0, component_width, component_height, area = bright_stats[label]
+        x, y = bright_centroids[label]
+        aspect = component_width / max(component_height, 1)
+        distance = math.hypot(x - seed_x, y - seed_y)
+        if 15 <= area <= 600 and 0.45 <= aspect <= 2.2 and distance <= 12.0:
+            refinements.append((distance, float(x), float(y), int(area)))
+    if refinements:
+        _distance, x, y, area = min(refinements)
+    else:
+        x, y, area = seed_x, seed_y, departure_area
+    diameter = math.sqrt(4.0 * area / math.pi)
+    if not 9.0 <= diameter <= 30.0:
+        raise ValueError(f"impact-aware ball diameter is implausible: {diameter:.1f}")
+    return ReferenceBall(x=x, y=y, diameter_px=diameter, area_px=area)
+
+
+def detect_impact_frame(  # pylint: disable=too-many-arguments
+    frames: np.ndarray,
+    ball: ReferenceBall,
+    *,
+    trigger_frame_index: int | None = None,
+    pre_trigger_max: int = IMPACT_PRE_TRIGGER_MAX,
+    post_trigger_max: int = IMPACT_POST_TRIGGER_MAX,
+    patch_radius_fraction: float = IMPACT_BALL_PATCH_RADIUS_FRAC,
+    present_delta: float = IMPACT_BALL_PRESENT_DELTA,
+) -> int | None:
+    """Return the last frame before the teed ball persistently departs."""
+    radius = max(3, int(round(ball.diameter_px * patch_radius_fraction)))
+    yy, xx = np.mgrid[0 : frames.shape[1], 0 : frames.shape[2]]
+    disk = (xx - ball.x) ** 2 + (yy - ball.y) ** 2 <= radius * radius
+    reference = float(np.median(frames[:15], axis=0)[disk].mean())
+    means = np.array([float(frame[disk].mean()) for frame in frames])
+    present = np.abs(means - reference) < present_delta
+    indexes = np.nonzero(present)[0]
+    if len(indexes) == 0:
+        return None
+
+    if trigger_frame_index is not None:
+        search_start = max(0, trigger_frame_index - pre_trigger_max)
+        search_end = min(len(frames) - 2, trigger_frame_index + post_trigger_max)
+        indexes = indexes[(indexes >= search_start) & (indexes <= search_end)]
+        if len(indexes) == 0:
+            return None
+
+    candidates = indexes if trigger_frame_index is not None else reversed(indexes)
+    for index in candidates:
+        after = present[index + 1 : index + 3]
+        if len(after) == 2 and not after.any():
+            return int(index)
+    if trigger_frame_index is not None:
+        return None
+    return int(indexes[-1])
 
 
 def _shaft_candidates(

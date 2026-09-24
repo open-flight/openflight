@@ -54,6 +54,23 @@ def test_server_arguments_pass_through_unchanged():
     assert _dry_run(*arguments) == ["openflight-server", "--web-port", "8080", *arguments]
 
 
+def test_camera_shot_analysis_is_a_standalone_kiosk_camera_mode():
+    assert _dry_run("--camera-shot-analysis") == [
+        "openflight-server",
+        "--web-port",
+        "8080",
+        "--camera-shot-analysis",
+    ]
+
+    script = _script()
+    camera_helper = script[
+        script.index("has_camera_arg() {") : script.index("normalize_mock_swing_speed() {")
+    ]
+    assert "--camera-capture" in camera_helper
+    assert "--camera-shot-analysis" in camera_helper
+    assert "if has_camera_arg; then" in script
+
+
 @pytest.mark.parametrize("alias", ["--radar-port", "--ops-port"])
 def test_radar_alias_is_distinct_from_web_port(alias):
     assert _dry_run(alias, "/dev/serial0", "--port", "9090") == [
@@ -130,7 +147,8 @@ def test_startup_splash_reports_enabled_hardware_components():
         _script().index("start_startup_splash() {") : _script().index("show_startup_failure() {")
     ]
 
-    for option in ("--camera-capture", "--iwr6843", "--inclinometer", "--kld7"):
+    assert "has_camera_arg" in splash
+    for option in ("--iwr6843", "--inclinometer", "--kld7"):
         assert f"has_server_arg {option}" in splash
 
 

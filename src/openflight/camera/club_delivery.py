@@ -20,7 +20,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from openflight.camera.club_motion import ReferenceBall, detect_reference_ball
+from openflight.camera.club_motion import (
+    ReferenceBall,
+    detect_impact_frame,
+    detect_reference_ball,
+)
 from openflight.camera.geometry import deroll_normalized_offsets
 from openflight.clubs import ClubType
 from openflight.clubs.physics import get_club_physics
@@ -326,9 +330,7 @@ def combine_approach_estimates(
     if preferred_path_estimate is not None:
         path_deg = preferred_path_estimate.path_deg
         values = np.asarray([estimate.path_deg for estimate in path_candidates])
-        path_mad = (
-            float(np.median(np.abs(values - path_deg))) if len(values) else None
-        )
+        path_mad = float(np.median(np.abs(values - path_deg))) if len(values) else None
         preferred_quality = (
             CHAINED_SPEED_RATIO_RANGE[0]
             <= preferred_path_estimate.speed_ratio_ops
@@ -339,9 +341,7 @@ def combine_approach_estimates(
             <= CHAINED_PATH_RANGE_DEG[1]
         )
         if preferred_quality and timing_plausible:
-            path_confidence = (
-                "high" if path_mad is not None and path_mad <= 2.0 else "medium"
-            )
+            path_confidence = "high" if path_mad is not None and path_mad <= 2.0 else "medium"
         else:
             path_confidence = "low"
     elif len(path_candidates) >= APPROACH_MIN_PATH_WINDOWS:
@@ -905,6 +905,7 @@ def estimate_chained_delivery(
     geometry: CameraDeliveryGeometry,
     ops_club_speed_mph: float | None,
     ball_tracker: ReferenceBallTracker | None = None,
+    reference_ball: ReferenceBall | None = None,
 ) -> ChainedDelivery:
     """Estimate final-approach club delivery from camera, IWR, and OPS."""
     if ops_club_speed_mph is None:
@@ -919,15 +920,17 @@ def estimate_chained_delivery(
     scene_p995, _ball_threshold, bright_now, dark_bg = _adaptive_thresholds(background)
     if scene_p995 < SCENE_P995_MIN:
         return ChainedDelivery(status="rejected_low_light", scene_p995=scene_p995)
-    try:
-        ball = detect_reference_ball(frames)
-    except ValueError:
-        ball = ball_tracker.fallback() if ball_tracker is not None else None
-        if ball is None:
-            return ChainedDelivery(status="rejected_no_ball", scene_p995=scene_p995)
-    else:
-        if ball_tracker is not None:
-            ball, _ball_source = ball_tracker.resolve(ball)
+    ball = reference_ball
+    if ball is None:
+        try:
+            ball = detect_reference_ball(frames)
+        except ValueError:
+            ball = ball_tracker.fallback() if ball_tracker is not None else None
+            if ball is None:
+                return ChainedDelivery(status="rejected_no_ball", scene_p995=scene_p995)
+        else:
+            if ball_tracker is not None:
+                ball, _ball_source = ball_tracker.resolve(ball)
     yy, xx = np.mgrid[0 : frames.shape[1], 0 : frames.shape[2]]
     image_scale = _image_scale(frames.shape)
     ball_zone_radius = max(50.0, BALL_ZONE_RADIUS_PX * image_scale)
@@ -1136,41 +1139,16 @@ def _detect_impact_index(
     *,
     trigger_index: int | None = None,
 ) -> int | None:
-    """Last frame the teed ball's core pixels are undisturbed (halo-robust).
-
-    Triggered captures only search the physically plausible contact window.
-    Otherwise, a late club/ball/background brightness match can look like the
-    teed ball and incorrectly move impact to the final frame.
-    """
-    radius = max(3, int(round(ball.diameter_px * BALL_PATCH_RADIUS_FRAC)))
-    yy, xx = np.mgrid[0 : frames.shape[1], 0 : frames.shape[2]]
-    disk = (xx - ball.x) ** 2 + (yy - ball.y) ** 2 <= radius * radius
-    reference = float(np.median(frames[:15], axis=0)[disk].mean())
-    means = np.array([float(frame[disk].mean()) for frame in frames])
-    present = np.abs(means - reference) < BALL_PRESENT_DELTA
-    indexes = np.nonzero(present)[0]
-    if len(indexes) == 0:
-        return None
-
-    if trigger_index is not None:
-        search_start = max(0, trigger_index - IMPACT_PRE_TRIGGER_MAX)
-        # Keep one following frame available for the chained delivery estimate.
-        search_end = min(len(frames) - 2, trigger_index + IMPACT_POST_TRIGGER_MAX)
-        indexes = indexes[(indexes >= search_start) & (indexes <= search_end)]
-        if len(indexes) == 0:
-            return None
-
-    # The first departure near the trigger is the teed ball leaving. Later
-    # present/absent transitions are club blur or the launched ball crossing
-    # the same patch. Untriggered replay retains the historical reverse scan.
-    candidates = indexes if trigger_index is not None else reversed(indexes)
-    for idx in candidates:
-        after = present[idx + 1 : idx + 3]
-        if len(after) == 2 and not after.any():
-            return int(idx)
-    if trigger_index is not None:
-        return None
-    return int(indexes[-1])
+    """Compatibility wrapper for shared impact-frame detection."""
+    return detect_impact_frame(
+        frames,
+        ball,
+        trigger_frame_index=trigger_index,
+        pre_trigger_max=IMPACT_PRE_TRIGGER_MAX,
+        post_trigger_max=IMPACT_POST_TRIGGER_MAX,
+        patch_radius_fraction=BALL_PATCH_RADIUS_FRAC,
+        present_delta=BALL_PRESENT_DELTA,
+    )
 
 
 def _club_mask(

@@ -191,6 +191,7 @@ class _ShotEnrichmentResult:
     iwr6843_ms: float | None = None
     kld7_ms: float | None = None
     camera_capture_ms: float | None = None
+    camera_analysis_ms: float | None = None
 
 
 @dataclass(frozen=True)
@@ -991,6 +992,7 @@ def init_camera_capture(
     lateral_offset_m: float,
     horizontal_offset_deg: float,
     use_gpio_trigger: bool,
+    shot_analysis_enabled: bool = False,
 ) -> bool:
     """Initialize passive high-speed camera capture for offline alignment."""
     global camera_capture_runtime, camera_capture_config  # pylint: disable=global-statement
@@ -1036,6 +1038,7 @@ def init_camera_capture(
         camera_ball_flight_reference_tracker = ReferenceBallTracker()
         camera_capture_config = {
             "enabled": True,
+            "shot_analysis_enabled": shot_analysis_enabled,
             "output_dir": str(Path(output_dir).expanduser()),
             "gpio_pin_bcm": gpio_pin,
             "trigger_source": "gpio" if use_gpio_trigger else "iwr6843_fanout",
@@ -2597,6 +2600,8 @@ def _fuse_camera_club_delivery(
     shot: Shot,
     camera_capture,
     camera_archive=_CAMERA_ARCHIVE_UNSET,
+    *,
+    reference_ball=None,
 ) -> None:
     """Impact-centered camera + IWR depth club delivery, experimentally."""
     try:
@@ -2656,6 +2661,7 @@ def _fuse_camera_club_delivery(
                                 ),
                                 ops_club_speed_mph=shot.club_speed_mph,
                                 ball_tracker=camera_reference_ball_tracker,
+                                reference_ball=reference_ball,
                             )
             else:
                 fused = ChainedDelivery(status="rejected_missing_camera_frames")
@@ -2695,6 +2701,8 @@ def _fuse_camera_ball_flight(
     shot: Shot,
     camera_capture,
     camera_archive=_CAMERA_ARCHIVE_UNSET,
+    *,
+    reference_ball=None,
 ) -> None:
     """Select experimental camera horizontal while preserving IWR fallback."""
     try:
@@ -2702,6 +2710,7 @@ def _fuse_camera_ball_flight(
             CameraBallEstimate,
             CameraBallGeometry,
             estimate_camera_ball_flight,
+            estimate_horizontal_launch,
             select_camera_assisted_horizontal,
         )
 
@@ -2726,35 +2735,48 @@ def _fuse_camera_ball_flight(
                         estimate = CameraBallEstimate(status="rejected_missing_camera_frames")
                     else:
                         trigger_ns = int(archive["trigger_host_timestamp_ns"])
-                        estimate = estimate_camera_ball_flight(
-                            archive["frames"],
-                            archive["host_timestamp_ns"],
-                            trigger_ns=trigger_ns,
-                            range_evidence=shot.iwr6843_ball_range_evidence,
-                            geometry=CameraBallGeometry(
-                                camera_height_m=float(camera_capture_config["mount_height_m"]),
-                                radar_height_m=calibration.radar_height_m,
-                                tee_range_m=float(calibration.tee_range_m),
-                                ball_height_m=calibration.tee_ball_height_m,
-                                camera_lateral_offset_m=float(
-                                    camera_capture_config.get("lateral_offset_m", 0.0)
-                                ),
-                                horizontal_offset_deg=float(
-                                    camera_capture_config.get("horizontal_offset_deg", 0.0)
-                                ),
-                                roll_correction_deg=float(
-                                    camera_capture_config.get("roll_correction_deg", 0.0)
-                                ),
-                                horizontal_pixel_sign=(
-                                    -1.0 if camera_capture_config.get("mirror_horizontal") else 1.0
-                                ),
-                                image_width_px=int(camera_capture_config["width"]),
-                                image_height_px=int(camera_capture_config["height"]),
+                        geometry = CameraBallGeometry(
+                            camera_height_m=float(camera_capture_config["mount_height_m"]),
+                            radar_height_m=calibration.radar_height_m,
+                            tee_range_m=float(calibration.tee_range_m),
+                            ball_height_m=calibration.tee_ball_height_m,
+                            camera_lateral_offset_m=float(
+                                camera_capture_config.get("lateral_offset_m", 0.0)
                             ),
-                            ops_ball_speed_mph=shot.ball_speed_raw_mph or shot.ball_speed_mph,
-                            iwr_vertical_deg=shot.launch_angle_vertical,
-                            ball_tracker=camera_ball_flight_reference_tracker,
+                            horizontal_offset_deg=float(
+                                camera_capture_config.get("horizontal_offset_deg", 0.0)
+                            ),
+                            roll_correction_deg=float(
+                                camera_capture_config.get("roll_correction_deg", 0.0)
+                            ),
+                            horizontal_pixel_sign=(
+                                -1.0 if camera_capture_config.get("mirror_horizontal") else 1.0
+                            ),
+                            image_width_px=int(camera_capture_config["width"]),
+                            image_height_px=int(camera_capture_config["height"]),
                         )
+                        if camera_capture_config.get("shot_analysis_enabled", False):
+                            estimate = estimate_horizontal_launch(
+                                archive["frames"],
+                                archive["host_timestamp_ns"],
+                                trigger_ns=trigger_ns,
+                                geometry=geometry,
+                                ops_ball_speed_mph=shot.ball_speed_raw_mph or shot.ball_speed_mph,
+                                vertical_deg=shot.launch_angle_vertical,
+                                vertical_source=shot.launch_angle_vertical_source,
+                                reference_ball=reference_ball,
+                            )
+                        else:
+                            estimate = estimate_camera_ball_flight(
+                                archive["frames"],
+                                archive["host_timestamp_ns"],
+                                trigger_ns=trigger_ns,
+                                range_evidence=shot.iwr6843_ball_range_evidence,
+                                geometry=geometry,
+                                ops_ball_speed_mph=shot.ball_speed_raw_mph or shot.ball_speed_mph,
+                                iwr_vertical_deg=shot.launch_angle_vertical,
+                                ball_tracker=camera_ball_flight_reference_tracker,
+                            )
 
         decision = select_camera_assisted_horizontal(
             estimate,
@@ -2779,7 +2801,7 @@ def _fuse_camera_ball_flight(
             shot.launch_angle_horizontal_source = decision.source
         logger.info(
             "[SERVER] Camera-assisted horizontal: selected=%s camera=%s IWR=%s "
-            "delta=%s status=%s support=%d/27",
+            "delta=%s status=%s support=%d",
             decision.selected_deg,
             decision.camera_horizontal_deg,
             decision.iwr_horizontal_deg,
@@ -2798,8 +2820,9 @@ def _fuse_camera_ball_flight(
         )
 
 
-def _fuse_camera_measurements(shot: Shot, camera_capture) -> None:
+def _fuse_camera_measurements(shot: Shot, camera_capture) -> float:
     """Decode one camera clip and share it across all live estimators."""
+    analysis_started = time.perf_counter()
     captured_auto_exposure = (
         camera_capture.metadata.get("auto_exposure")
         if camera_capture is not None
@@ -2828,10 +2851,41 @@ def _fuse_camera_measurements(shot: Shot, camera_capture) -> None:
         logger.warning(
             "[SERVER] Camera analysis withheld for lighting quality; using radar fallback"
         )
-        return
+        return (time.perf_counter() - analysis_started) * 1000.0
     camera_archive = _load_camera_capture_archive(camera_capture)
-    _fuse_camera_ball_flight(shot, camera_capture, camera_archive)
-    _fuse_camera_club_delivery(shot, camera_capture, camera_archive)
+    reference_ball = None
+    if camera_capture_config.get("shot_analysis_enabled", False) and camera_archive is not None:
+        try:
+            import numpy as np  # noqa: PLC0415  pylint: disable=import-outside-toplevel
+
+            from openflight.camera.club_motion import (  # noqa: PLC0415
+                detect_impact_reference_ball,
+            )
+
+            timestamps = np.asarray(camera_archive["host_timestamp_ns"], dtype=np.int64)
+            trigger_ns = int(camera_archive["trigger_host_timestamp_ns"])
+            trigger_frame = int(np.argmin(np.abs(timestamps - trigger_ns)))
+            reference_ball = detect_impact_reference_ball(
+                camera_archive["frames"],
+                trigger_frame_index=trigger_frame,
+            )
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning("[SERVER] Impact-aware reference ball unavailable: %s", error)
+    _fuse_camera_ball_flight(
+        shot,
+        camera_capture,
+        camera_archive,
+        reference_ball=reference_ball,
+    )
+    _fuse_camera_club_delivery(
+        shot,
+        camera_capture,
+        camera_archive,
+        reference_ball=reference_ball,
+    )
+    elapsed_ms = (time.perf_counter() - analysis_started) * 1000.0
+    logger.info("[SERVER] Camera analysis: %.1fms", elapsed_ms)
+    return elapsed_ms
 
 
 def _attach_camera_replay(shot: Shot, camera_capture) -> None:
@@ -2867,6 +2921,7 @@ def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
     iwr6843_ms = _process_iwr6843_angle(shot)
     kld7_ms = None
     camera_capture_ms = None
+    camera_analysis_ms = None
     # Process K-LD7 angle radars (vertical = launch angle, horizontal = club path)
     try:
         if shot.mode != "mock":
@@ -3129,12 +3184,13 @@ def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
     _attach_camera_replay(shot, camera_capture)
 
     if shot.mode != "mock":
-        _fuse_camera_measurements(shot, camera_capture)
+        camera_analysis_ms = _fuse_camera_measurements(shot, camera_capture)
 
     return _ShotEnrichmentResult(
         iwr6843_ms=iwr6843_ms,
         kld7_ms=kld7_ms,
         camera_capture_ms=camera_capture_ms,
+        camera_analysis_ms=camera_analysis_ms,
     )
 
 
@@ -3150,6 +3206,7 @@ def _finalize_shot_detected(
     iwr6843_ms = enrichment.iwr6843_ms
     kld7_ms = enrichment.kld7_ms
     camera_capture_ms = enrichment.camera_capture_ms
+    camera_analysis_ms = enrichment.camera_analysis_ms
 
     # Always emit user-facing launch angles. Radar/camera measurements win;
     # rejected or missing axes fall back to conservative estimates.
@@ -3241,6 +3298,9 @@ def _finalize_shot_detected(
                     "kld7": round(kld7_ms, 1) if kld7_ms is not None else None,
                     "camera_capture": (
                         round(camera_capture_ms, 1) if camera_capture_ms is not None else None
+                    ),
+                    "camera_analysis": (
+                        round(camera_analysis_ms, 1) if camera_analysis_ms is not None else None
                     ),
                 },
             )
@@ -4283,6 +4343,14 @@ def main():
         action="store_true",
         help="Enable high-speed camera rolling-buffer capture and replay",
     )
+    parser.add_argument(
+        "--camera-shot-analysis",
+        action="store_true",
+        help=(
+            "Enable camera capture with experimental impact-aware ball and club analysis "
+            "instead of the legacy camera analyzer"
+        ),
+    )
     parser.add_argument("--camera-capture-width", type=int, default=640)
     parser.add_argument("--camera-capture-height", type=int, default=400)
     parser.add_argument("--camera-capture-fps", type=float, default=300.0)
@@ -4654,6 +4722,8 @@ def main():
     )
     args = parser.parse_args()
     _apply_kld7_device_defaults(args)
+    if args.camera_shot_analysis:
+        args.camera_capture = True
 
     # Mount tilt cannot be defaulted safely (a wrong value silently biases the
     # launch angle), so require it whenever the K-LD7 radars are enabled.
@@ -4675,6 +4745,8 @@ def main():
         parser.error("--inclinometer requires --iwr6843")
     if args.iwr6843 and args.mock:
         parser.error("--iwr6843 cannot be used with --mock")
+    if args.camera_shot_analysis and args.mock:
+        parser.error("--camera-shot-analysis cannot be used with --mock")
     if args.camera_capture and args.mock:
         parser.error("--camera-capture cannot be used with --mock")
     if args.iwr6843 and (args.iwr6843_tee_m <= 0 or args.iwr6843_net_m <= 0):
@@ -4822,11 +4894,14 @@ def main():
             mirror_horizontal=args.camera_capture_mirror_horizontal,
             scaler_crop=camera_capture_scaler_crop,
             use_gpio_trigger=not args.iwr6843,
+            shot_analysis_enabled=args.camera_shot_analysis,
         ):
             print("Camera capture unavailable - running without high-speed camera capture")
             startup_status.skip("camera", "High-speed camera unavailable; continuing")
         else:
             print(f"Camera capture enabled: {camera_capture_output_dir}")
+            if args.camera_shot_analysis:
+                print("Impact-aware camera shot analysis: ENABLED")
             startup_status.ready("camera", "High-speed camera connected")
 
     if args.iwr6843:

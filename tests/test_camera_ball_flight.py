@@ -16,6 +16,7 @@ from openflight.camera.ball_flight import (
     _path_estimate,
     _rough_path_score,
     estimate_camera_ball_flight,
+    estimate_horizontal_launch,
     select_camera_assisted_horizontal,
 )
 from openflight.camera.club_delivery import ReferenceBallTracker
@@ -175,6 +176,62 @@ def _synthetic_path(
         impact_t_s=0.0,
     )
     return geometry, anchor, model, candidates, timestamps_ns, evidence, speed_ms
+
+
+def test_horizontal_launch_uses_measured_vertical_and_tracked_centroids(monkeypatch):
+    geometry, anchor, _model, candidates, candidate_times, _evidence, speed_ms = _synthetic_path()
+    timestamps = np.concatenate(([0], candidate_times))
+    frames = np.zeros(
+        (len(timestamps), geometry.image_height_px, geometry.image_width_px), dtype=np.uint8
+    )
+    track = {index + 1: candidate for index, candidate in enumerate(candidates)}
+    monkeypatch.setattr(ball_flight_module, "detect_impact_frame", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(ball_flight_module, "_track_launch_ball", lambda *_args, **_kwargs: track)
+
+    result = estimate_horizontal_launch(
+        frames,
+        timestamps,
+        trigger_ns=0,
+        geometry=geometry,
+        ops_ball_speed_mph=speed_ms * 2.23694,
+        vertical_deg=20.0,
+        vertical_source="radar",
+        reference_ball=anchor,
+    )
+
+    assert result.status == "accepted_horizontal_only_experimental"
+    assert result.confidence_tier == "experimental"
+    assert result.horizontal_deg == pytest.approx(4.0, abs=0.25)
+    assert result.support == len(candidates)
+    assert result.depth_source == "ops_speed_iwr_vertical"
+
+
+def test_horizontal_launch_withholds_non_radar_vertical_before_tracking(monkeypatch):
+    monkeypatch.setattr(
+        ball_flight_module,
+        "_track_launch_ball",
+        lambda *_args, **_kwargs: pytest.fail("estimated vertical must not launch CV tracking"),
+    )
+
+    result = estimate_horizontal_launch(
+        np.zeros((20, 200, 320), dtype=np.uint8),
+        np.arange(20, dtype=np.int64) * 2_000_000,
+        trigger_ns=20_000_000,
+        geometry=CameraBallGeometry(
+            camera_height_m=0.2032,
+            radar_height_m=0.1524,
+            tee_range_m=1.524,
+            ball_height_m=0.04,
+            image_width_px=320,
+            image_height_px=200,
+        ),
+        ops_ball_speed_mph=80.0,
+        vertical_deg=30.0,
+        vertical_source="estimated",
+    )
+
+    assert result.status == "withheld_vertical_not_radar"
+    assert result.horizontal_deg is None
 
 
 def test_path_estimate_recovers_known_horizontal_without_iwr_horizontal():

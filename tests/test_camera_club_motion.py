@@ -8,6 +8,7 @@ import pytest
 from openflight.camera.club_motion import (
     BALL_DIAMETER_MM,
     ImagePoint,
+    detect_impact_reference_ball,
     detect_reference_ball,
     image_plane_motion,
 )
@@ -54,6 +55,30 @@ def test_compact_capture_ignores_saturated_clutter_above_hitting_zone():
     assert ball.x == pytest.approx(148.0, abs=1.0)
     assert ball.y == pytest.approx(130.0, abs=1.0)
     assert 10.0 <= ball.diameter_px <= 18.0
+
+
+def test_impact_reference_ball_prefers_object_that_departs_at_impact():
+    frames = np.full((48, 100, 140), 35, dtype=np.uint8)
+    yy, xx = np.indices(frames.shape[1:])
+    ball = (xx - 78) ** 2 + (yy - 78) ** 2 <= 6**2
+    static_highlight = (xx - 55) ** 2 + (yy - 77) ** 2 <= 6**2
+    frames[:, static_highlight] = 245
+    frames[:24, ball] = 240
+
+    detected = detect_impact_reference_ball(frames, trigger_frame_index=27)
+
+    assert detected.x == pytest.approx(78.0, abs=0.5)
+    assert detected.y == pytest.approx(78.0, abs=0.5)
+    assert detected.diameter_px == pytest.approx(math.sqrt(4 * 113 / math.pi), rel=0.1)
+
+
+def test_impact_reference_ball_rejects_scene_without_departure():
+    frames = np.full((48, 100, 140), 35, dtype=np.uint8)
+    yy, xx = np.indices(frames.shape[1:])
+    frames[:, (xx - 78) ** 2 + (yy - 78) ** 2 <= 6**2] = 240
+
+    with pytest.raises(ValueError, match="departure"):
+        detect_impact_reference_ball(frames, trigger_frame_index=27)
 
 
 def test_image_plane_motion_uses_terminal_interval_and_ball_scale():
