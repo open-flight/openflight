@@ -2190,8 +2190,9 @@ def _sim_on_status(target: str, event) -> None:
         logger.info("[sim] %s connected (%s:%s)", target, event.host, event.port)
     elif state == "reconnecting":
         logger.info(
-            "[sim] %s reconnecting — attempt %s, retry in %.0fs",
+            "[sim] %s reconnecting — %s; attempt %s, retry in %.0fs",
             target,
+            event.message or "disconnect reason unavailable",
             event.attempt,
             event.next_retry_in_s,
         )

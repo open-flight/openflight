@@ -154,6 +154,26 @@ def test_status_connected_logged_always(server, caplog):
     assert "gspro connected" in caplog.text
 
 
+def test_status_reconnect_log_includes_disconnect_reason(server, caplog):
+    from openflight.sim.types import ConnectionState, StatusEvent
+
+    with caplog.at_level("INFO", logger="openflight.server"):
+        server._sim_on_status(
+            "gspro",
+            StatusEvent(
+                state=ConnectionState.RECONNECT_BACKOFF,
+                target="gspro",
+                host="127.0.0.1",
+                port=921,
+                attempt=1,
+                next_retry_in_s=1.0,
+                message="peer closed connection",
+            ),
+        )
+
+    assert "peer closed connection" in caplog.text
+
+
 def test_emit_sim_snapshot_sends_status_for_every_connector(server):
     # The UI builds connector buttons from sim_status events, which otherwise
     # only fire on state *changes*. A client that connects after a connector
