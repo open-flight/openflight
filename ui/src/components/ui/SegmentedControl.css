@@ -41,9 +41,3 @@
   color: var(--color-accent-fg);
   font-weight: 700;
 }
-
-@media (max-height: 500px) {
-  .segmented-control__button {
-    min-height: 38px;
-  }
-}
