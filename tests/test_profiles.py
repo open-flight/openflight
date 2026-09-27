@@ -361,9 +361,27 @@ class TestSetEnabledClubs:
 
         store = ProfileStore(store_path)
         added = store.add("Range")
-        all_ids = [club.value for club in ClubType]
+        # The real, picker-selectable set -- UNKNOWN is a ClubType value but
+        # never offered as a tile, so it must not be part of "the full set".
+        all_ids = [club.value for club in ClubType if club is not ClubType.UNKNOWN]
 
         store.set_enabled_clubs(added.id, all_ids)
+
+        assert "enabled_clubs" not in added.settings
+
+    def test_unknown_sentinel_is_not_a_selectable_club(self, store_path):
+        """ClubType.UNKNOWN is a real enum value but never a picker tile.
+
+        Accepting it as a valid id breaks two things: "Select all" in the UI
+        (which only ever sends the real, picker-visible ids) would no longer
+        match the "full set" and would persist as a spurious filter instead
+        of being treated as unfiltered; and a caller passing ["unknown"]
+        alone would leave the picker showing zero clubs for that profile.
+        """
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        assert store.set_enabled_clubs(added.id, ["unknown"]) is True
 
         assert "enabled_clubs" not in added.settings
 

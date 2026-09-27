@@ -190,7 +190,11 @@ class ProfileStore:
         if not isinstance(club_ids, list):
             return False
 
-        valid_ids = {club.value for club in ClubType}
+        # UNKNOWN is a real ClubType value but never a picker tile -- excluded
+        # here so it can't be selected as a filter, and so "all real clubs
+        # present" (what the UI's Select All actually sends) still matches
+        # the full set and collapses to "unfiltered" as intended.
+        valid_ids = {club.value for club in ClubType if club is not ClubType.UNKNOWN}
         cleaned = []
         for club_id in club_ids:
             value = str(club_id).strip() if club_id is not None else ""
