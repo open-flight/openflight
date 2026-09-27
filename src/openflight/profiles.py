@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from .clubs import ClubType
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILES_PATH = Path.home() / ".config" / "openflight" / "profiles.json"
@@ -175,6 +177,34 @@ class ProfileStore:
             if profile is None:
                 return False
             self._active_id = profile.id
+        self.save()
+        return True
+
+    def set_enabled_clubs(self, profile_id: Any, club_ids: Any) -> bool:
+        """Restrict which clubs a profile sees in the picker. Refused for an unknown id.
+
+        ``club_ids`` should be a list of ``ClubType`` value strings (e.g. "driver",
+        "7-iron"). Entries that aren't valid club ids are silently dropped. An
+        empty or absent list means "all clubs enabled" -- the default.
+        """
+        if not isinstance(club_ids, list):
+            return False
+
+        valid_ids = {club.value for club in ClubType}
+        cleaned = []
+        for club_id in club_ids:
+            value = str(club_id).strip() if club_id is not None else ""
+            if value in valid_ids and value not in cleaned:
+                cleaned.append(value)
+
+        with self._lock:
+            profile = self._find(profile_id)
+            if profile is None:
+                return False
+            if cleaned and set(cleaned) != valid_ids:
+                profile.settings["enabled_clubs"] = cleaned
+            else:
+                profile.settings.pop("enabled_clubs", None)
         self.save()
         return True
 

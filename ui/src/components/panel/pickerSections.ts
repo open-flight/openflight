@@ -24,6 +24,27 @@ export function trainingImplementSections(): PickerSection[] {
   }));
 }
 
+/**
+ * Restrict club sections to a profile's enabled clubs. Sections left with no
+ * options are dropped so an empty club-family tab doesn't render blank.
+ * When `enabledClubIds` is undefined or empty, all clubs are shown (the default).
+ */
+export function filterSectionsByEnabledClubs(
+  sections: ReadonlyArray<PickerSection>,
+  enabledClubIds: ReadonlyArray<string> | undefined,
+): PickerSection[] {
+  if (!enabledClubIds || enabledClubIds.length === 0) {
+    return sections as PickerSection[];
+  }
+  const enabled = new Set(enabledClubIds);
+  return sections
+    .map((section) => ({
+      name: section.name,
+      options: section.options.filter((option) => enabled.has(option.id)),
+    }))
+    .filter((section) => section.options.length > 0);
+}
+
 /** Open on the family that already contains the selection (driver → Woods). */
 export function initialPickerSection(sections: ReadonlyArray<PickerSection>, selectedId: string): string {
   const match = sections.find((section) => section.options.some((option) => option.id === selectedId));
