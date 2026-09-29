@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { clubSections, initialPickerSection, pickerGridRows, trainingImplementSections } from './pickerSections';
+import {
+  clubSections,
+  filterSectionsByEnabledClubs,
+  initialPickerSection,
+  pickerGridRows,
+  trainingImplementSections,
+} from './pickerSections';
 
 describe('initialPickerSection', () => {
   const clubs = clubSections();
@@ -29,5 +35,37 @@ describe('pickerGridRows', () => {
 
   it('uses the densest training group so every tab fits', () => {
     expect(pickerGridRows(trainingImplementSections())).toBe(4);
+  });
+});
+
+describe('filterSectionsByEnabledClubs', () => {
+  const clubs = clubSections();
+
+  it('returns all sections unchanged when enabledClubIds is undefined', () => {
+    expect(filterSectionsByEnabledClubs(clubs, undefined)).toBe(clubs);
+  });
+
+  it('returns all sections unchanged when enabledClubIds is empty', () => {
+    expect(filterSectionsByEnabledClubs(clubs, [])).toBe(clubs);
+  });
+
+  it('filters each section down to the enabled club ids', () => {
+    const filtered = filterSectionsByEnabledClubs(clubs, ['driver', '7-iron', 'pw']);
+
+    expect(filtered.map((section) => section.name)).toEqual(['Irons', 'Woods']);
+    expect(filtered.find((section) => section.name === 'Irons')?.options.map((o) => o.id)).toEqual(['7-iron', 'pw']);
+    expect(filtered.find((section) => section.name === 'Woods')?.options.map((o) => o.id)).toEqual(['driver']);
+  });
+
+  it('drops a section entirely when none of its clubs are enabled', () => {
+    const filtered = filterSectionsByEnabledClubs(clubs, ['driver']);
+
+    expect(filtered.map((section) => section.name)).toEqual(['Woods']);
+  });
+
+  it('ignores unknown club ids without throwing', () => {
+    const filtered = filterSectionsByEnabledClubs(clubs, ['driver', 'not-a-club']);
+
+    expect(filtered.map((section) => section.name)).toEqual(['Woods']);
   });
 });

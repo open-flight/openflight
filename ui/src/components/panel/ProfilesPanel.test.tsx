@@ -27,6 +27,7 @@ function render(overrides: Partial<Parameters<typeof ProfilesPanel>[0]> = {}) {
         loaded={true}
         onSelectProfile={() => {}}
         onRenameProfile={() => {}}
+        onManageClubs={() => {}}
         onRemoveProfile={() => {}}
         {...overrides}
       />
@@ -77,6 +78,13 @@ describe('ProfilesPanel', () => {
 
     expect(html).toContain('aria-label="Rename Home"');
     expect(html).toContain('aria-label="Rename Range"');
+  });
+
+  it('offers club visibility management for every profile', () => {
+    const html = render();
+
+    expect(html).toContain('aria-label="Choose clubs for Home"');
+    expect(html).toContain('aria-label="Choose clubs for Range"');
   });
 
   it('groups rename and remove in a right-aligned actions cluster', () => {
