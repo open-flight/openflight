@@ -245,3 +245,46 @@ class CloudClient:
             )
         # 5xx and anything unexpected: back off and retry.
         return UploadResult(resp.status, action="retry", reason=reason)
+
+    def upload_capture(
+        self,
+        session_id: str,
+        kind: str,
+        shot_number: int,
+        data: bytes,
+        filename: Optional[str] = None,
+    ) -> UploadResult:
+        """PUT one shot's raw capture (e.g. an IWR6843 L3 dump) to its session.
+
+        Only valid after the session itself uploaded; the server matches the
+        capture to the shot by ``shot_number``. A 404 means the server doesn't
+        have the session (yet), so it maps to ``retry``.
+        """
+        headers = {"Content-Type": "application/octet-stream"}
+        if filename:
+            headers["X-Capture-Filename"] = filename
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        resp = self._request(
+            "PUT",
+            self._url(f"/sessions/{session_id}/captures/{kind}/{int(shot_number)}"),
+            data=data,
+            headers=headers,
+            timeout=self.timeout,
+        )
+        reason = self._body_json(resp).get("reason")
+        if resp.status in (200, 201):
+            return UploadResult(resp.status, action="success", session_id=session_id)
+        if resp.status == 401:
+            return UploadResult(resp.status, action="relink", reason=reason)
+        if resp.status in (413, 422):
+            return UploadResult(resp.status, action="park", reason=reason)
+        if resp.status == 429:
+            return UploadResult(
+                resp.status,
+                action="rate_limited",
+                reason=reason,
+                retry_after=_retry_after(resp.headers),
+            )
+        # 404 (session not stored yet), 5xx and anything unexpected: retry later.
+        return UploadResult(resp.status, action="retry", reason=reason)

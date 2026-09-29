@@ -3,6 +3,7 @@
 openflight-cloud link              # one-time device pairing
 openflight-cloud push [--dry-run]  # filter + upload anything unpushed
 openflight-cloud status            # linked? queued? parked? last error?
+openflight-cloud raw on|off        # opt in/out of raw radar + L3 dump uploads
 """
 
 import argparse
@@ -12,7 +13,7 @@ from typing import List, Optional
 from ..session_logger import SessionLogger
 from . import commands
 from .client import CloudClient
-from .config import CONFIG_PATH, CloudConfig, load_config
+from .config import CONFIG_PATH, CloudConfig, load_config, save_config
 
 DEFAULT_LOG_DIR = SessionLogger.DEFAULT_LOG_DIR
 
@@ -65,6 +66,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("status", parents=[common], help="Show link state, queue, and parked sessions.")
+
+    raw = sub.add_parser(
+        "raw",
+        parents=[common],
+        help="Opt in/out of uploading raw radar data and IWR6843 L3 dumps (for testing).",
+    )
+    raw.add_argument("state", choices=["on", "off"])
     return parser
 
 
@@ -102,6 +110,19 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.command == "status":
         commands.cmd_status(config, args.log_dir, _client(config))
+        return 0
+
+    if args.command == "raw":
+        config.upload_raw = args.state == "on"
+        save_config(config, args.config)
+        if config.upload_raw:
+            print(
+                "Raw uploads ON: all unpushed sessions upload unfiltered (raw radar data included) "
+                "and each shot's IWR6843 L3 dump uploads too. The OpenFlight server saves "
+                "L3 dumps to disk while this is on (restart it to apply)."
+            )
+        else:
+            print("Raw uploads OFF: sessions upload filtered shot summaries only.")
         return 0
 
     parser.print_help()

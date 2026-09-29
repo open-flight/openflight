@@ -3838,6 +3838,17 @@ def start_monitor(
         monitor.start(shot_callback=on_shot_detected, live_callback=on_live_reading)
 
 
+def _cloud_raw_uploads_enabled() -> bool:
+    """True when this Pi has opted in to raw cloud uploads. Never raises."""
+    try:
+        from .cloud.config import load_config
+
+        config = load_config()
+        return bool(config and config.is_active() and config.upload_raw)
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
+
+
 def _fire_cloud_push(session_logger):
     """Best-effort, non-blocking cloud push on session end.
 
@@ -4547,7 +4558,10 @@ def main():
     parser.add_argument(
         "--iwr6843-output-dir",
         default=None,
-        help=("Raw TI dump directory when --debug is enabled (default: <session-log-dir>/iwr6843)"),
+        help=(
+            "Raw TI dump directory, used when --debug or cloud raw uploads "
+            "(openflight-cloud raw on) are enabled (default: <session-log-dir>/iwr6843)"
+        ),
     )
     parser.add_argument(
         "--iwr6843-azimuth-offset-deg",
@@ -4864,7 +4878,8 @@ def main():
             ball_height_m=args.iwr6843_ball_height_m,
             azimuth_offset_deg=args.iwr6843_azimuth_offset_deg,
             horizontal_phase_reference_rad=args.iwr6843_horizontal_phase_reference_rad,
-            save_dumps=args.debug,
+            # Raw cloud uploads need the dumps on disk to send them.
+            save_dumps=args.debug or _cloud_raw_uploads_enabled(),
         ):
             calibration = iwr6843_runtime.calibration
             ball_speed_correction_distance_ft = args.iwr6843_tee_m * 3.28084

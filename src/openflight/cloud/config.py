@@ -4,6 +4,10 @@ Stored at ``~/.config/openflight/cloud.json`` with mode ``0600``. The
 ``device_token`` is a bearer credential and must never be logged. The file is
 written by ``link`` on success and read by ``push``/``status``. When the file
 is absent (or ``enabled`` is false) the uploader is a no-op.
+
+``upload_raw`` is an explicit per-device opt-in (``openflight-cloud raw on``):
+sessions upload unfiltered (raw radar data included) and each shot's IWR6843
+L3 dump uploads alongside, for radar testing. Off by default.
 """
 
 import json
@@ -27,6 +31,7 @@ class CloudConfig:
     device_token: str = ""
     device_id: str = ""
     enabled: bool = True
+    upload_raw: bool = False
 
     def is_linked(self) -> bool:
         """True when a device token and id are both present."""
@@ -48,6 +53,7 @@ def load_config(path: Path = CONFIG_PATH) -> Optional[CloudConfig]:
         device_token=data.get("device_token", ""),
         device_id=data.get("device_id", ""),
         enabled=data.get("enabled", True),
+        upload_raw=data.get("upload_raw") is True,
     )
 
 

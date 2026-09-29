@@ -69,13 +69,100 @@ def cmd_link(
 
 
 def _describe_dry_run(filename: str, session_id: str, result: filtering.FilterResult, out: OutFn):
-    out(f"\n{filename}  ->  session {session_id}")
+    raw = bool(result.manifest.get("raw"))
+    out(f"\n{filename}  ->  session {session_id}{'  (raw)' if raw else ''}")
     if not result.kept_lines:
         out("  (nothing to upload — no allowlisted entries)")
     for entry_type in sorted(result.kept_type_counts):
         out(f"  keep  {result.kept_type_counts[entry_type]:>5} x {entry_type}")
     if result.dropped_oversize:
-        out(f"  drop  {result.dropped_oversize:>5} oversize line(s) (>32 KB)")
+        limit = "1 MB" if raw else "32 KB"
+        out(f"  drop  {result.dropped_oversize:>5} oversize line(s) (>{limit})")
+    if result.captures:
+        present = [Path(c.path) for c in result.captures if Path(c.path).is_file()]
+        total_mb = sum(p.stat().st_size for p in present) / (1024 * 1024)
+        out(f"  dump  {len(present):>5} x iwr6843 capture file(s), {total_mb:.1f} MB")
+        missing = len(result.captures) - len(present)
+        if missing:
+            out(f"  skip  {missing:>5} capture file(s) not on disk")
+
+
+def _push_captures(log_dir: Path, client, summary: Dict[str, Any], out: OutFn):
+    """Upload queued raw capture files for sessions the server already has.
+
+    Each capture is matched to its shot server-side by ``shot_number``. Stops
+    on the same conditions as the session pass (relink, rate limit, offline).
+    """
+    for path in spool.session_files(log_dir):
+        if not spool.is_pushed(path):
+            continue
+        pending = spool.pending_captures(path)
+        if not pending:
+            continue
+        session_id = spool.read_pushed(path).get("session_id")
+        remaining: List[Dict[str, Any]] = []
+        parked: List[Dict[str, Any]] = []
+        stop = False
+        for index, capture in enumerate(pending):
+            capture_path = Path(capture["path"])
+            if not capture_path.is_file():
+                parked.append(dict(capture, reason="missing_file"))
+                out(
+                    f"{path.name}: shot {capture['shot_number']} capture missing on disk — skipped."
+                )
+                continue
+            try:
+                upload = client.upload_capture(
+                    session_id,
+                    capture.get("kind", filtering.IWR6843_CAPTURE_KIND),
+                    capture["shot_number"],
+                    capture_path.read_bytes(),
+                    filename=capture_path.name,
+                )
+            except CloudNetworkError as exc:
+                out(f"{path.name}: network error uploading captures ({exc}); will retry later.")
+                summary["offline"] = True
+                stop = True
+            else:
+                if upload.action == "success":
+                    summary["captures_uploaded"] += 1
+                    continue
+                if upload.action == "relink":
+                    summary["needs_relink"] = True
+                    out("Device token rejected. Stopping uploads — re-run `openflight-cloud link`.")
+                    stop = True
+                elif upload.action == "rate_limited":
+                    out(f"Rate limited; backing off {upload.retry_after}s. Will retry later.")
+                    summary["rate_limited"] = upload.retry_after
+                    stop = True
+                elif upload.action == "park":
+                    parked.append(dict(capture, reason=upload.reason or str(upload.status_code)))
+                    out(
+                        f"{path.name}: shot {capture['shot_number']} capture rejected "
+                        f"({upload.status_code} {upload.reason}) — parked."
+                    )
+                    continue
+                else:  # retry: 404 (session not stored yet) / 5xx
+                    attempts = int(capture.get("attempts", 0)) + 1
+                    retried = dict(capture, attempts=attempts)
+                    if attempts >= spool.MAX_ATTEMPTS:
+                        parked.append(dict(retried, reason="max_attempts"))
+                    else:
+                        remaining.append(retried)
+                    summary["captures_failed"] += 1
+                    out(
+                        f"{path.name}: capture upload failed ({upload.status_code}); "
+                        f"attempt {attempts}."
+                    )
+                    # The rest of this session would fail the same way.
+                    remaining.extend(pending[index + 1 :])
+                    break
+            # Stopping: keep this capture and everything after it queued.
+            remaining.extend(pending[index:])
+            break
+        spool.save_capture_queue(path, remaining, parked)
+        if stop:
+            return
 
 
 def _apply_retry(log_dir: Path, session: Optional[str], out: OutFn) -> int:
@@ -128,6 +215,8 @@ def cmd_push(
         "offline": False,
         "needs_relink": False,
         "dry_run": dry_run,
+        "captures_uploaded": 0,
+        "captures_failed": 0,
     }
 
     if not dry_run and not config.is_active():
@@ -145,7 +234,10 @@ def cmd_push(
         return summary
 
     pending = spool.pending_sessions(log_dir)
-    if not pending:
+    has_captures = config.upload_raw and any(
+        spool.pending_captures(p) for p in spool.session_files(log_dir) if spool.is_pushed(p)
+    )
+    if not pending and not (has_captures and not dry_run):
         out("Nothing to upload.")
         return summary
 
@@ -156,7 +248,7 @@ def cmd_push(
 
         # Stream the file: a raw-ADC session can be hundreds of MB, but we only
         # keep the (tiny) shot lines. Loading it whole would risk OOM on a Pi.
-        result = filtering.filter_session_file(path, config.device_id)
+        result = filtering.filter_session_file(path, config.device_id, raw_mode=config.upload_raw)
         session_id = result.session_id
 
         if dry_run:
@@ -185,7 +277,12 @@ def cmd_push(
 
         action = upload.action
         if action == "success":
-            spool.mark_pushed(path, session_id, upload.shot_count)
+            spool.mark_pushed(
+                path,
+                session_id,
+                upload.shot_count,
+                captures=[c.to_dict() for c in result.captures],
+            )
             summary["uploaded"] += 1
             out(f"{path.name}: uploaded ({upload.status_code}).")
         elif action == "relink":
@@ -220,6 +317,12 @@ def cmd_push(
             else:
                 out(f"{path.name}: server error ({upload.status_code}); attempt {attempts}.")
 
+    stopped = summary["needs_relink"] or summary["offline"] or "rate_limited" in summary
+    if config.upload_raw and not dry_run and not stopped:
+        _push_captures(log_dir, client, summary, out)
+        if summary["captures_uploaded"]:
+            out(f"Uploaded {summary['captures_uploaded']} raw capture file(s).")
+
     return summary
 
 
@@ -234,6 +337,10 @@ def cmd_status(
     if config.is_linked():
         out(f"Linked:     yes (device_id={config.device_id})")
         out(f"Enabled:    {'yes' if config.enabled else 'no (uploads paused)'}")
+        out(
+            "Raw upload: "
+            + ("on (raw radar data + IWR6843 L3 dumps)" if config.upload_raw else "off")
+        )
     else:
         out("Linked:     no — this device is not linked. Run `openflight-cloud link` to pair it.")
 
@@ -247,6 +354,8 @@ def cmd_status(
         f"Sessions:   {counts['total']} total | {counts['pushed']} pushed | "
         f"{counts['pending']} pending | {counts['parked']} parked"
     )
+    if counts["captures_pending"]:
+        out(f"Captures:   {counts['captures_pending']} raw capture file(s) waiting to upload")
 
     parked = _parked_details(log_dir)
     if parked:
