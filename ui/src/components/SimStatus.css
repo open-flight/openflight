@@ -2,6 +2,7 @@
 .sim-status {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-xs);
 }
 
@@ -82,5 +83,8 @@
   }
   .sim-status__state {
     display: none;
+  }
+  .panel-header__status-sims .sim-status__state {
+    display: inline;
   }
 }

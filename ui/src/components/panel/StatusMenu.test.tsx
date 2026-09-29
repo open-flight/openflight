@@ -13,5 +13,28 @@ describe('StatusMenu', () => {
     expect(html).toContain('>Radar<');
     expect(html).toContain('>Connected<');
     expect(html).toContain('>Disconnected<');
+    expect(html).not.toContain('GSPro');
+    expect(html).not.toContain('sim-status');
+  });
+
+  it('lists simulator connector states when sim_status has been received', () => {
+    const html = renderToString(
+      <StatusMenu
+        connected
+        radarConnected
+        simStatuses={{
+          gspro: { target: 'gspro', state: 'reconnecting', attempt: 2, next_retry_in_s: 4 },
+          opengolfsim: { target: 'opengolfsim', state: 'error', message: 'Connection refused' },
+        }}
+        onClose={() => {}}
+      />
+    );
+
+    expect(html).toContain('>Simulators<');
+    expect(html).toContain('GSPro');
+    expect(html).toContain('reconnecting');
+    expect(html).toContain('sim-status__pill--warn');
+    expect(html).toContain('OpenGolfSim');
+    expect(html).toContain('sim-status__pill--error');
   });
 });

@@ -17,6 +17,8 @@ export interface LiveMetric {
   /** True when the value is modeled rather than measured. Rendered as an icon. */
   estimated?: boolean;
   confidence?: SpinQuality | null;
+  /** Camera/radar preview. Rendered as an icon, not caption text. */
+  experimental?: boolean;
   /** Override confidence copy while preserving its dot level. */
   confidenceLabel?: string;
 }
@@ -65,8 +67,8 @@ function markEstimated(isEstimated: boolean): true | undefined {
   return isEstimated ? true : undefined;
 }
 
-function experimentalStatus(status: string | null | undefined): string {
-  if (!status || status === 'candidate_available') return 'candidate';
+function experimentalStatus(status: string | null | undefined): string | undefined {
+  if (!status || status === 'candidate_available') return undefined;
   return status.replace(/^rejected_/, 'rejected: ').replaceAll('_', ' ');
 }
 
@@ -139,10 +141,10 @@ function buildBallStrikeMetrics(shot: Shot, unitSystem: UnitSystem): LiveMetric[
       label: t('metric.hLaunch'),
       value: formatOptionalAngle(shot.launch_angle_horizontal, true),
       unit: angleUnit(shot.launch_angle_horizontal),
-      subtext: horizontalLaunchIsCameraAssisted ? 'camera assisted' : undefined,
+      subtext: horizontalLaunchIsCameraAssisted ? t('metric.cameraAssisted') : undefined,
       estimated: markEstimated(shot.launch_angle_horizontal !== null && angleEstimated),
       confidence: shot.launch_angle_horizontal === null ? null : angleConfidence,
-      confidenceLabel: horizontalLaunchIsCameraAssisted ? 'experimental' : undefined,
+      experimental: horizontalLaunchIsCameraAssisted || undefined,
     },
     {
       id: 'spin',
@@ -169,13 +171,13 @@ function buildBallStrikeMetrics(shot: Shot, unitSystem: UnitSystem): LiveMetric[
           ? undefined
           : fusedDeliveryAttempted
             ? shot.experimental_fused_club_path_deg != null
-              ? 'camera fused'
+              ? t('metric.cameraFused')
               : experimentalStatus(shot.experimental_fused_status)
             : clubPathIsExperimental
               ? experimentalStatus(shot.experimental_club_path_status)
               : undefined,
-      confidence: clubPathIsExperimental ? (shot.experimental_fused_club_path_confidence ?? 'experimental') : null,
-      confidenceLabel: shot.experimental_fused_club_path_confidence ? 'experimental' : undefined,
+      confidence: clubPathIsExperimental ? (shot.experimental_fused_club_path_confidence ?? null) : null,
+      experimental: clubPathIsExperimental || undefined,
     },
     {
       id: 'club_aoa',
@@ -187,13 +189,13 @@ function buildBallStrikeMetrics(shot: Shot, unitSystem: UnitSystem): LiveMetric[
           ? undefined
           : fusedDeliveryAttempted
             ? shot.experimental_fused_attack_angle_deg != null
-              ? 'camera fused'
+              ? t('metric.cameraFused')
               : experimentalStatus(shot.experimental_fused_status)
             : attackIsExperimental
               ? experimentalStatus(shot.experimental_attack_angle_status)
               : undefined,
-      confidence: attackIsExperimental ? (shot.experimental_fused_attack_angle_confidence ?? 'experimental') : null,
-      confidenceLabel: shot.experimental_fused_attack_angle_confidence ? 'experimental' : undefined,
+      confidence: attackIsExperimental ? (shot.experimental_fused_attack_angle_confidence ?? null) : null,
+      experimental: attackIsExperimental || undefined,
     },
   ];
 }

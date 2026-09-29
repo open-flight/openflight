@@ -2,11 +2,13 @@ import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { PANEL_VIEWS } from './components/panel';
+import { useOnboardingStore } from './stores/useOnboardingStore';
 import { useSystemStore } from './stores/useSystemStore';
 
 describe('App shell', () => {
   beforeEach(() => {
-    useSystemStore.setState({ serverClub: null });
+    useSystemStore.setState({ serverClub: null, shutdownDialogOpen: false });
+    useOnboardingStore.setState({ completed: true });
   });
 
   it('renders the bottom bar instead of the old top header', () => {
@@ -66,11 +68,20 @@ describe('App shell', () => {
     expect(html).not.toContain('panel-footer__count');
   });
 
-  it('keeps the shutdown power control in the footer', () => {
+  it('keeps the shutdown power control in the header, not the footer', () => {
     const html = renderToString(<App />);
 
-    expect(html).toContain('panel-footer__power');
+    expect(html).toContain('panel-header__power');
+    expect(html).not.toContain('panel-footer__power');
     expect(html).toContain('aria-label="Shut down"');
+    expect(html).not.toContain('Shut down OpenFlight?');
+  });
+
+  it('opens the shutdown dialog when the header power control requests it', () => {
+    useSystemStore.setState({ shutdownDialogOpen: true });
+    const html = renderToString(<App />);
+
+    expect(html).toContain('Shut down OpenFlight?');
   });
 
   it('does not ask to clear a session until the stats action is used', () => {
@@ -79,5 +90,13 @@ describe('App shell', () => {
     expect(html).not.toContain("Clear Profile 1's session?");
     expect(html).not.toContain('Clear Profile 1&#x27;s session?');
     expect(html).not.toContain('clear-session-title');
+  });
+
+  it('shows onboarding instead of the club picker on first run', () => {
+    useOnboardingStore.setState({ completed: false });
+    const html = renderToString(<App />);
+    expect(html).toContain('Get started');
+    expect(html).not.toContain('aria-label="Select club"');
+    expect(html).not.toContain('panel-footer');
   });
 });

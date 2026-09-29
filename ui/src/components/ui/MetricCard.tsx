@@ -16,6 +16,8 @@ export interface MetricCardProps {
   labelPosition?: 'below' | 'above';
   /** Modeled value. Shown as an ≈ mark; measured values have no mark. */
   estimated?: boolean;
+  /** Camera/radar preview. Shown as a flask mark; not a confidence word. */
+  experimental?: boolean;
   confidence?: SpinQuality | null;
   /** Override confidence copy while preserving its dot level. */
   confidenceLabel?: string;
@@ -25,6 +27,10 @@ export interface MetricCardProps {
   selected?: boolean;
 }
 
+function visuallyHiddenLabel(text: string, className: string) {
+  return <span className={className}>{text}</span>;
+}
+
 export function EstimatedMark() {
   return (
     <span className="metric-card__estimated" title={t('metric.estimated')}>
@@ -32,7 +38,21 @@ export function EstimatedMark() {
         <path d="M1 3.1c2.2-1.6 4.4 1.6 6.6 0s4.4-1.6 6.6 0" />
         <path d="M1 7.4c2.2-1.6 4.4 1.6 6.6 0s4.4-1.6 6.6 0" />
       </svg>
-      <span className="metric-card__estimated-label">{t('metric.estimated')}</span>
+      {visuallyHiddenLabel(t('metric.estimated'), 'metric-card__estimated-label')}
+    </span>
+  );
+}
+
+export function ExperimentalMark() {
+  return (
+    <span className="metric-card__experimental" title={t('metric.experimental')}>
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M6 1.5h4" />
+        <path d="M7 1.5v3.2M9 1.5v3.2" />
+        <path d="M5.5 4.7h5L13 12.2a2.4 2.4 0 0 1-2.2 2.3H5.2A2.4 2.4 0 0 1 3 12.2L5.5 4.7z" />
+        <path d="M4.3 10.6h7.4" />
+      </svg>
+      {visuallyHiddenLabel(t('metric.experimental'), 'metric-card__experimental-label')}
     </span>
   );
 }
@@ -50,6 +70,7 @@ export function MetricCard({
   onClick,
   selected,
   estimated,
+  experimental,
 }: MetricCardProps) {
   const classes = ['metric-card', `metric-card--${variant}`, `metric-card--label-${labelPosition}`];
   if (size === 'hero') {
@@ -62,25 +83,31 @@ export function MetricCard({
     classes.push('metric-card--selected');
   }
 
+  const isExperimental = experimental === true || confidence === 'experimental';
+  const measuredConfidence = confidence && confidence !== 'experimental' ? confidence : null;
+
   const label_ = (
     <span className="metric-card__label">
       {label}
       {estimated ? <EstimatedMark /> : null}
+      {isExperimental ? <ExperimentalMark /> : null}
     </span>
   );
   const meta = (
     <>
       {subtext ? <span className="metric-card__subtext metric-card__confidence-label">{subtext}</span> : null}
-      {confidence ? (
-        <div className={`metric-card__confidence metric-card__confidence--${confidence}`}>
-          {confidence !== 'experimental' ? (
-            <span className="metric-card__confidence-dots">
-              <span className="dot filled" />
-              <span className={`dot ${confidence === 'medium' || confidence === 'high' ? 'filled' : ''}`} />
-              <span className={`dot ${confidence === 'high' ? 'filled' : ''}`} />
-            </span>
-          ) : null}
-          <span className="metric-card__confidence-label">{confidenceLabel ?? confidence}</span>
+      {measuredConfidence ? (
+        <div className={`metric-card__confidence metric-card__confidence--${measuredConfidence}`}>
+          <span className="metric-card__confidence-dots">
+            <span className="dot filled" />
+            <span
+              className={`dot ${measuredConfidence === 'medium' || measuredConfidence === 'high' ? 'filled' : ''}`}
+            />
+            <span className={`dot ${measuredConfidence === 'high' ? 'filled' : ''}`} />
+          </span>
+          {isExperimental ? null : (
+            <span className="metric-card__confidence-label">{confidenceLabel ?? measuredConfidence}</span>
+          )}
         </div>
       ) : null}
     </>

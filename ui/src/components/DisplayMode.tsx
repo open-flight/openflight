@@ -24,6 +24,7 @@ interface DisplayMetric {
   value: string;
   unit?: string;
   detail?: string;
+  experimental?: boolean;
 }
 
 const CAMERA_PREVIEW_URL = `${getServerOrigin()}/api/camera/preview.jpg`;
@@ -47,9 +48,9 @@ function formatSpin(value: number | null): string {
   return value.toLocaleString(getHtmlLang(), { maximumFractionDigits: 0 });
 }
 
-function experimentalStatus(status: string | null | undefined): string {
-  if (!status || status === 'candidate_available') return 'experimental candidate';
-  return `experimental · ${status.replace(/^rejected_/, 'rejected: ').replaceAll('_', ' ')}`;
+function experimentalStatus(status: string | null | undefined): string | undefined {
+  if (!status || status === 'candidate_available') return undefined;
+  return status.replace(/^rejected_/, 'rejected: ').replaceAll('_', ' ');
 }
 
 function buildMetrics(shot: Shot | null, unitSystem: 'imperial' | 'metric', t: Translate): DisplayMetric[] {
@@ -69,6 +70,19 @@ function buildMetrics(shot: Shot | null, unitSystem: 'imperial' | 'metric', t: T
 
   const carryYards = shot.carry_spin_adjusted ?? shot.estimated_carry_yards;
   const fusedDeliveryAttempted = shot.experimental_fused_status != null;
+  const cameraAssistedLaunch = shot.launch_angle_horizontal_source === 'camera_assisted_experimental';
+  const clubPathIsExperimental =
+    shot.club_path_deg == null &&
+    (shot.experimental_fused_club_path_deg != null ||
+      shot.experimental_fused_status != null ||
+      shot.experimental_club_path_deg != null ||
+      shot.experimental_club_path_status != null);
+  const attackIsExperimental =
+    shot.club_angle_deg == null &&
+    (shot.experimental_fused_attack_angle_deg != null ||
+      shot.experimental_fused_status != null ||
+      shot.experimental_attack_angle_deg != null ||
+      shot.experimental_attack_angle_status != null);
 
   return [
     {
@@ -124,11 +138,12 @@ function buildMetrics(shot: Shot | null, unitSystem: 'imperial' | 'metric', t: T
           ? undefined
           : fusedDeliveryAttempted
             ? shot.experimental_fused_club_path_deg != null
-              ? 'camera fused (exp.)'
+              ? t('metric.cameraFused')
               : experimentalStatus(shot.experimental_fused_status)
             : shot.experimental_club_path_deg != null || shot.experimental_club_path_status != null
               ? experimentalStatus(shot.experimental_club_path_status)
               : undefined,
+      experimental: clubPathIsExperimental || undefined,
     },
     {
       label: t('metric.clubAoa'),
@@ -149,18 +164,19 @@ function buildMetrics(shot: Shot | null, unitSystem: 'imperial' | 'metric', t: T
           ? undefined
           : fusedDeliveryAttempted
             ? shot.experimental_fused_attack_angle_deg != null
-              ? 'camera fused (exp.)'
+              ? t('metric.cameraFused')
               : experimentalStatus(shot.experimental_fused_status)
             : shot.experimental_attack_angle_deg != null || shot.experimental_attack_angle_status != null
               ? experimentalStatus(shot.experimental_attack_angle_status)
               : undefined,
+      experimental: attackIsExperimental || undefined,
     },
     {
       label: t('metric.hLaunch'),
       value: formatOptionalNumber(shot.launch_angle_horizontal, 1, true),
       unit: shot.launch_angle_horizontal === null ? undefined : 'deg',
-      detail:
-        shot.launch_angle_horizontal_source === 'camera_assisted_experimental' ? 'camera assisted (exp.)' : undefined,
+      detail: cameraAssistedLaunch ? t('metric.cameraAssisted') : undefined,
+      experimental: cameraAssistedLaunch || undefined,
     },
   ];
 }
@@ -173,6 +189,7 @@ function toMetricCard(metric: DisplayMetric, featured = false) {
       unit={metric.unit}
       label={metric.label}
       subtext={metric.detail}
+      experimental={metric.experimental}
       variant={featured ? 'emphasis' : 'default'}
     />
   );
