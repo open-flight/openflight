@@ -138,6 +138,9 @@ will fail if:
 - source code under `src/openflight/` or `ui/src/` changes without any accompanying
   test changes — add the `no-tests-needed` label (and explain why in the description)
   for the rare PR where tests genuinely don't apply;
+- UI code under `ui/src/` changes but the description contains no images — add
+  screenshots of the change (drag and drop them into the description), or add the
+  `no-screenshots-needed` label (and explain why) if the change has no visible effect;
 - the PR title doesn't follow the conventional format
   `<type>(optional scope): <description>` (allowed types: `feat`, `fix`, `docs`,
   `refactor`, `test`, `chore`, `perf`, `build`, `ci`, `style`, `revert`), e.g.
