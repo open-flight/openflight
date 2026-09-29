@@ -18,12 +18,7 @@ const ALL_CLUB_IDS = Object.values(CLUBS_BY_TYPE)
   .flat()
   .map((club) => club.id);
 
-export function ClubVisibilityDialog({
-  profileName,
-  enabledClubIds,
-  onSave,
-  onCancel,
-}: ClubVisibilityDialogProps) {
+export function ClubVisibilityDialog({ profileName, enabledClubIds, onSave, onCancel }: ClubVisibilityDialogProps) {
   const { t } = useI18n();
   const bodyRef = useRef<HTMLDivElement>(null);
   const dragScroll = useDragScroll(bodyRef);

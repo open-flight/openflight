@@ -53,13 +53,8 @@ describe('filterSectionsByEnabledClubs', () => {
     const filtered = filterSectionsByEnabledClubs(clubs, ['driver', '7-iron', 'pw']);
 
     expect(filtered.map((section) => section.name)).toEqual(['Irons', 'Woods']);
-    expect(filtered.find((section) => section.name === 'Irons')?.options.map((o) => o.id)).toEqual([
-      '7-iron',
-      'pw',
-    ]);
-    expect(filtered.find((section) => section.name === 'Woods')?.options.map((o) => o.id)).toEqual([
-      'driver',
-    ]);
+    expect(filtered.find((section) => section.name === 'Irons')?.options.map((o) => o.id)).toEqual(['7-iron', 'pw']);
+    expect(filtered.find((section) => section.name === 'Woods')?.options.map((o) => o.id)).toEqual(['driver']);
   });
 
   it('drops a section entirely when none of its clubs are enabled', () => {
@@ -73,5 +68,4 @@ describe('filterSectionsByEnabledClubs', () => {
 
     expect(filtered.map((section) => section.name)).toEqual(['Woods']);
   });
-
 });

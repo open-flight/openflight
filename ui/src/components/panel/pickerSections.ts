@@ -31,7 +31,7 @@ export function trainingImplementSections(): PickerSection[] {
  */
 export function filterSectionsByEnabledClubs(
   sections: ReadonlyArray<PickerSection>,
-  enabledClubIds: ReadonlyArray<string> | undefined,
+  enabledClubIds: ReadonlyArray<string> | undefined
 ): PickerSection[] {
   if (!enabledClubIds || enabledClubIds.length === 0) {
     return sections as PickerSection[];
