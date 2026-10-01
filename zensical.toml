@@ -71,6 +71,7 @@ nav = [
     "using/cloud-sync.md",
     "using/battery.md",
     "using/observability.md",
+    "ios-ble.md",
   ] },
 
   { "How it works" = [

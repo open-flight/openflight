@@ -7,6 +7,7 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
 #
@@ -174,9 +175,9 @@ log "Activated virtual environment"
 # Install Python dependencies
 log "Installing Python dependencies..."
 if command -v uv &> /dev/null; then
-    uv pip install -e ".[ui,analysis]"
+    uv pip install -e ".[ui,analysis,ble]"
 else
-    pip install -e ".[ui,analysis]"
+    pip install -e ".[ui,analysis,ble]"
 fi
 # Camera dependencies are disabled for the radar-only production path.
 # If camera support returns, re-enable the optional camera extra in
@@ -266,6 +267,16 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         info "    ./scripts/battery/geekworm/setup.sh --verify"
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- Bluetooth (BLE phone app) ---
+    echo ""
+    if "$SCRIPT_DIR/configure_bluetooth.sh" --check > /dev/null 2>&1; then
+        log "Bluetooth already configured for the phone app ✓"
+    elif confirm "Configure Bluetooth for the iPhone app? (stops repeated pairing prompts; restarts bluetooth)" "Y"; then
+        "$SCRIPT_DIR/configure_bluetooth.sh" || warn "Bluetooth configuration failed. See docs/ios-ble.md → Troubleshooting."
+    else
+        info "Skipped. Run later with: ./scripts/setup/configure_bluetooth.sh"
     fi
 
     # --- Auto-start service ---

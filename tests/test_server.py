@@ -4038,6 +4038,37 @@ class TestOnShotDetected:
         assert shot.launch_angle_vertical == pytest.approx(20.5)
         assert shot.launch_angle_horizontal == pytest.approx(0.0)
 
+    def test_ble_publish_survives_websocket_failure(self, monkeypatch):
+        """A broken web client must not suppress the independent BLE transport."""
+        published = []
+        publisher = SimpleNamespace(
+            publish_shot=lambda shot_data, **_kwargs: published.append(shot_data)
+        )
+
+        monkeypatch.setattr(server_module, "monitor", None)
+        monkeypatch.setattr(server_module, "sim_connectors", [])
+        monkeypatch.setattr(server_module, "ble_publisher", publisher)
+        monkeypatch.setattr(server_module, "debug_mode", False)
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(
+            server_module.socketio,
+            "emit",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("socket closed")),
+        )
+
+        shot = Shot(
+            ball_speed_mph=100.0,
+            timestamp=datetime.now(),
+            club=ClubType.IRON_7,
+            mode="mock",
+        )
+
+        on_shot_detected(shot)
+        _wait_for_shot_finalization_idle()
+
+        assert len(published) == 1
+        assert published[0]["ball_speed_mph"] == 100.0
+
     def test_implausible_club_aoa_is_rejected(self, monkeypatch):
         """A +31° club AoA is physically impossible and should be discarded."""
 

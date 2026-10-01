@@ -1,0 +1,32 @@
+{
+  "name": "client_v2_get_profiles",
+  "description": "Hand-built: get_profiles on the v2 control characteristic; the roster follows as a profiles event.",
+  "direction": "client_to_server",
+  "characteristic": "7BA96E63-12C2-4CE0-BB84-3513C7FD1474",
+  "schema_version": 2,
+  "sequence": 43,
+  "message": {
+    "payload": {},
+    "request_id": "c0ffee00-1234-4abc-8def-0123456789ab",
+    "schema_version": 2,
+    "type": "get_profiles"
+  },
+  "payload_hex": "7b227061796c6f6164223a7b7d2c22726571756573745f6964223a2263306666656530302d313233342d346162632d386465662d303132333435363738396162222c22736368656d615f76657273696f6e223a322c2274797065223a226765745f70726f66696c6573227d",
+  "frames_hex": [
+    "01002b00087b227061796c6f6164223a7b7d2c22",
+    "01002b0108726571756573745f6964223a226330",
+    "01002b02086666656530302d313233342d346162",
+    "01002b0308632d386465662d3031323334353637",
+    "01002b040838396162222c22736368656d615f76",
+    "01002b0508657273696f6e223a322c2274797065",
+    "01002b0608223a226765745f70726f66696c6573",
+    "01002b0708227d"
+  ],
+  "expect": {
+    "ok": true,
+    "schema_version": 2,
+    "result": {
+      "status": "sent"
+    }
+  }
+}

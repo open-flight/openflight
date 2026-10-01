@@ -181,6 +181,23 @@ def test_camera_capture_uses_system_python_for_sync_and_server_start():
     assert 'uv run "${UV_RUN_ARGS[@]}" "${SERVER_CMD[@]}" &' in script
 
 
+def test_ble_flag_is_forwarded_to_server():
+    command = _dry_run("--mock", "--ble")
+
+    assert "--mock" in command
+    assert "--ble" in command
+
+
+def test_ble_extra_is_synced_only_when_ble_is_requested():
+    script = _script()
+    sync_block = script[
+        script.index("UV_SYNC_ARGS=(--quiet)") : script.index("\nconfigure_kld7_latency\n")
+    ]
+
+    assert "if has_server_arg --ble; then\n    UV_SYNC_ARGS+=(--extra ble)\nfi" in sync_block
+    assert "--extra ble" not in script.replace(sync_block, "")
+
+
 def test_startup_applies_kld7_latency_setup_before_server_start():
     script = _script()
 
@@ -246,7 +263,9 @@ def test_kiosk_shell_scripts_use_unix_newlines():
         "scripts/require-node.sh",
     ):
         data = (REPO_ROOT / relative).read_bytes()
-        assert b"\r" not in data, f"{relative} must use LF newlines so sourced path checks match on the Pi"
+        assert b"\r" not in data, (
+            f"{relative} must use LF newlines so sourced path checks match on the Pi"
+        )
 
 
 def test_ui_is_ensured_before_the_kiosk_browser_launches():
@@ -346,7 +365,12 @@ def _run_ensure_kiosk_ui(
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
     for name in ("ensure-kiosk-ui.sh", "require-node.sh"):
-        text = (repo_scripts / name).read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        text = (
+            (repo_scripts / name)
+            .read_text(encoding="utf-8")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+        )
         (scripts_dir / name).write_bytes(text.encode("utf-8"))
     project_dir = tmp_path / "project"
     ui_dir = project_dir / "ui"

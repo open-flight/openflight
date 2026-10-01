@@ -59,6 +59,13 @@ analysis = [
     "matplotlib>=3.5.0",
     "scipy>=1.7.0",
 ]
+# Bluetooth Low Energy GATT server for the optional iOS connection.
+ble = [
+    # The GATT server runs on the Raspberry Pi. Keeping the marker here also
+    # prevents universal resolvers from pulling Bless's Windows-only beta
+    # dependencies into macOS/Linux development environments.
+    "bless==0.3.0; sys_platform == 'linux'",
+]
 
 [project.scripts]
 openflight-server = "openflight.server:main"
@@ -106,6 +113,15 @@ ignore = ["E501"]  # Line length handled separately
 # aliased member into its own statement (ruff's default). Keeps single-module
 # imports as one block, e.g. `from .sim import (..., PlayerState as SimPlayerState)`.
 combine-as-imports = true
+
+[tool.uv]
+# OpenFlight's declared platforms are Linux (the Pi) and macOS (development).
+# Excluding Windows also keeps Linux-only Bless resolution from traversing its
+# incompatible Windows beta dependency branch.
+environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'darwin'",
+]
 
 [tool.pylint.main]
 py-version = "3.10"

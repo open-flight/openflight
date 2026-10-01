@@ -1,0 +1,36 @@
+{
+  "name": "client_v2_set_club",
+  "description": "Hand-built: set_club on the v2 control characteristic, with unsorted keys and spaces as a non-Python encoder may send.",
+  "direction": "client_to_server",
+  "characteristic": "7BA96E63-12C2-4CE0-BB84-3513C7FD1474",
+  "schema_version": 2,
+  "sequence": 42,
+  "message": {
+    "type": "set_club",
+    "payload": {
+      "club": "7-iron"
+    },
+    "request_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+    "schema_version": 2
+  },
+  "payload_hex": "7b2274797065223a20227365745f636c7562222c20227061796c6f6164223a207b22636c7562223a2022372d69726f6e227d2c2022726571756573745f6964223a202239613862376336642d356534662d346133622d386332642d316530663961386237633664222c2022736368656d615f76657273696f6e223a20327d",
+  "frames_hex": [
+    "01002a00097b2274797065223a20227365745f63",
+    "01002a01096c7562222c20227061796c6f616422",
+    "01002a02093a207b22636c7562223a2022372d69",
+    "01002a0309726f6e227d2c202272657175657374",
+    "01002a04095f6964223a20223961386237633664",
+    "01002a05092d356534662d346133622d38633264",
+    "01002a06092d316530663961386237633664222c",
+    "01002a07092022736368656d615f76657273696f",
+    "01002a08096e223a20327d"
+  ],
+  "expect": {
+    "ok": true,
+    "schema_version": 2,
+    "result": {
+      "status": "applied",
+      "club": "7-iron"
+    }
+  }
+}

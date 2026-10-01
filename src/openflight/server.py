@@ -25,6 +25,13 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 
 from .ballistics import resolve_launch, simulate
+from .ble.protocol import (
+    build_power_status_event,
+    build_profiles_event,
+    build_session_cleared_event,
+    build_shot_deleted_event,
+    build_shot_processing_event,
+)
 from .clubs import ClubType
 from .clubs.physics import (
     SHOT_SIMULATION_DEFAULTS,
@@ -157,6 +164,15 @@ sim_connectors: List = []
 # ShotNumber field and every shot comes back 501 "Bad format".
 sim_player_state = SimPlayerState(shot_counter=initial_shot_counter())
 
+# Optional Bluetooth Low Energy publisher for the iOS app.
+ble_publisher = None
+
+# One Pi-owned selection is shared by the browser UI and every phone/tablet.
+# Monitors start on driver, and successful changes update this value atomically
+# before being fanned out over all enabled transports.
+active_club = ClubType.DRIVER
+club_selection_lock = threading.Lock()
+
 shutdown_lock = threading.Lock()
 shutdown_cleanup_started = False
 # One active hardware job plus two waiting shots is enough for normal golf
@@ -191,6 +207,9 @@ class _ShotEnrichmentResult:
     iwr6843_ms: float | None = None
     kld7_ms: float | None = None
     camera_capture_ms: float | None = None
+    # Why optional hardware was skipped for this shot (``deadline``,
+    # ``capacity``, ``queue_full``, ``worker_unavailable``); None when it ran.
+    skipped_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -333,7 +352,9 @@ def _shot_finalization_worker_loop() -> None:
                     shot=registered.shot,
                     emit_event=registered.emit_event,
                     initial_ui_ms=registered.initial_ui_ms,
-                    enrichment=_ShotEnrichmentResult(),
+                    enrichment=_ShotEnrichmentResult(
+                        skipped_reason="deadline" if deadline_expired else "capacity"
+                    ),
                 )
             elif pending.shot is not registered.shot:
                 for shot_field in fields(Shot):
@@ -420,6 +441,8 @@ def _cleanup_hardware_for_shutdown() -> bool:
         _run_shutdown_step("battery monitor stop", power_monitor.stop)
     if camera_capture_runtime:
         _run_shutdown_step("camera capture stop", camera_capture_runtime.stop)
+    if ble_publisher:
+        _run_shutdown_step("BLE publisher stop", ble_publisher.stop)
 
     _run_shutdown_step("launch monitor stop", stop_monitor)
 
@@ -955,6 +978,82 @@ def index():
 def display():
     """Serve the React app for TV display mode."""
     return send_from_directory(_react_app_dir(), "index.html")
+
+
+def apply_club_selection(payload):
+    """Set the club used to tag and process future shots."""
+    global active_club  # pylint: disable=global-statement
+    if not isinstance(payload, dict):
+        return {"error": "Club selection must be a JSON object"}, 400
+    club_name = payload.get("club")
+    try:
+        club = ClubType(club_name)
+    except (TypeError, ValueError):
+        valid = ", ".join(item.value for item in ClubType if item is not ClubType.UNKNOWN)
+        return {"error": f"Unknown club; choose one of: {valid}"}, 400
+    if club is ClubType.UNKNOWN:
+        return {"error": "Unknown is not a selectable club"}, 400
+
+    with club_selection_lock:
+        # Without a monitor (startup, or tests) the selection is still recorded
+        # and broadcast, as the Socket.IO handler always did; the monitor picks
+        # up later changes once it exists.
+        if monitor is not None:
+            try:
+                monitor.set_club(club)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.exception("[SERVER] Failed to set club to %s", club.value)
+                return {"error": "OpenFlight could not change the club"}, 500
+        active_club = club
+        response = {"status": "applied", "club": club.value}
+        _broadcast_club_selection(club)
+    logger.info("[SERVER] Club changed to %s", club.value)
+    return response, 200
+
+
+def current_club_selection(_payload=None):
+    """Return the Pi-owned club without changing monitor state."""
+    with club_selection_lock:
+        club_value = active_club.value
+    return {"status": "current", "club": club_value}, 200
+
+
+def _broadcast_club_selection(club: ClubType) -> None:
+    """Fan one authoritative club update out over every active transport."""
+    club_data = {"club": club.value}
+    try:
+        socketio.emit("club_changed", club_data)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Failed to broadcast club over WebSocket", exc_info=True)
+    if ble_publisher is not None:
+        try:
+            ble_publisher.publish_club(club.value)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("[SERVER] Failed to broadcast club over BLE", exc_info=True)
+
+
+def dispatch_phone_control_command(command_type, payload):
+    """Route a BLE phone command through the Socket.IO operations.
+
+    Each command calls the same function its Socket.IO counterpart does, so the
+    kiosk and every other client see identical broadcasts.
+
+    BLE has no authentication, so it is read-and-select only: profile add,
+    rename and remove, ``clear_session`` and ``delete_shot`` stay on
+    Socket.IO. Phones still hear about those changes through the
+    ``profiles``, ``session_cleared`` and ``shot_deleted`` events.
+    """
+    handlers = {
+        "set_club": apply_club_selection,
+        "get_club": current_club_selection,
+        "get_profiles": request_profiles,
+        "set_active_profile": apply_active_profile,
+        "get_power_status": current_power_status,
+    }
+    handler = handlers.get(command_type)
+    if handler is None:
+        return {"error": f"Unsupported phone command: {command_type}"}, 400
+    return handler(payload)
 
 
 @app.route("/<path:path>")
@@ -1751,8 +1850,20 @@ def _emit_sim_snapshot() -> None:
 
 
 def _on_power_status(status: PowerStatus) -> None:
-    """Publish one battery reading to connected UI clients."""
-    socketio.emit("power_status", status.to_dict())
+    """Publish one battery reading to connected UI clients and phones."""
+    payload = status.to_dict()
+    socketio.emit("power_status", payload)
+    _publish_phone_event(build_power_status_event(payload))
+
+
+def current_power_status(_payload=None):
+    """Return the latest battery reading, as ``power_status`` carries it."""
+    if power_monitor is None:
+        return {"error": "Battery monitoring is not enabled"}, 409
+    status = power_monitor.status
+    if status is None:
+        return {"error": "No battery reading yet"}, 409
+    return status.to_dict(), 200
 
 
 def _log_power_status(status: PowerStatus) -> None:
@@ -1782,6 +1893,7 @@ def handle_connect():
     _emit_profiles()
     if power_monitor and power_monitor.status:
         socketio.emit("power_status", power_monitor.status.to_dict())
+    socketio.emit("club_changed", {"club": active_club.value})
     if monitor:
         socketio.emit("session_state", _session_state_payload(include_runtime_meta=True))
         socketio.emit("trigger_status", _get_trigger_status())
@@ -1802,14 +1914,7 @@ def handle_get_trigger_status():
 @socketio.on("set_club")
 def handle_set_club(data):
     """Handle club selection change."""
-    club_name = data.get("club", "driver")
-    try:
-        club = ClubType(club_name)
-        if monitor:
-            monitor.set_club(club)
-        socketio.emit("club_changed", {"club": club.value})
-    except ValueError:
-        pass
+    apply_club_selection(data)
 
 
 def _payload_dict(data) -> dict:
@@ -1823,20 +1928,41 @@ def _emit_profiles() -> None:
     Sent after every mutation, including rejected ones, so a stale client
     self-heals on the next round trip instead of needing an error event.
     """
-    socketio.emit("profiles", get_profile_store().snapshot())
+    snapshot = get_profile_store().snapshot()
+    socketio.emit("profiles", snapshot)
+    _publish_phone_event(build_profiles_event(snapshot))
+
+
+def request_profiles(_payload=None):
+    """Broadcast the roster, as Socket.IO ``get_profiles`` does."""
+    _emit_profiles()
+    return {"status": "sent"}, 200
+
+
+def apply_active_profile(payload=None):
+    """Change which profile shots are attributed to, then broadcast the roster.
+
+    The roster goes out even when the id is unknown, so every client converges
+    on the unchanged selection.
+    """
+    store = get_profile_store()
+    applied = store.set_active(_payload_dict(payload).get("profile_id"))
+    _emit_profiles()
+    if not applied:
+        return {"error": "Unknown profile"}, 404
+    return {"status": "applied", "active_profile_id": store.get_active().id}, 200
 
 
 @socketio.on("get_profiles")
 def handle_get_profiles():
     """Send the roster to a client that asked for it."""
-    _emit_profiles()
+    request_profiles()
 
 
 @socketio.on("set_active_profile")
 def handle_set_active_profile(data=None):
     """Change which profile shots are attributed to."""
-    get_profile_store().set_active(_payload_dict(data).get("profile_id"))
-    _emit_profiles()
+    apply_active_profile(data)
 
 
 @socketio.on("add_profile")
@@ -1928,16 +2054,23 @@ def _clear_profile_rows(profile_id: str) -> None:
         monitor.clear_session()
 
 
-@socketio.on("clear_session")
-def handle_clear_session(data=None):
-    """Clear recorded rows for one profile only."""
-    raw_id = _payload_dict(data).get("profile_id")
+def apply_clear_session(payload=None):
+    """Clear recorded rows for one profile (default: the active one)."""
+    raw_id = _payload_dict(payload).get("profile_id")
     profile_id = str(raw_id).strip() if raw_id else get_profile_store().get_active().id
     _clear_profile_rows(profile_id)
     socketio.emit(
         "session_cleared",
         {"profile_id": profile_id, "shots": _session_shots()},
     )
+    _publish_phone_event(build_session_cleared_event(profile_id))
+    return {"status": "cleared", "profile_id": profile_id}, 200
+
+
+@socketio.on("clear_session")
+def handle_clear_session(data=None):
+    """Clear recorded rows for one profile only."""
+    apply_clear_session(data)
 
 
 @socketio.on("upload_cloud")
@@ -1953,17 +2086,24 @@ def handle_get_session():
         socketio.emit("session_state", _session_state_payload())
 
 
-@socketio.on("delete_shot")
-def handle_delete_shot(data):
-    """Delete one recorded shot or swing-speed rep from the current session."""
-    timestamp = data.get("timestamp") if isinstance(data, dict) else None
+def apply_delete_shot(payload):
+    """Delete one recorded shot or swing-speed rep, keyed by its timestamp."""
+    timestamp = payload.get("timestamp") if isinstance(payload, dict) else None
     deleted = _delete_session_row(timestamp)
 
     if not deleted:
         socketio.emit("delete_shot_error", {"error": "Shot not found"})
-        return
+        return {"error": "Shot not found"}, 404
 
     socketio.emit("session_state", _session_state_payload())
+    _publish_phone_event(build_shot_deleted_event(timestamp))
+    return {"status": "deleted", "timestamp": timestamp}, 200
+
+
+@socketio.on("delete_shot")
+def handle_delete_shot(data):
+    """Delete one recorded shot or swing-speed rep from the current session."""
+    apply_delete_shot(data)
 
 
 @socketio.on("simulate_shot")
@@ -2111,6 +2251,10 @@ def handle_shutdown():
 def on_shot_processing(state: str) -> None:
     """Forward the rolling-buffer processing lifecycle to the UI."""
     socketio.emit("shot_processing", {"state": state})
+    try:
+        _publish_phone_event(build_shot_processing_event(state))
+    except ValueError:
+        logger.warning("[SERVER] Ignoring invalid shot processing state %r", state)
 
 
 def _forward_shot_to_simulators(shot: Shot) -> None:
@@ -2223,6 +2367,7 @@ def _sim_on_status(target: str, event) -> None:
 
 def _sim_on_inbound(target: str, event) -> None:
     """Apply an inbound simulator event (player/club update, error, ack)."""
+    global active_club  # pylint: disable=global-statement
     if isinstance(event, PlayerUpdate):
         sim_player_state.apply(event)
         club_value = sim_player_state.club.value
@@ -2236,12 +2381,17 @@ def _sim_on_inbound(target: str, event) -> None:
             sl.log_sim_player(target=target, handed=sim_player_state.handed, club=club_value)
         # The monitor owns current-club state for shot tagging and carry/spin
         # model selection; keep it in sync with the sim's canonical club.
-        if monitor is not None:
-            try:
-                monitor.set_club(sim_player_state.club)
-            except Exception:  # pylint: disable=broad-except
-                logger.exception("[sim] monitor.set_club failed")
-        socketio.emit("club_changed", {"club": club_value})
+        with club_selection_lock:
+            monitor_updated = True
+            if monitor is not None:
+                try:
+                    monitor.set_club(sim_player_state.club)
+                except Exception:  # pylint: disable=broad-except
+                    logger.exception("[sim] monitor.set_club failed")
+                    monitor_updated = False
+            if monitor_updated:
+                active_club = sim_player_state.club
+                _broadcast_club_selection(active_club)
     elif isinstance(event, SimError):
         logger.warning("[sim] ← %s error: %s", target, event.message)
         socketio.emit("sim_status", {"target": target, "state": "error", "message": event.message})
@@ -3254,6 +3404,7 @@ def _finalize_shot_detected(
         )
 
     # Emit shot with launch angle data included
+    shot_data = None
     try:
         shot_data = shot_to_dict(shot)
         stats = monitor.get_session_stats() if monitor else {}
@@ -3277,7 +3428,16 @@ def _finalize_shot_detected(
             context={"stage": f"emit_{emit_event}", "ball_speed_mph": shot.ball_speed_mph},
             exc=e,
         )
-        return
+
+    # Phones get the final shot, marked final and carrying the event_id of any
+    # provisional shot published for it. Phone transports are independent of
+    # WebSocket delivery; a stalled client cannot affect recording or the UI.
+    if shot_data is not None:
+        _publish_phone_shot(
+            shot_data,
+            final=True,
+            enrichment=_final_phone_enrichment(emit_event, enrichment),
+        )
 
     # Forward to simulator connectors (optional)
     _forward_shot_to_simulators(shot)
@@ -3385,6 +3545,51 @@ def _queue_ordered_shot_finalization(
         _shot_finalization_condition.notify_all()
 
 
+def _final_phone_enrichment(
+    emit_event: str,
+    enrichment: _ShotEnrichmentResult,
+) -> dict | None:
+    """Describe optional-hardware progress on a final phone shot.
+
+    Only shots that were published provisionally (``emit_event`` is
+    ``shot_update``) carry an ``enrichment`` object; the rest never waited.
+    """
+    if emit_event != "shot_update":
+        return None
+    if enrichment.skipped_reason:
+        return {"status": "skipped", "reason": enrichment.skipped_reason}
+    return {"status": "complete"}
+
+
+def _publish_phone_shot(
+    shot_data: dict,
+    *,
+    final: bool,
+    enrichment: dict | None,
+) -> None:
+    """Hand one shot to the phone transports; never raises."""
+    transports = []
+    if ble_publisher is not None:
+        transports.append(("BLE", ble_publisher))
+    for name, transport in transports:
+        try:
+            transport.publish_shot(shot_data, final=final, enrichment=enrichment)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("[SERVER] Failed to queue shot over %s", name, exc_info=True)
+
+
+def _publish_phone_event(event: dict) -> None:
+    """Hand one event to the phone transports; never raises."""
+    transports = []
+    if ble_publisher is not None:
+        transports.append(("BLE", ble_publisher))
+    for name, transport in transports:
+        try:
+            transport.publish_event(event)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("[SERVER] Failed to queue event over %s", name, exc_info=True)
+
+
 def _emit_initial_ops_shot(shot: Shot) -> bool:
     """Publish immediately available OPS metrics before slow enrichments."""
     try:
@@ -3403,6 +3608,9 @@ def _emit_initial_ops_shot(shot: Shot) -> bool:
                 "pending": pending,
             },
         )
+        # Phones get the same provisional shot. The final one follows
+        # from _finalize_shot_detected with the same event_id.
+        _publish_phone_shot(shot_data, final=False, enrichment={"status": "pending"})
         return True
     except Exception as error:  # pylint: disable=broad-exception-caught
         logger.error("[SERVER] Failed to emit initial OPS shot: %s", error, exc_info=True)
@@ -3569,6 +3777,7 @@ def _handle_shot_detected(shot: Shot) -> None:
             shot,
             emit_event=final_event,
             initial_ui_ms=initial_ui_ms,
+            enrichment=_ShotEnrichmentResult(skipped_reason="queue_full"),
         )
     except Exception as error:  # pylint: disable=broad-exception-caught
         logger.warning(
@@ -3582,6 +3791,7 @@ def _handle_shot_detected(shot: Shot) -> None:
             shot,
             emit_event=final_event,
             initial_ui_ms=initial_ui_ms,
+            enrichment=_ShotEnrichmentResult(skipped_reason="worker_unavailable"),
         )
 
 
@@ -4389,6 +4599,11 @@ def main():
     )
     _add_ballistics_arguments(parser)
     parser.add_argument(
+        "--ble",
+        action="store_true",
+        help="Advertise completed shots over Bluetooth LE for the OpenFlight iOS app",
+    )
+    parser.add_argument(
         "--trigger",
         choices=["sound", "speed"],
         default="sound",
@@ -4990,6 +5205,16 @@ def main():
         start_power_monitor(battery_provider)
         print(f"Battery monitoring: ENABLED ({battery_provider})")
         startup_status.ready("battery", "Power monitor ready")
+
+    global ble_publisher  # pylint: disable=global-statement
+    if args.ble:
+        from .ble import BleShotPublisher  # pylint: disable=import-outside-toplevel
+
+        ble_publisher = BleShotPublisher(
+            command_handler=dispatch_phone_control_command,
+        )
+        ble_publisher.start()
+        print("Bluetooth LE enabled (advertising as OpenFlight)")
 
     # Simulator connectors (off unless --sim). Started after the monitor exists
     # so inbound club updates can call monitor.set_club().

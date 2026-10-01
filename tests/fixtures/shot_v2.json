@@ -1,0 +1,29 @@
+{
+  "ball_speed_mph": 106.1,
+  "carry_range": [
+    144,
+    160
+  ],
+  "club": "7-iron",
+  "club_path_deg": 2.5,
+  "club_speed_mph": 83.5,
+  "enrichment": {
+    "status": "complete"
+  },
+  "estimated_carry_yards": 152,
+  "event_id": "05dd37ec-49ed-596b-b1a4-953d54e4f239",
+  "final": true,
+  "launch_angle_confidence": 0.6,
+  "launch_angle_horizontal": -0.7,
+  "launch_angle_vertical": 21.2,
+  "profile_id": "0f8e4b2a9c7d4e1f8a6b3c5d7e9f1a2b",
+  "profile_name": "Zoë",
+  "schema_version": 2,
+  "shot_number": 7,
+  "smash_factor": 1.27,
+  "spin_axis_deg": -1.6,
+  "spin_rpm": 6482,
+  "spin_source": null,
+  "timestamp": "2026-09-25T14:03:07.412345",
+  "type": "shot"
+}

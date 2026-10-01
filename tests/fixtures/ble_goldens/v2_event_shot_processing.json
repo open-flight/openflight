@@ -1,0 +1,21 @@
+{
+  "name": "v2_event_shot_processing",
+  "description": "shot_processing notify (capturing | calculating | failed).",
+  "direction": "server_to_client",
+  "characteristic": "7BA96E63-12C2-4CE0-BB84-3513C7FD1474",
+  "schema_version": 2,
+  "sequence": 3,
+  "message": {
+    "schema_version": 2,
+    "type": "shot_processing",
+    "state": "calculating"
+  },
+  "payload_hex": "7b22736368656d615f76657273696f6e223a322c227374617465223a2263616c63756c6174696e67222c2274797065223a2273686f745f70726f63657373696e67227d",
+  "frames_hex": [
+    "01000300057b22736368656d615f76657273696f",
+    "01000301056e223a322c227374617465223a2263",
+    "0100030205616c63756c6174696e67222c227479",
+    "01000303057065223a2273686f745f70726f6365",
+    "01000304057373696e67227d"
+  ]
+}
