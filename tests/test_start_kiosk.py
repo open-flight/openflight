@@ -181,6 +181,23 @@ def test_camera_capture_uses_system_python_for_sync_and_server_start():
     assert 'uv run "${UV_RUN_ARGS[@]}" "${SERVER_CMD[@]}" &' in script
 
 
+def test_ble_flag_is_forwarded_to_server():
+    command = _dry_run("--mock", "--ble")
+
+    assert "--mock" in command
+    assert "--ble" in command
+
+
+def test_ble_extra_is_synced_only_when_ble_is_requested():
+    script = _script()
+    sync_block = script[
+        script.index("UV_SYNC_ARGS=(--quiet)") : script.index("\nconfigure_kld7_latency\n")
+    ]
+
+    assert "if has_server_arg --ble; then\n    UV_SYNC_ARGS+=(--extra ble)\nfi" in sync_block
+    assert "--extra ble" not in script.replace(sync_block, "")
+
+
 def test_startup_applies_kld7_latency_setup_before_server_start():
     script = _script()
 

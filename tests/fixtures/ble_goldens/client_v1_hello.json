@@ -1,0 +1,35 @@
+{
+  "name": "client_v1_hello",
+  "description": "Hand-built: a v2-capable client probing with hello on the v1 control characteristic (v1 envelope).",
+  "direction": "client_to_server",
+  "characteristic": "7E3B5D6C-7F10-4D4A-9C39-25E2B77F4A11",
+  "schema_version": 1,
+  "sequence": 41,
+  "message": {
+    "schema_version": 1,
+    "type": "hello",
+    "request_id": "0b3c6f9e-2d41-4a8b-9c7e-5f1a2b3c4d5e",
+    "payload": {
+      "client_schema_max": 2
+    }
+  },
+  "payload_hex": "7b22736368656d615f76657273696f6e223a312c2274797065223a2268656c6c6f222c22726571756573745f6964223a2230623363366639652d326434312d346138622d396337652d356631613262336334643565222c227061796c6f6164223a7b22636c69656e745f736368656d615f6d6178223a327d7d",
+  "frames_hex": [
+    "01002900097b22736368656d615f76657273696f",
+    "01002901096e223a312c2274797065223a226865",
+    "01002902096c6c6f222c22726571756573745f69",
+    "010029030964223a2230623363366639652d3264",
+    "010029040934312d346138622d396337652d3566",
+    "010029050931613262336334643565222c227061",
+    "0100290609796c6f6164223a7b22636c69656e74",
+    "01002907095f736368656d615f6d6178223a327d",
+    "01002908097d"
+  ],
+  "expect": {
+    "ok": true,
+    "schema_version": 1,
+    "result": {
+      "schema_version": 2
+    }
+  }
+}

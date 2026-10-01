@@ -378,6 +378,9 @@ if has_server_arg --camera-capture; then
     fi
     UV_SYNC_ARGS+=(--extra camera)
 fi
+if has_server_arg --ble; then
+    UV_SYNC_ARGS+=(--extra ble)
+fi
 uv sync "${UV_SYNC_ARGS[@]}" || show_startup_failure \
     "server" \
     "OpenFlight preparation failed" \

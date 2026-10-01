@@ -1,5 +1,6 @@
 """Tests for the live camera club-delivery estimator and fusion."""
 
+import importlib.util
 import math
 from dataclasses import replace
 
@@ -27,6 +28,8 @@ from openflight.camera.club_delivery import (
 )
 from openflight.camera.club_motion import ReferenceBall, detect_reference_ball
 from openflight.clubs import ClubType
+
+CV2_AVAILABLE = importlib.util.find_spec("cv2") is not None
 
 
 class _Ball:
@@ -775,6 +778,7 @@ def _synthetic_capture(
     return frames, ts
 
 
+@pytest.mark.skipif(not CV2_AVAILABLE, reason="OpenCV (camera extra) not installed")
 class TestTraceEstimation:
     def test_bright_scene_produces_trace(self):
         frames, ts = _synthetic_capture()

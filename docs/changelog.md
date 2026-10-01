@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **iPhones no longer get a pairing prompt every 30 s over BLE.** BlueZ's own
+  GATT client read the phone's GATT database, iOS answered "Insufficient
+  Authentication", and BlueZ requested pairing that no agent on the Pi could
+  confirm, so the link dropped after the 30 s SMP timeout and looped. New
+  `scripts/setup/configure_bluetooth.sh` (offered by `setup.sh`) sets
+  `Client = false` under `[GATT]` in `/etc/bluetooth/main.conf`, with a
+  backup and a bluetooth restart. See
+  [Troubleshooting](ios-ble.md#troubleshooting).
 - **A crash-looping boot service no longer kills the desktop kiosk.** Every
   launcher exit ran a `pkill` that matched the Electron binary path, so an
   `openflight.service` that failed at startup (for example because systemd's
@@ -59,6 +67,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when Node is older than 22.12 or `npm install` fails and `ui/dist` already
   exists). Installing Electron needs **Node.js 22.12 or newer**. See
   [Electron Kiosk Shell](electron-kiosk-shell.md).
+- **Phone transports: Bluetooth LE, a network shot stream and a club API.**
+  Ported from [jake-fishtech](https://github.com/jake-fishtech)'s `feat/iOS-ble`
+  branch. `--ble` (with the optional `ble` extra, `bless==0.3.0` on Linux)
+  advertises a GATT service that notifies each final shot and accepts versioned
+  phone commands (`set_club`, `get_club`, IWR6843 orientation). Without BlueZ or
+  the extra, `--ble` logs that Bluetooth is unavailable and the server carries
+  on. `GET /api/shots/stream` sends the same final shots and `club_changed` as
+  Server-Sent Events, replaying the latest shot on connect and sending a
+  keep-alive `: ping`. `GET`/`POST /api/club` reads or sets the Pi-owned club,
+  and every club change (kiosk, phone, simulator) is broadcast over Socket.IO,
+  SSE and BLE. `POST /api/calibration/iwr6843/orientation` applies a
+  gravity-referenced phone measurement as the IWR6843 mount tilt and persists it
+  to `~/.config/openflight/iwr6843_phone_orientation.json`; an explicit
+  `--iwr6843-tilt-deg` still wins. `start-kiosk.sh --ble` syncs the `ble` extra
+  and `setup.sh` installs it. Wire format: [iOS BLE](ios-ble.md). Behaviour
+  changes: Socket.IO `set_club` now ignores `unknown` and a missing club (it used
+  to fall back to driver), and a failed Socket.IO shot emit no longer stops BLE,
+  SSE and simulator delivery.
+- **BLE and network schema v2 for phone apps.** Version-one traffic is unchanged
+  byte for byte, so jake-fishtech's iOS app keeps working. v2 lives on a second
+  shot/control characteristic pair in the same GATT service (BlueZ cannot notify
+  one central but not another on a shared characteristic; see the design note in
+  [phone app connection](ios-ble.md#schema-v2-design-decision)). A `hello`
+  command negotiates it on either control characteristic. v2 shots add
+  `shot_number`, profile, `carry_range`, `spin_source`,
+  `launch_angle_confidence`, `final` and `enrichment`, and hardware-enriched
+  shots now arrive twice, provisional then final, with one `event_id`. v2 phones
+  also get `shot_processing`, `profiles`, `power_status`, `session_cleared`,
+  `shot_deleted` and `club_changed` events and can `get_profiles`,
+  `set_active_profile` and `get_power_status` through the same server functions
+  Socket.IO uses. Because BLE is unauthenticated, v2 over Bluetooth is
+  read-and-select only: clearing sessions, deleting shots and editing profiles
+  stay on the network (Socket.IO/HTTP). `GET /api/shots/stream?schema=2` opts
+  SSE clients into the same events. BLE delivery now follows per-characteristic
+  subscriptions, so the latest shot is replayed when a shot characteristic is
+  subscribed and one phone unsubscribing no longer pauses the others. Tests run
+  the real publisher against a loopback fake of Bless/BlueZ, and
+  `tests/fixtures/ble_goldens/` holds framed hex goldens for client test suites
+  (`scripts/ble/generate_goldens.py`).
+- **Phones catch up on missed shots after a reconnect (schema v2).** A phone
+  that left the app or dropped the link used to get only the latest shot back.
+  Now `hello` accepts `last_event_id` over BLE, and the v2 network stream honours
+  `Last-Event-ID` (or `?last_event_id=`); both resend that shot and every
+  current-session shot after it, up to 20, with the whole session when no shot
+  is named. Cleared and deleted shots are never replayed, replays carry the
+  bytes last sent live, and v2 network `shot` frames now include `id:`. `hello`
+  advertises the `shot_catch_up` feature; the `hello` goldens changed only by
+  that entry. Apps that skip `last_event_id` receive the whole session and
+  upsert it by `event_id`. See
+  [catch-up](ios-ble.md#catch-up-after-a-reconnect).
+- **Mock mode simulates the optional hardware phones react to.** So a Pi
+  with no radar, UPS or camera can exercise every phone event: mock shots
+  now report `shot_processing` `capturing` then `calculating` like the radar,
+  `simulate_shot` with `{"fail": true}` reports `failed` without a shot,
+  `--mock-enrichment-ms MS` sends mock shots provisional then final through the
+  real enrichment pipeline (above the 20 s deadline they finalize as skipped),
+  and `--battery mock` cycles `power_status` through every state. See
+  [simulating hardware](ios-ble.md#simulating-hardware-on-a-pi-without-it).
 - **PAR-TEE connector.** `"type": "partee"` in `config/sim.json` streams shots
   to the [PAR-TEE](https://playpartee.com) iPhone app over OpenConnect V1 on the
   phone's Wi-Fi address (port 921 by default). Same shared codec as GSPro and

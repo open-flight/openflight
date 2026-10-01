@@ -1,5 +1,6 @@
 """Tests for experimental camera-assisted horizontal ball flight."""
 
+import importlib.util
 import math
 from types import SimpleNamespace
 
@@ -22,7 +23,10 @@ from openflight.camera.club_delivery import ReferenceBallTracker
 from openflight.camera.club_motion import ReferenceBall
 from openflight.iwr6843.lcmf import BallRangeEvidence, LCMFResult
 
+CV2_AVAILABLE = importlib.util.find_spec("cv2") is not None
 
+
+@pytest.mark.skipif(not CV2_AVAILABLE, reason="OpenCV (camera extra) not installed")
 def test_ball_flight_uses_established_anchor_when_detection_is_missing(monkeypatch):
     tracker = ReferenceBallTracker()
     for x in (159.0, 160.0, 161.0):

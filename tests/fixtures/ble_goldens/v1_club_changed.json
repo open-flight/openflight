@@ -1,0 +1,20 @@
+{
+  "name": "v1_club_changed",
+  "description": "Version-one club_changed notify on the v1 control characteristic.",
+  "direction": "server_to_client",
+  "characteristic": "7E3B5D6C-7F10-4D4A-9C39-25E2B77F4A11",
+  "schema_version": 1,
+  "sequence": 1,
+  "message": {
+    "club": "7-iron",
+    "schema_version": 1,
+    "type": "club_changed"
+  },
+  "payload_hex": "7b22636c7562223a22372d69726f6e222c22736368656d615f76657273696f6e223a312c2274797065223a22636c75625f6368616e676564227d",
+  "frames_hex": [
+    "01000100047b22636c7562223a22372d69726f6e",
+    "0100010104222c22736368656d615f7665727369",
+    "01000102046f6e223a312c2274797065223a2263",
+    "01000103046c75625f6368616e676564227d"
+  ]
+}

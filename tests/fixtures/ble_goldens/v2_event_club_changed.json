@@ -1,0 +1,20 @@
+{
+  "name": "v2_event_club_changed",
+  "description": "club_changed notify on the v2 control characteristic.",
+  "direction": "server_to_client",
+  "characteristic": "7BA96E63-12C2-4CE0-BB84-3513C7FD1474",
+  "schema_version": 2,
+  "sequence": 8,
+  "message": {
+    "schema_version": 2,
+    "type": "club_changed",
+    "club": "7-iron"
+  },
+  "payload_hex": "7b22636c7562223a22372d69726f6e222c22736368656d615f76657273696f6e223a322c2274797065223a22636c75625f6368616e676564227d",
+  "frames_hex": [
+    "01000800047b22636c7562223a22372d69726f6e",
+    "0100080104222c22736368656d615f7665727369",
+    "01000802046f6e223a322c2274797065223a2263",
+    "01000803046c75625f6368616e676564227d"
+  ]
+}
