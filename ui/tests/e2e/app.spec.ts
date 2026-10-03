@@ -1,5 +1,14 @@
 import { test } from '@playwright/test';
-import { expect, gotoApp, resetSession, setClub, simulateShot, waitForEvent, withControlSocket } from './helpers';
+import {
+  expect,
+  gotoApp,
+  KIOSK_VIEWPORTS,
+  resetSession,
+  setClub,
+  simulateShot,
+  waitForEvent,
+  withControlSocket,
+} from './helpers';
 
 /** Dismiss the club picker that opens on every load, keeping the default club. */
 async function dismissPicker(page: import('@playwright/test').Page) {
@@ -652,4 +661,38 @@ test('unit toggle in the menu sheet updates displayed units', async ({ page }) =
   await expect(page.locator('.metric-card--selected .metric-card__unit')).toHaveText('km/h');
   await expect(page.locator('.metric-card').filter({ hasText: 'Carry' }).locator('.metric-card__unit')).toHaveText('m');
   await expect(page.locator('.metric-card--selected .metric-card__value')).not.toHaveText(imperialSpeed ?? '');
+});
+
+test('tabbing to a menu segmented control shows a real keyboard focus ring, not a tap ring', async ({ page }) => {
+  await gotoApp(page);
+  await dismissPicker(page);
+  await page.setViewportSize(KIOSK_VIEWPORTS[0]); // 800x400 — the tightest kiosk height
+
+  await openMenu(page);
+
+  const unitsGroup = page.getByRole('group', { name: 'Display units' });
+  const imperialButton = unitsGroup.getByRole('button', { name: 'MPH / YDS' });
+  const metricButton = unitsGroup.getByRole('button', { name: 'KMH / M' });
+
+  // Bonus, near-zero-cost confirmation of the touch-target fix in a real
+  // browser, reusing this test's setup instead of a dedicated spec.
+  const box = await metricButton.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+
+  // A tap focuses the button but must NOT show the ring — this is a touch
+  // kiosk, and a ring on every tap would be noise, not signal.
+  await imperialButton.click();
+  await expect(unitsGroup).toHaveCSS('outline-style', 'none');
+
+  // Real keyboard navigation between the two options must show the ring.
+  await page.keyboard.press('Tab');
+  await expect(metricButton).toBeFocused();
+  await expect(unitsGroup).toHaveCSS('outline-color', 'rgb(255, 212, 0)');
+  await expect(unitsGroup).toHaveCSS('outline-style', 'solid');
+  await expect(unitsGroup).toHaveCSS('outline-width', '2px');
+  await expect(unitsGroup).toHaveCSS('outline-offset', '2px');
+
+  // The individual button's own outline stays suppressed — no double ring.
+  await expect(metricButton).toHaveCSS('outline-style', 'none');
 });
