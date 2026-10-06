@@ -22,8 +22,9 @@ export function SegmentedControl<T extends string>({
             className={`segmented-control__button${active ? ' segmented-control__button--active' : ''}`}
             aria-pressed={active}
             onClick={() => onChange(option.id)}
+            title={option.label}
           >
-            {option.label}
+            <span className="segmented-control__label">{option.label}</span>
           </button>
         );
       })}
