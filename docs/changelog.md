@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **`openflight-cloud` honors `--config`/`--log-dir` before the subcommand.**
+  The subcommand's defaults overwrote options given before it, so
+  `openflight-cloud --log-dir X push` scanned the default session directory.
+  The server's session-end push uses that form, so with a custom `--log-dir`
+  it looked in the wrong place.
 - **Stale doc paths from the docs restructure.** The hardware-help issue
   template and the user-facing messages in `scripts/setup/setup.sh`,
   `setup_kld7_devices.sh`, `capture_kld7_radc.py`, `replay_spin_dechirp.py`,
