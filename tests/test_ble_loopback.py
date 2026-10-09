@@ -208,6 +208,16 @@ def test_profiles_commands_route_through_socketio_operations(pi):
     assert rejected["error"] == "Unknown profile"
 
 
+def test_calibration_without_iwr6843_returns_the_409_error(pi):
+    phone = pi.central("app")
+    phone.subscribe(*PHONE_UUIDS)
+
+    answer = phone.request("iwr6843_orientation_calibration", {"mount_tilt_deg": 12.0})
+
+    assert answer["ok"] is False
+    assert answer["error"] == "TI IWR6843 radar is not enabled"
+
+
 def test_unknown_commands_and_envelopes_are_rejected(pi):
     phone = pi.central("app")
     phone.subscribe(*PHONE_UUIDS)

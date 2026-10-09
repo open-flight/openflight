@@ -39,7 +39,7 @@ You must measure and supply:
 | Antenna-centre to tee slant range | `--iwr6843-tee-m` |
 | Antenna-centre to net range | `--iwr6843-net-m` |
 | Ball-centre height above the mat | `--iwr6843-ball-height-m` |
-| Mount tilt | from the calibration JSON, or `--iwr6843-tilt-deg` |
+| Mount tilt | `--iwr6843-tilt-deg`, else a [saved phone calibration](../ios-ble.md#calibrate-ti-radar-tilt-with-the-phone), else the calibration JSON |
 | Antenna-centre height | from the calibration JSON, or `--iwr6843-radar-height-m` |
 
 Full procedure: **[mounting, aiming, and measuring](../iwr6843/mounting.md)**.

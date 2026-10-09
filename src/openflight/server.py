@@ -46,6 +46,12 @@ from .ops243 import (
     SpeedReading,
     set_show_raw_readings,
 )
+from .phone_orientation import (
+    PhoneOrientationMeasurement,
+    PhoneOrientationValidationError,
+    load_phone_orientation_calibration,
+    save_phone_orientation_calibration,
+)
 from .power import SUPPORTED_BATTERY_PROVIDERS, PowerMonitor, PowerStatus
 from .profiles import ProfileStore
 from .rolling_buffer.monitor import estimate_carry_with_spin, get_optimal_spin_for_ball_speed
@@ -142,6 +148,10 @@ camera_capture_config: dict = {"enabled": False}
 camera_replay_manager = None
 camera_reference_ball_tracker = None
 camera_ball_flight_reference_tracker = None
+PHONE_ORIENTATION_CALIBRATION_PATH = (
+    Path.home() / ".config" / "openflight" / "iwr6843_phone_orientation.json"
+)
+_iwr6843_calibration_lock = threading.Lock()
 
 # Optional LIS3DH enclosure orientation used to compensate TI mount tilt.
 inclinometer_service = None
@@ -981,6 +991,110 @@ def display():
     return send_from_directory(_react_app_dir(), "index.html")
 
 
+@app.route("/api/calibration/iwr6843/orientation", methods=["GET", "POST"])
+def api_iwr6843_orientation_calibration():
+    """Read or apply a gravity-referenced phone measurement to TI mount tilt."""
+    if iwr6843_runtime is None:
+        return {"error": "TI IWR6843 radar is not enabled"}, 409
+
+    if request.method == "GET":
+        return {
+            "status": "ready",
+            "configured_iwr_tilt_deg": round(math.degrees(iwr6843_runtime.calibration.tilt_rad), 4),
+            "azimuth_offset_deg": round(iwr6843_runtime.azimuth_offset_deg, 4),
+            "calibration": iwr6843_runtime_config.get("phone_orientation_calibration"),
+        }
+
+    return apply_iwr6843_orientation_calibration(request.get_json(silent=True))
+
+
+def apply_iwr6843_orientation_calibration(payload):  # pylint: disable=too-many-return-statements
+    """Validate, persist, and activate one phone orientation measurement."""
+    if iwr6843_runtime is None:
+        return {"error": "TI IWR6843 radar is not enabled"}, 409
+
+    try:
+        measurement = PhoneOrientationMeasurement.from_payload(payload)
+    except PhoneOrientationValidationError as error:
+        return {"error": str(error)}, 400
+
+    enclosure_pitch_deg = None
+    if inclinometer_service is not None:
+        try:
+            selection = inclinometer_service.wait_for_stable(timeout_s=2.0)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning("[SERVER] Enclosure sensor failed during phone calibration: %s", error)
+            return {"error": "Could not read the enclosure sensor; try again"}, 409
+        if selection.snapshot is None:
+            return {
+                "error": (
+                    "The enclosure sensor is not stable "
+                    f"({selection.status}); keep the rig still and try again"
+                )
+            }, 409
+        enclosure_pitch_deg = float(selection.snapshot.calibrated_pitch_deg)
+
+    configured_tilt_deg = measurement.mount_tilt_deg - (enclosure_pitch_deg or 0.0)
+    if not -45.0 <= configured_tilt_deg <= 45.0:
+        return {"error": "Derived TI-to-enclosure tilt is outside the supported range"}, 400
+
+    record = {
+        "schema_version": 1,
+        "source": "ios_companion",
+        "configured_iwr_tilt_deg": configured_tilt_deg,
+        "enclosure_pitch_deg": enclosure_pitch_deg,
+        "azimuth_offset_deg": iwr6843_runtime.azimuth_offset_deg,
+        "measurement": measurement.to_dict(),
+        "applied_at": datetime.now().astimezone().isoformat(),
+    }
+
+    try:
+        with _iwr6843_calibration_lock:
+            save_phone_orientation_calibration(record, PHONE_ORIENTATION_CALIBRATION_PATH)
+            calibration_meta = dict(iwr6843_runtime.calibration.meta)
+            calibration_meta["phone_orientation_calibration"] = record
+            iwr6843_runtime.calibration = replace(
+                iwr6843_runtime.calibration,
+                tilt_rad=math.radians(configured_tilt_deg),
+                meta=calibration_meta,
+            )
+            iwr6843_runtime_config.update(
+                {
+                    "tilt_deg": configured_tilt_deg,
+                    "tilt_source": "ios_companion",
+                    "phone_orientation_calibration": record,
+                }
+            )
+    except OSError as error:
+        logger.warning("[SERVER] Failed to persist phone orientation: %s", error, exc_info=True)
+        return {"error": "OpenFlight could not save the calibration"}, 500
+
+    session_logger = get_session_logger()
+    if session_logger:
+        session_logger.log_config_change(
+            {"iwr6843": dict(iwr6843_runtime_config)},
+            source="ios_companion",
+        )
+    response = {
+        "status": "applied",
+        "persistent": True,
+        "measured_mount_tilt_deg": measurement.mount_tilt_deg,
+        "enclosure_pitch_deg": enclosure_pitch_deg,
+        "configured_iwr_tilt_deg": configured_tilt_deg,
+        "roll_deg": measurement.roll_deg,
+        "azimuth_offset_deg": iwr6843_runtime.azimuth_offset_deg,
+    }
+    socketio.emit("iwr6843_orientation_calibrated", response)
+    logger.info(
+        "[SERVER] Applied iOS phone calibration: measured tilt %.3fdeg, "
+        "enclosure pitch %s, configured TI tilt %.3fdeg",
+        measurement.mount_tilt_deg,
+        f"{enclosure_pitch_deg:.3f}deg" if enclosure_pitch_deg is not None else "not enabled",
+        configured_tilt_deg,
+    )
+    return response, 200
+
+
 def apply_club_selection(payload):
     """Set the club used to tag and process future shots."""
     global active_club  # pylint: disable=global-statement
@@ -1043,8 +1157,13 @@ def dispatch_phone_control_command(command_type, payload):
     rename and remove, ``clear_session`` and ``delete_shot`` stay on
     Socket.IO. Phones still hear about those changes through the
     ``profiles``, ``session_cleared`` and ``shot_deleted`` events.
+
+    The one exception is ``iwr6843_orientation_calibration``: it validates a
+    phone measurement and persists the derived TI mount tilt, so a bonded or
+    nearby phone can change saved radar configuration.
     """
     handlers = {
+        "iwr6843_orientation_calibration": apply_iwr6843_orientation_calibration,
         "set_club": apply_club_selection,
         "get_club": current_club_selection,
         "get_profiles": request_profiles,
@@ -1180,6 +1299,24 @@ def init_camera_capture(
         return False
 
 
+def _resolve_iwr_mount_tilt(
+    calibration_tilt_deg: float,
+    *,
+    explicit_tilt_deg: float | None,
+) -> tuple[float, str]:
+    """Resolve TI tilt with explicit CLI values taking highest precedence."""
+    if explicit_tilt_deg is not None:
+        return float(explicit_tilt_deg), "command_line"
+    try:
+        saved = load_phone_orientation_calibration(PHONE_ORIENTATION_CALIBRATION_PATH)
+    except (OSError, json.JSONDecodeError, PhoneOrientationValidationError) as error:
+        logger.warning("[SERVER] Ignoring invalid saved phone calibration: %s", error)
+        return float(calibration_tilt_deg), "calibration_file"
+    if saved is not None:
+        return float(saved["configured_iwr_tilt_deg"]), "ios_companion"
+    return float(calibration_tilt_deg), "calibration_file"
+
+
 def init_iwr6843(
     *,
     port: str | None,
@@ -1216,8 +1353,11 @@ def init_iwr6843(
         calibration = Calibration.load(calibration_path)
         calibration.tee_range_m = tee_range_m
         calibration.tee_ball_height_m = ball_height_m
-        if tilt_deg is not None:
-            calibration.tilt_rad = math.radians(tilt_deg)
+        resolved_tilt_deg, tilt_source = _resolve_iwr_mount_tilt(
+            math.degrees(calibration.tilt_rad),
+            explicit_tilt_deg=tilt_deg,
+        )
+        calibration.tilt_rad = math.radians(resolved_tilt_deg)
         if radar_height_m is not None:
             calibration.meta["radar_height_m"] = radar_height_m
 
@@ -1261,6 +1401,7 @@ def init_iwr6843(
             "tx_order": resolved_order,
             "tdm_sign_policy": iwr6843_runtime.tdm_sign_policy,
             "tilt_deg": math.degrees(calibration.tilt_rad),
+            "tilt_source": tilt_source,
             "radar_height_m": calibration.radar_height_m,
             "ball_height_m": calibration.tee_ball_height_m,
             "azimuth_offset_deg": azimuth_offset_deg,

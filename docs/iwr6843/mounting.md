@@ -52,6 +52,15 @@ OpenFlight needs these physical inputs:
 | `--iwr6843-radar-height-m` | Antenna-center height above the floor reference |
 | `--iwr6843-ball-height-m` | Ball-center height above the same floor reference |
 
+!!! note "Saved phone calibration"
+
+    A phone app can measure and save the TI tilt instead; see
+    [Calibrate TI radar tilt with the phone](../ios-ble.md#calibrate-ti-radar-tilt-with-the-phone).
+    At startup the tilt comes from `--iwr6843-tilt-deg` if given, otherwise from
+    the saved phone calibration in
+    `~/.config/openflight/iwr6843_phone_orientation.json`, otherwise from the
+    calibration JSON.
+
 Measurement guidance:
 
 - Measure from the antenna center, not the enclosure edge or mounting feet.
