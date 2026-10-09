@@ -349,7 +349,9 @@ def server_loopback(monkeypatch, tmp_path):
     """
     from openflight import server as server_module  # pylint: disable=import-outside-toplevel
     from openflight.launch_monitor import ClubType  # pylint: disable=import-outside-toplevel
+    from openflight.phone_catch_up import PhoneShotCache  # pylint: disable=import-outside-toplevel
     from openflight.profiles import ProfileStore  # pylint: disable=import-outside-toplevel
+    from openflight.shot_stream import ShotStreamBroker  # pylint: disable=import-outside-toplevel
 
     emitted = []
     lock = threading.Lock()
@@ -361,6 +363,7 @@ def server_loopback(monkeypatch, tmp_path):
     monkeypatch.setattr(server_module.socketio, "emit", emit)
     monkeypatch.setattr(server_module, "monitor", None)
     monkeypatch.setattr(server_module, "profile_store", ProfileStore(tmp_path / "profiles.json"))
+    monkeypatch.setattr(server_module, "shot_stream", ShotStreamBroker())
     monkeypatch.setattr(server_module, "active_club", ClubType.DRIVER)
     monkeypatch.setattr(server_module, "iwr6843_runtime", None)
     monkeypatch.setattr(server_module, "power_monitor", None)
@@ -373,10 +376,12 @@ def server_loopback(monkeypatch, tmp_path):
     monkeypatch.setattr(server_module, "debug_mode", False)
     monkeypatch.setattr(server_module, "sim_connectors", [])
     monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+    monkeypatch.setattr(server_module, "phone_shot_cache", PhoneShotCache())
 
     loopback = BleLoopback(
         monkeypatch,
         command_handler=server_module.dispatch_phone_control_command,
+        catch_up_provider=server_module.phone_catch_up,
     )
     with loopback:
         monkeypatch.setattr(server_module, "ble_publisher", loopback.publisher)

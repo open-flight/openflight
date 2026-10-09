@@ -26,11 +26,14 @@ from flask_socketio import SocketIO
 
 from .ballistics import resolve_launch, simulate
 from .ble.protocol import (
+    build_club_event,
     build_power_status_event,
     build_profiles_event,
     build_session_cleared_event,
     build_shot_deleted_event,
     build_shot_processing_event,
+    encode_shot_event,
+    stable_shot_event_id,
 )
 from .clubs import ClubType
 from .clubs.physics import (
@@ -46,10 +49,12 @@ from .ops243 import (
     SpeedReading,
     set_show_raw_readings,
 )
+from .phone_catch_up import PhoneShotCache, normalize_last_event_id, select_catch_up
 from .power import SUPPORTED_BATTERY_PROVIDERS, PowerMonitor, PowerStatus
 from .profiles import ProfileStore
 from .rolling_buffer.monitor import estimate_carry_with_spin, get_optimal_spin_for_ball_speed
 from .session_logger import get_session_logger, init_session_logger, log_session_error
+from .shot_stream import SSE_MIMETYPE, ShotStreamBroker, ShotStreamFull
 from .sim import (
     IncompleteShotError,
     PlayerState as SimPlayerState,
@@ -172,6 +177,15 @@ ble_publisher = None
 # before being fanned out over all enabled transports.
 active_club = ClubType.DRIVER
 club_selection_lock = threading.Lock()
+
+# Network shot delivery for phone apps. Always available: it exposes the same
+# shots the browser UI already broadcasts over WebSocket, so it adds no reach
+# beyond the existing HTTP server.
+shot_stream = ShotStreamBroker()
+
+# The exact bytes last sent per shot, so a reconnecting phone's catch-up
+# (BLE and network alike) replays what it would have received live.
+phone_shot_cache = PhoneShotCache()
 
 shutdown_lock = threading.Lock()
 shutdown_cleanup_started = False
@@ -1026,6 +1040,10 @@ def _broadcast_club_selection(club: ClubType) -> None:
         socketio.emit("club_changed", club_data)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("[SERVER] Failed to broadcast club over WebSocket", exc_info=True)
+    try:
+        shot_stream.publish_club(club.value)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Failed to broadcast club over network stream", exc_info=True)
     if ble_publisher is not None:
         try:
             ble_publisher.publish_club(club.value)
@@ -1055,6 +1073,28 @@ def dispatch_phone_control_command(command_type, payload):
     if handler is None:
         return {"error": f"Unsupported phone command: {command_type}"}, 400
     return handler(payload)
+
+
+def _phone_state_events() -> list[dict]:
+    """Current club, profiles and power, as seeded to a new stream client."""
+    with club_selection_lock:
+        club_value = active_club.value
+    events = [build_club_event(club_value)]
+    try:
+        events.append(build_profiles_event(get_profile_store().snapshot()))
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Could not read profiles for the shot stream", exc_info=True)
+    if power_monitor is not None and power_monitor.status is not None:
+        events.append(build_power_status_event(power_monitor.status.to_dict()))
+    return events
+
+
+@app.route("/api/club", methods=["GET", "POST"])
+def api_club_selection():
+    """Read or set the active club over the network (HTTP)."""
+    if request.method == "GET":
+        return current_club_selection()
+    return apply_club_selection(request.get_json(silent=True))
 
 
 @app.route("/<path:path>")
@@ -1571,6 +1611,45 @@ def _camera_capture_settings_payload() -> dict:
 def handle_get_camera_capture_settings():
     """Send current high-speed capture settings to the requesting UI."""
     socketio.emit("camera_capture_settings", _camera_capture_settings_payload())
+
+
+def _stream_catch_up(last_event_id) -> list[tuple[str, bytes]] | None:
+    """Catch-up for a stream client, or ``None`` (latest-shot replay) on failure."""
+    try:
+        return phone_catch_up(last_event_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Could not load missed shots for the stream", exc_info=True)
+        return None
+
+
+@app.route("/api/shots/stream")
+def shots_stream():
+    """Stream completed shots to phones as Server-Sent Events.
+
+    Speaks schema 2, the only phone schema; ``?schema=2`` is accepted for
+    clients that name it. A client resumes with ``Last-Event-ID`` (or
+    ``?last_event_id=``) and is seeded with the session shots it missed, as
+    BLE ``hello`` does.
+    """
+    if request.args.get("schema", "2") != "2":
+        return {"error": "Unsupported schema; use 2"}, 400
+    last_event_id = request.headers.get("Last-Event-ID") or request.args.get("last_event_id")
+    try:
+        subscriber = shot_stream.subscribe(
+            initial_events=_phone_state_events(),
+            catch_up=_stream_catch_up(last_event_id),
+        )
+    except ShotStreamFull as exc:
+        logger.warning("[SERVER] Refused shot stream client: %s", exc)
+        return str(exc), 503
+
+    response = Response(shot_stream.frames(subscriber), mimetype=SSE_MIMETYPE)
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    # Covers the case where the response is discarded without ever being
+    # iterated; unsubscribing twice is a no-op.
+    response.call_on_close(lambda: shot_stream.unsubscribe(subscriber))
+    return response
 
 
 @socketio.on("set_camera_capture_settings")
@@ -3628,8 +3707,15 @@ def _publish_phone_shot(
     final: bool,
     enrichment: dict | None,
 ) -> None:
-    """Hand one shot to the phone transports; never raises."""
-    transports = []
+    """Hand one shot to the BLE and SSE phone transports; never raises."""
+    try:
+        phone_shot_cache.remember(
+            stable_shot_event_id(shot_data),
+            encode_shot_event(shot_data, final=final, enrichment=enrichment),
+        )
+    except (KeyError, TypeError, ValueError):
+        logger.warning("[SERVER] Could not cache shot for phone catch-up", exc_info=True)
+    transports = [("network stream", shot_stream)]
     if ble_publisher is not None:
         transports.append(("BLE", ble_publisher))
     for name, transport in transports:
@@ -3639,9 +3725,34 @@ def _publish_phone_shot(
             logger.warning("[SERVER] Failed to queue shot over %s", name, exc_info=True)
 
 
+def phone_catch_up(last_event_id=None) -> list[tuple[str, bytes]]:
+    """The current-session shots a reconnecting phone missed, oldest first.
+
+    Shared by BLE ``hello`` and the network stream's ``Last-Event-ID``; see
+    ``openflight.phone_catch_up`` for the rule. The session decides which
+    shots exist, so cleared and deleted shots are never replayed. A shot is
+    replayed as the bytes last published for it, or rebuilt as a final shot
+    when that is no longer cached.
+    """
+    session = monitor
+    if session is None or not hasattr(session, "get_shots"):
+        return []
+    entries = []
+    for shot in session.get_shots():
+        try:
+            shot_data = shot_to_dict(shot)
+            event_id = stable_shot_event_id(shot_data)
+            payload = phone_shot_cache.get(event_id) or encode_shot_event(shot_data, final=True)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            logger.warning("[SERVER] Skipped a shot that could not be replayed", exc_info=True)
+            continue
+        entries.append((event_id, payload))
+    return select_catch_up(entries, normalize_last_event_id(last_event_id))
+
+
 def _publish_phone_event(event: dict) -> None:
-    """Hand one event to the phone transports; never raises."""
-    transports = []
+    """Hand one event to the BLE and SSE phone transports; never raises."""
+    transports = [("network stream", shot_stream)]
     if ble_publisher is not None:
         transports.append(("BLE", ble_publisher))
     for name, transport in transports:
@@ -5288,6 +5399,7 @@ def main():
 
         ble_publisher = BleShotPublisher(
             command_handler=dispatch_phone_control_command,
+            catch_up_provider=phone_catch_up,
         )
         ble_publisher.start()
         print("Bluetooth LE enabled (advertising as OpenFlight)")

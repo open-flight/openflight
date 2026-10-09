@@ -1,18 +1,27 @@
-# Phone app connection (Bluetooth LE)
+# Phone app connection (Bluetooth LE and network)
 
 > **BLE blocker — check the Raspberry Pi kernel first:** Raspberry Pi kernel
 > `6.18.34+rpt-rpi-2712` has a confirmed regression that rejects every BLE
-> advertisement. Run `uname -r` on the Pi. If it reports that version, boot a
-> working kernel such as 6.12.x; there is no userspace workaround. See the [full diagnosis](#known-bad-raspberry-pi-kernel-61834rpt-rpi-2712).
+> advertisement. Run `uname -r` on the Pi. If it reports that version, use the
+> network transport or boot a working kernel such as 6.12.x; there is no userspace workaround. See the [full diagnosis](#known-bad-raspberry-pi-kernel-61834rpt-rpi-2712).
 
 OpenFlight sends each completed shot from a Raspberry Pi to a phone app over
-Bluetooth LE, using the versioned payload described below (schema version 2).
+one of two local transports. Both carry the identical versioned payload
+described below (schema version 2), so an app behaves the same either way.
 The Kotlin Multiplatform companion for Android and iOS,
 [`btripp/openflight-mobile-kmp`](https://github.com/btripp/openflight-mobile-kmp),
 speaks it. jake-fishtech's SwiftUI app on the
 [`feat/iOS-ble` branch of his fork](https://github.com/jake-fishtech/openflight/tree/feat/iOS-ble/ios)
 speaks an earlier, unreleased version one that the Pi does not serve; it needs
 updating to schema 2.
+
+| Transport | Pi setup | Use it when |
+|---|---|---|
+| **Bluetooth** | start with `--ble` | The phone cannot reach the Pi over a network |
+| **Network** | always on | The phone can reach the Pi over IP (Wi-Fi, Ethernet or any other link), or Bluetooth advertising is unavailable |
+
+The network transport needs no flag: it streams from the same HTTP server that serves the
+browser UI, and exposes nothing the browser UI does not already broadcast.
 
 ## Requirements
 
@@ -46,21 +55,58 @@ scripts/start-kiosk.sh --ble
 BLE startup and delivery errors are isolated from shot recording. If Bluetooth
 is unavailable, the browser UI and session logger continue to work.
 
+## Network transport
+
+The server streams shots as [Server-Sent Events](https://developer.mozilla.org/docs/Web/API/Server-sent_events)
+at `/api/shots/stream`. Check it from any machine on the network before
+involving a phone:
+
+```bash
+curl -N http://raspberrypi.local:8080/api/shots/stream
+```
+
+A connection opens with a `: ping` comment, the current state, and the
+session's shots (see [Network stream](#network-stream)), then emits one message
+per shot or event with a heartbeat every 15 seconds while idle:
+
+```text
+: ping
+
+event: shot
+id: 05dd37ec-49ed-596b-b1a4-953d54e4f239
+data: {"ball_speed_mph":151.4,"club":"driver",...,"schema_version":2,"type":"shot"}
+```
+
+In the app, pick **Wi-Fi** (the app's label; it works over any IP network, so
+the Pi can be on Ethernet) and enter the Pi's address. `raspberrypi.local:8080`
+is the default and works on a stock Raspberry Pi OS install, which publishes its
+hostname over mDNS; if you renamed the Pi, use `<hostname>.local:8080` or its IP.
+The port defaults to 8080 when you leave it off. The app reconnects on its own
+with backoff, and iOS asks once for permission to talk to devices on the local
+network.
+
+The server accepts up to eight simultaneous stream clients and answers `503`
+beyond that, so a forgotten `curl` cannot crowd out a phone.
+
 ## Connect the phone app
 
 The phone apps are not part of this repository; build and install one from its
-own repository. Start OpenFlight on the Pi with `--ble`. The app scans only for
-the OpenFlight service, connects automatically, and subscribes to shot and
-control notifications. Hit a shot and its metrics should replace the empty
-dashboard. The most recent shot is replayed when a phone connects, so a newly
+own repository. Start OpenFlight on the Pi, adding `--ble` for the Bluetooth
+transport. Over Bluetooth the app scans only for the OpenFlight service,
+connects automatically, and subscribes to shot and control notifications.
+Over the network it opens the shot stream and keeps it open. Either way, hit a
+shot and its metrics should replace the empty dashboard. The most recent shot is replayed when a phone connects, so a newly
 connected phone does not have to wait for another shot.
 
 ## Select the club from the iPhone
 
 Use **Club for next shot** on the dashboard to select any supported wood,
 hybrid, iron, or wedge. OpenFlight applies the club to subsequent shots and
-confirms the change before the app updates its saved selection. The change
-goes over the framed control characteristic described below.
+confirms the change before the app updates its saved selection. The app sends
+the change over the currently selected transport:
+
+- Bluetooth uses the framed control characteristic described below.
+- The network transport sends `POST /api/club` with `{"club":"7-iron"}`.
 
 The browser UI and simulator integrations use the same server operation, so a
 phone club change affects the same launch, spin, and carry processing state.
@@ -132,7 +178,7 @@ the same broadcasts.
 
 | Command | Payload | Result | Also broadcasts |
 |---|---|---|---|
-| `hello` | `{"client_schema_max":2}` | see [Negotiation](#negotiation) | |
+| `hello` | `{"client_schema_max":2}`, optional `last_event_id` | see [Negotiation](#negotiation) | |
 | `get_club` | `{}` | `{"status":"current","club":"7-iron"}`: the Pi-owned club, unchanged | |
 | `set_club` | `{"club":"7-iron"}` | `{"status":"applied","club":"7-iron"}` | `club_changed` |
 | `get_profiles` | `{}` | `{"status":"sent"}` | `profiles`: the roster arrives as the event, not in the result |
@@ -152,22 +198,67 @@ timeouts.
 ### Negotiation
 
 1. Discover the service and subscribe to the control characteristic.
-2. Write `hello`:
+2. Write `hello`. Add `last_event_id`, the `event_id` of the newest shot the app
+   already has, to [catch up](#catch-up-after-a-reconnect) on shots missed while
+   disconnected; leave it out on a first connection:
    ```json
-   {"payload":{"client_schema_max":2},"request_id":"<uuid>","schema_version":2,"type":"hello"}
+   {"payload":{"client_schema_max":2,"last_event_id":"05dd37ec-49ed-596b-b1a4-953d54e4f239"},"request_id":"<uuid>","schema_version":2,"type":"hello"}
    ```
    The result names the schema, the features and the characteristics:
    ```json
-   {"ok":true,"request_id":"<uuid>","result":{"characteristics":{"control":"7BA96E63-12C2-4CE0-BB84-3513C7FD1474","shot":"ED365FE6-3ABF-4FC3-8E44-D9525A22DABD"},"features":["provisional_shots","shot_processing","profiles","power_status","shot_deleted","club"],"schema_version":2},"schema_version":2}
+   {"ok":true,"request_id":"<uuid>","result":{"characteristics":{"control":"7BA96E63-12C2-4CE0-BB84-3513C7FD1474","shot":"ED365FE6-3ABF-4FC3-8E44-D9525A22DABD"},"features":["provisional_shots","shot_processing","profiles","power_status","shot_deleted","club","shot_catch_up"],"schema_version":2},"schema_version":2}
    ```
-3. Subscribe to the shot characteristic. The latest shot is replayed.
+3. Subscribe to the shot characteristic. The catch-up shots arrive. A client
+   that skipped `hello` gets only the latest shot.
 4. Ask for state: `get_club`, `get_profiles` and, if wanted, `get_power_status`.
 
 A `client_schema_max` below 2 fails with `ok:false`: the Pi speaks schema 2 only.
 
+### Catch-up after a reconnect
+
+A phone that leaves the app, walks out of range or loses the network misses the
+shots taken meanwhile. It is caught up on reconnect, with one rule for both
+transports:
+
+| | BLE | Network |
+|---|---|---|
+| Name the newest shot you have | `last_event_id` in the `hello` payload | `Last-Event-ID` request header, or `?last_event_id=` (the header wins) |
+| Catch-up arrives | On the shot characteristic, after the `hello` response; held until the phone subscribes to it | Seeded after the state events, before live events |
+| Without catch-up | A client that skips `hello` gets the latest shot | — (every connection gets catch-up) |
+
+- The Pi sends the named shot again, then every current-session shot after
+  it, oldest first. Resending the named shot means a phone that only had its
+  provisional version (it disconnected before the final arrived) ends up with
+  the final.
+- No `last_event_id`, or one the session no longer holds (the session was
+  cleared, that shot was deleted, or the Pi restarted), means the whole
+  current session.
+- At most the 20 most recent shots are sent. Use `shot_number` gaps to tell
+  that older shots were not synced (deleted shots also leave gaps).
+- Replayed shots are the exact bytes last sent live, including `final` and
+  `enrichment`. A shot no longer cached is rebuilt as a final shot with
+  `enrichment: null`.
+- Cleared and deleted shots are never replayed: the Pi's session decides what
+  exists.
+- Upsert by `event_id` as for live shots; replays of shots the app already has
+  are harmless. Invalid `last_event_id` values are treated as absent and never
+  fail `hello`.
+- Every network `shot` frame carries `id: <event_id>`, so an `EventSource`
+  resends `Last-Event-ID` on its own when it reconnects. Other events carry no
+  `id`, which leaves the last shot id in place.
+- Over BLE a notification reaches every subscribed phone, so another connected
+  phone receives the catch-up too and upserts it.
+- A shot taken while a BLE catch-up is still being sent can push the oldest
+  queued catch-up shot out of the eight-message delivery queue. The phone then
+  lacks that one shot until its session is replayed in full (for example after
+  it reconnects without `last_event_id`).
+
+The Pi advertises support with the `shot_catch_up` feature in the `hello`
+result.
+
 ### Shot
 
-Sent on the shot characteristic:
+Sent on the shot characteristic, and as `event: shot` on the network stream:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -195,7 +286,8 @@ hardware configured is sent once, final. The contract fixture is
 
 ### Events
 
-Notified on the control characteristic. Each has `schema_version: 2` and a `type`, and never a `request_id`:
+Notified on the control characteristic, and as named events on the network
+stream. Each has `schema_version: 2` and a `type`, and never a `request_id`:
 
 | `type` | Fields | When |
 |---|---|---|
@@ -219,6 +311,17 @@ Profiles carry only `id` and `name`. `created_at` and the open-ended `settings`
 stay on Socket.IO, because the phone only selects profiles here and an
 unbounded `settings` object could not be guaranteed to fit in one BLE message.
 
+### Network stream
+
+`GET /api/shots/stream` streams schema 2 as Server-Sent Events. `?schema=2` is
+accepted for clients that name it; any other `schema` value returns `400`. A
+stream opens with `: ping`, then the current state as `club_changed`,
+`profiles` and (with a battery monitor) `power_status`, then the
+[catch-up](#catch-up-after-a-reconnect) shots (the whole session unless
+`Last-Event-ID` names a shot). Each `shot` frame carries `id: <event_id>`.
+Event names match the `type` of the payload. Commands stay on `/api/club` and
+Socket.IO.
+
 ### Size budget
 
 A BLE message is at most 255 fragments × 15 bytes = 3,825 bytes. Tests encode
@@ -229,21 +332,24 @@ message that would not fit instead of sending a truncated one.
 
 ## Delivery behavior
 
-- Shot processing never waits for Bluetooth, and a BLE failure cannot affect
-  the browser UI or session logging.
+- Shot processing never waits for either transport, and a failure in one cannot
+  affect the other, the browser UI, or session logging.
 - Each connected client gets a bounded queue of eight unsent events; the oldest
   queued event is dropped if that client cannot keep up. One stalled phone
   cannot slow down another.
-- Disconnecting clears that client's queue; the latest completed shot is
-  replayed on the next connection.
+- Disconnecting clears that client's queue. On the next connection the client
+  is [caught up](#catch-up-after-a-reconnect) on the session shots it missed
+  (up to 20).
 - Clients upsert shots by `event_id`, which ignores replays of shots they
   already have and merges a provisional shot with its final version.
 
 ## Security and scope
 
 The phone protocol intentionally has no application authentication or
-encryption layer. Enable BLE only where nearby Bluetooth devices receiving
-shots and issuing club and profile selections is acceptable.
+encryption layer on either transport. Enable BLE only where nearby Bluetooth
+devices receiving shots and issuing club and profile selections is acceptable,
+and treat the network API as accessible to anything on the same network — the
+same assumption the browser UI already makes.
 
 BLE is unauthenticated: any nearby device can connect and write the control
 characteristic. The protocol therefore exposes only reading state, selecting
@@ -283,15 +389,17 @@ Bluetooth adapter or `bless` install:
 ```bash
 uv run pytest tests/test_ble_protocol.py \
   tests/test_ble_publisher.py tests/test_ble_loopback.py tests/test_ble_goldens.py \
-  tests/test_phone_transport_server.py tests/test_phone_transport.py \
-  tests/test_control_commands.py tests/test_configure_bluetooth.py -v
+  tests/test_shot_stream.py tests/test_phone_transport_server.py \
+  tests/test_phone_transport.py tests/test_control_commands.py \
+  tests/test_phone_catch_up.py tests/test_ble_catch_up.py \
+  tests/test_shot_stream_catch_up.py tests/test_configure_bluetooth.py -v
 uv run python scripts/ble/generate_goldens.py --check
 ```
 
 What still needs a Pi and phones: BlueZ advertising, discovery and
 connection from iOS and Android, pairing and permission prompts, fragment
 pacing over a real link, reconnects after a Pi restart, background behaviour,
-and coexistence with Socket.IO clients.
+and coexistence with SSE and Socket.IO clients.
 
 ## Troubleshooting
 

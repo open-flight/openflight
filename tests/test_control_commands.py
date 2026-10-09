@@ -28,18 +28,21 @@ def _isolate_club_state(monkeypatch):
     """Keep club changes and their broadcasts from leaking into other tests.
 
     ``apply_club_selection`` writes the module-global ``active_club`` and fans
-    out over Socket.IO and BLE, so every test gets its own.
+    out over Socket.IO, the SSE broker and BLE, so every test gets its own.
     """
     monkeypatch.setattr(server_module, "active_club", ClubType.DRIVER)
+    monkeypatch.setattr(server_module, "shot_stream", _ClubPublisher())
     monkeypatch.setattr(server_module, "ble_publisher", None)
     monkeypatch.setattr(server_module.socketio, "emit", lambda *_args, **_kwargs: None)
 
 
 def test_apply_club_selection_updates_monitor_and_broadcasts(monkeypatch):
     monitor = _Monitor()
+    stream = _ClubPublisher()
     ble = _ClubPublisher()
     emitted = []
     monkeypatch.setattr(server_module, "monitor", monitor)
+    monkeypatch.setattr(server_module, "shot_stream", stream)
     monkeypatch.setattr(server_module, "ble_publisher", ble)
     monkeypatch.setattr(server_module, "active_club", ClubType.DRIVER)
     monkeypatch.setattr(
@@ -53,6 +56,7 @@ def test_apply_club_selection_updates_monitor_and_broadcasts(monkeypatch):
     assert monitor.clubs == [ClubType.IRON_7]
     assert emitted == [("club_changed", {"club": "7-iron"})]
     assert server_module.active_club is ClubType.IRON_7
+    assert stream.clubs == ["7-iron"]
     assert ble.clubs == ["7-iron"]
 
 
@@ -65,6 +69,29 @@ def test_apply_club_selection_rejects_unknown_club(monkeypatch):
     assert status == 400
     assert "Unknown club" in response["error"]
     assert monitor.clubs == []
+
+
+def test_network_club_endpoint_uses_shared_selection_logic(monkeypatch):
+    monitor = _Monitor()
+    monkeypatch.setattr(server_module, "monitor", monitor)
+
+    response = server_module.app.test_client().post(
+        "/api/club",
+        json={"club": "pw"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "applied", "club": "pw"}
+    assert monitor.clubs == [ClubType.PW]
+
+
+def test_network_club_endpoint_returns_authoritative_selection(monkeypatch):
+    monkeypatch.setattr(server_module, "active_club", ClubType.WOOD_3)
+
+    response = server_module.app.test_client().get("/api/club")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "current", "club": "3-wood"}
 
 
 def test_control_dispatch_routes_club_command(monkeypatch):

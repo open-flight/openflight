@@ -1,4 +1,4 @@
-"""Server-level behaviour of the phone transports (Socket.IO and BLE)."""
+"""Server-level behaviour of the phone transports (Socket.IO, SSE and BLE)."""
 
 import logging
 import sys
@@ -22,9 +22,11 @@ class _ClubPublisher:
 @pytest.fixture
 def no_monitor_transports(monkeypatch):
     """No launch monitor, with every club transport captured."""
+    stream = _ClubPublisher()
     ble = _ClubPublisher()
     emitted = []
     monkeypatch.setattr(server_module, "monitor", None)
+    monkeypatch.setattr(server_module, "shot_stream", stream)
     monkeypatch.setattr(server_module, "ble_publisher", ble)
     monkeypatch.setattr(server_module, "active_club", ClubType.DRIVER)
     monkeypatch.setattr(
@@ -32,28 +34,57 @@ def no_monitor_transports(monkeypatch):
         "emit",
         lambda event, data, **_kwargs: emitted.append((event, data)),
     )
-    return ble, emitted
+    return stream, ble, emitted
 
 
 def test_socket_set_club_without_monitor_still_broadcasts(no_monitor_transports):
     """Before the monitor exists, a club change is recorded and broadcast, as before."""
-    ble, emitted = no_monitor_transports
+    stream, ble, emitted = no_monitor_transports
 
     server_module.handle_set_club({"club": "7-iron"})
 
     assert server_module.active_club is ClubType.IRON_7
     assert emitted == [("club_changed", {"club": "7-iron"})]
+    assert stream.clubs == ["7-iron"]
     assert ble.clubs == ["7-iron"]
+
+
+def test_network_club_post_without_monitor_applies_and_broadcasts(no_monitor_transports):
+    stream, ble, emitted = no_monitor_transports
+
+    response = server_module.app.test_client().post("/api/club", json={"club": "pw"})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "applied", "club": "pw"}
+    assert server_module.active_club is ClubType.PW
+    assert emitted == [("club_changed", {"club": "pw"})]
+    assert stream.clubs == ["pw"]
+    assert ble.clubs == ["pw"]
+
+
+@pytest.mark.parametrize("payload", [{"club": "putter"}, {"club": "unknown"}, {}, None, "pw"])
+def test_network_club_post_rejects_invalid_selection(no_monitor_transports, payload):
+    stream, ble, emitted = no_monitor_transports
+
+    response = server_module.app.test_client().post("/api/club", json=payload)
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+    assert server_module.active_club is ClubType.DRIVER
+    assert emitted == []
+    assert stream.clubs == []
+    assert ble.clubs == []
 
 
 @pytest.mark.parametrize("payload", [{"club": "putter"}, {"club": "unknown"}, None])
 def test_socket_set_club_ignores_invalid_selection(no_monitor_transports, payload):
-    ble, emitted = no_monitor_transports
+    stream, ble, emitted = no_monitor_transports
 
     server_module.handle_set_club(payload)
 
     assert server_module.active_club is ClubType.DRIVER
     assert emitted == []
+    assert stream.clubs == []
     assert ble.clubs == []
 
 

@@ -7,8 +7,8 @@ import json
 import logging
 import threading
 import uuid
-from collections.abc import Callable
-from typing import Mapping
+from collections.abc import Callable, Sequence
+from typing import Any, Mapping
 
 from .protocol import (
     ACCEPTED_REQUEST_SCHEMAS,
@@ -27,6 +27,9 @@ from .protocol import (
 logger = logging.getLogger(__name__)
 
 CommandHandler = Callable[[str, Mapping], tuple[dict, int]]
+# Given a client's ``last_event_id`` (or ``None``), the ``(event_id, shot
+# payload)`` pairs it missed, oldest first. See ``openflight.phone_catch_up``.
+CatchUpProvider = Callable[[Any], Sequence[tuple[str, bytes]]]
 
 _SHOT = SHOT_CHARACTERISTIC_UUID.lower()
 _CONTROL = CONTROL_CHARACTERISTIC_UUID.lower()
@@ -56,13 +59,14 @@ class BleShotPublisher:
     value, so every connected phone receives every message.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         *,
         name: str = "OpenFlight",
         queue_size: int = 8,
         fragment_interval_s: float = 0.01,
         command_handler: CommandHandler | None = None,
+        catch_up_provider: CatchUpProvider | None = None,
     ):
         if queue_size < 1:
             raise ValueError("BLE queue size must be at least one")
@@ -70,6 +74,7 @@ class BleShotPublisher:
         self.queue_size = queue_size
         self.fragment_interval_s = fragment_interval_s
         self.command_handler = command_handler
+        self.catch_up_provider = catch_up_provider
 
         self._state_lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -87,6 +92,9 @@ class BleShotPublisher:
         self._control_sequence = 0
         self._control_reassembler = FragmentReassembler()
         self._control_send_lock: asyncio.Lock | None = None
+        # Missed shots computed at a ``hello`` that arrived before the phone
+        # subscribed to the shot characteristic; sent when it does.
+        self._pending_catch_up: list[bytes] | None = None
 
     @property
     def subscribed(self) -> bool:
@@ -186,6 +194,7 @@ class BleShotPublisher:
                 self._subscribed = False
                 self._subscriptions = set()
                 self._control_send_lock = None
+                self._pending_catch_up = None
 
     async def _run(self) -> None:
         # Bless is an optional dependency and must not affect non-BLE installs.
@@ -309,6 +318,12 @@ class BleShotPublisher:
             latest_payload = self._latest_payload
             queue = self._queue
             shot_started = _SHOT in subscriptions and _SHOT not in previous
+            pending_catch_up = None
+            if shot_started or not subscribed:
+                # Consumed by the subscription it was waiting for, or discarded
+                # with the connection that asked for it.
+                pending_catch_up = self._pending_catch_up if shot_started else None
+                self._pending_catch_up = None
 
         if subscribed != was_subscribed:
             logger.info("[BLE] Client %s", "subscribed" if subscribed else "unsubscribed")
@@ -317,8 +332,13 @@ class BleShotPublisher:
 
         # Replay the latest shot when the shot characteristic gains a
         # subscriber, so a phone that subscribes to control first still gets it.
-        if shot_started and latest_payload is not None:
-            self._enqueue_payload(latest_payload)
+        # A phone that already sent ``hello`` gets its catch-up instead, which
+        # holds the latest shot unless the phone already had it.
+        if shot_started:
+            if pending_catch_up is not None:
+                self._start_catch_up(pending_catch_up)
+            elif latest_payload is not None:
+                self._enqueue_payload(latest_payload)
 
     def _enqueue_payload(self, payload: bytes) -> None:
         with self._state_lock:
@@ -326,6 +346,55 @@ class BleShotPublisher:
             subscribed = self._subscribed
         if subscribed:
             self._offer(queue, payload)
+
+    async def _load_catch_up(self, last_event_id) -> list[bytes] | None:
+        """The shots a client missed, or ``None`` when catch-up is unavailable."""
+        provider = self.catch_up_provider
+        if provider is None:
+            return None
+        try:
+            entries = await asyncio.to_thread(provider, last_event_id)
+            return [payload for _event_id, payload in entries]
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Never fail ``hello`` over catch-up: the phone keeps the
+            # latest-shot replay.
+            logger.warning("[BLE] Could not load missed shots for catch-up", exc_info=True)
+            return None
+
+    def _schedule_catch_up(self, payloads: list[bytes] | None) -> None:
+        """Send catch-up now if the shot characteristic is subscribed, else on subscribe.
+
+        ``None`` (no catch-up for this command) does nothing.
+        """
+        if payloads is None:
+            return
+        with self._state_lock:
+            ready = _SHOT in self._subscriptions
+            if not ready:
+                self._pending_catch_up = payloads
+        logger.info(
+            "[BLE] Catch-up: %d missed shot(s)%s",
+            len(payloads),
+            "" if ready else " (sent when the client subscribes to shots)",
+        )
+        if ready:
+            self._start_catch_up(payloads)
+
+    def _start_catch_up(self, payloads: list[bytes]) -> None:
+        with self._state_lock:
+            loop = self._loop
+        if loop is not None and payloads:
+            asyncio.run_coroutine_threadsafe(self._deliver_catch_up(payloads), loop)
+
+    async def _deliver_catch_up(self, payloads: list[bytes]) -> None:
+        """Queue catch-up shots in order, waiting for room instead of dropping any."""
+        for payload in payloads:
+            with self._state_lock:
+                queue = self._queue
+                subscribed = self._subscribed
+            if queue is None or not subscribed:
+                return
+            await queue.put(payload)
 
     @staticmethod
     def _offer(queue: asyncio.Queue[bytes] | None, payload: bytes) -> None:
@@ -416,6 +485,7 @@ class BleShotPublisher:
 
     async def _process_control_payload(self, payload: bytes) -> None:
         request_id = "unknown"
+        catch_up: list[bytes] | None = None
         try:
             command = json.loads(payload)
             if not isinstance(command, dict):
@@ -433,10 +503,7 @@ class BleShotPublisher:
                 raise ValueError("Control command payload must be an object")
 
             if command_type == "hello":
-                # Answered by the publisher itself: ``hello`` is about which
-                # characteristics exist, not server state.
-                result = build_hello_result(command_payload.get("client_schema_max"))
-                response = build_control_response(request_id, result=result)
+                response, catch_up = await self._answer_hello(request_id, command_payload)
             else:
                 if self.command_handler is None:
                     raise ValueError("Phone controls are not configured on this OpenFlight server")
@@ -458,6 +525,22 @@ class BleShotPublisher:
             )
 
         await self._send_control_response(encode_message(response))
+        # After the answer, so a client sees ``hello`` succeed before shots arrive.
+        self._schedule_catch_up(catch_up)
+
+    async def _answer_hello(
+        self,
+        request_id: str,
+        command_payload: Mapping,
+    ) -> tuple[dict, list[bytes] | None]:
+        """Negotiate the transport and load the client's catch-up shots.
+
+        ``hello`` is answered by the publisher itself: it is about which
+        characteristics exist, not server state.
+        """
+        result = build_hello_result(command_payload.get("client_schema_max"))
+        response = build_control_response(request_id, result=result)
+        return response, await self._load_catch_up(command_payload.get("last_event_id"))
 
     async def _send_control_response(self, payload: bytes) -> None:
         """Send one complete control message without interleaving fragments."""
