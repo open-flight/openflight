@@ -19,18 +19,21 @@ DEFAULT_LOG_DIR = SessionLogger.DEFAULT_LOG_DIR
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    # Shared options usable either before or after the subcommand.
+    # Shared options usable either before or after the subcommand. Defaults
+    # are suppressed here and supplied by main(), because argparse copies a
+    # subparser's defaults over the parent namespace, which would discard a
+    # value given before the subcommand.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
         "--config",
         type=Path,
-        default=CONFIG_PATH,
+        default=argparse.SUPPRESS,
         help=f"Path to cloud config (default: {CONFIG_PATH}).",
     )
     common.add_argument(
         "--log-dir",
         type=Path,
-        default=DEFAULT_LOG_DIR,
+        default=argparse.SUPPRESS,
         help=f"Session log directory (default: {DEFAULT_LOG_DIR}).",
     )
 
@@ -83,7 +86,8 @@ def _client(config: CloudConfig) -> CloudClient:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    defaults = argparse.Namespace(config=CONFIG_PATH, log_dir=DEFAULT_LOG_DIR)
+    args = parser.parse_args(argv, namespace=defaults)
 
     if not args.command:
         parser.print_help()
