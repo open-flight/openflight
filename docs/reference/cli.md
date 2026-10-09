@@ -27,6 +27,7 @@ Binding, ports, and debug output.
 | --- | --- | --- |
 | `--mock`, `-m` | flag | Run in mock mode without radar |
 | `--mock-swing-speed` | flag | Run swing speed training mode with simulated reps and no OPS radar |
+| `--mock-enrichment-ms` | float; default `0.0` | With --mock, simulate IWR6843/camera enrichment taking MS milliseconds: shots arrive provisional, then final with direction data (default: off) |
 | `--host` | default `0.0.0.0` | Host to bind to (default: 0.0.0.0) |
 | `--web-port` | int; default `8080` | Web server port (default: 8080) |
 | `--startup-status-file` | path | Write structured initialization progress for the optional kiosk splash |
@@ -127,7 +128,7 @@ Outbound connectors and battery status.
 
 | Flag | Type / default | Description |
 | --- | --- | --- |
-| `--battery` | — | Show battery and external-power status using the selected provider |
+| `--battery` | — | Show battery and external-power status using the selected provider (`geekworm`, or `mock` for a simulated battery) |
 | `--sim` | flag | Enable simulator connectors from config/sim.json (GSPro / OpenGolfSim / PAR-TEE). Off by default. |
 
 ## High-speed camera capture

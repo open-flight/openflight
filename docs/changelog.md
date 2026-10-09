@@ -70,6 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   full horizontal speed, overstating attack angle on any shot with club path.
 
 ### Added
+- **Mock mode simulates the optional hardware phones react to.** So a Pi
+  with no radar, UPS or camera can exercise every phone event: mock shots
+  now report `shot_processing` `capturing` then `calculating` like the radar,
+  `simulate_shot` with `{"fail": true}` reports `failed` without a shot,
+  `--mock-enrichment-ms MS` sends mock shots provisional then final through the
+  real enrichment pipeline (above the 20 s deadline they finalize as skipped),
+  and `--battery mock` cycles `power_status` through every state. See
+  [simulating hardware](ios-ble.md#simulating-hardware-on-a-pi-without-it).
 - **Bluetooth LE connection for phone apps.** `--ble` (with the optional `ble`
   extra, `bless==0.3.0` on Linux) advertises one GATT service with a shot and a
   control characteristic, speaking schema version 2; without BlueZ or the

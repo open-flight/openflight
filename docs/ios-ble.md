@@ -203,7 +203,7 @@ Notified on the control characteristic. Each has `schema_version: 2` and a `type
 | `profiles` | `profiles: [{id, name}]`, `active_profile_id` | After every profile request or mutation from any client, including rejected ones |
 | `session_cleared` | `profile_id` | After a profile's shots are cleared on the kiosk |
 | `shot_deleted` | `timestamp` (the shot's delete key) | After a shot is deleted on the kiosk |
-| `shot_processing` | `state`: `capturing`, `calculating` or `failed` | Rolling-buffer monitor progress; the next shot ends it |
+| `shot_processing` | `state`: `capturing`, `calculating` or `failed` | Rolling-buffer monitor (and mock mode) progress; the next shot ends it |
 | `power_status` | the Socket.IO `power_status` payload: `available, provider, state, battery_percent, battery_voltage_v, external_power, updated_at, error` | Every 5 s with `--battery` |
 
 ```json
@@ -292,6 +292,36 @@ What still needs a Pi and phones: BlueZ advertising, discovery and
 connection from iOS and Android, pairing and permission prompts, fragment
 pacing over a real link, reconnects after a Pi restart, background behaviour,
 and coexistence with Socket.IO clients.
+
+### Simulating hardware on a Pi without it
+
+Mock mode can produce every phone event, so a Pi with no radar, UPS or camera
+can still exercise the app end to end over the real radio:
+
+```bash
+scripts/start-kiosk.sh --mock --ble --battery mock --mock-enrichment-ms 1500
+```
+
+| What | How | The phone sees |
+|---|---|---|
+| Shots | Tap **Simulate shot** on the kiosk, or emit `simulate_shot` over Socket.IO | `shot_processing` `capturing` then `calculating`, then the shot |
+| A failed capture | Emit `simulate_shot` with `{"fail": true}` | `shot_processing` `capturing`, `calculating`, `failed`, and no shot |
+| Provisional then final | `--mock-enrichment-ms MS` | A provisional shot (`enrichment: pending`, no horizontal launch, club path or spin axis), then the final one with them, sharing one `event_id` |
+| Skipped enrichment | `--mock-enrichment-ms` above the 20 s deadline, e.g. `25000` | The final shot with `enrichment: {"status":"skipped","reason":"deadline"}` |
+| Battery | `--battery mock` | `power_status` cycling from 100% on battery through `low` and `critical`, then `plugged_in` back to 100%, about every 100 s; `get_power_status` answers with the latest reading |
+
+Without `--battery`, `get_power_status` fails with `Battery monitoring is not
+enabled`, the expected error path for a phone to show.
+
+To fire shots from another machine without the kiosk:
+
+```bash
+ssh <pi> 'cd /tmp && ~/.local/bin/uv run -q --no-project --with "python-socketio[client]" python -c "
+import socketio, time
+sio = socketio.Client(); sio.connect(\"http://localhost:8080\")
+sio.emit(\"simulate_shot\")                  # or: sio.emit(\"simulate_shot\", {\"fail\": True})
+time.sleep(1); sio.disconnect()"'
+```
 
 ## Troubleshooting
 

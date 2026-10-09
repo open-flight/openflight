@@ -2110,9 +2110,14 @@ def handle_delete_shot(data):
 
 
 @socketio.on("simulate_shot")
-def handle_simulate_shot():
-    """Simulate a shot (only works in mock mode)."""
-    if monitor and isinstance(monitor, (MockLaunchMonitor, MockSwingSpeedMonitor)):
+def handle_simulate_shot(data=None):
+    """Simulate a shot (only works in mock mode).
+
+    ``{"fail": true}`` simulates a capture the radar could not process.
+    """
+    if isinstance(monitor, MockLaunchMonitor):
+        monitor.simulate_shot(fail=bool(_payload_dict(data).get("fail")))
+    elif isinstance(monitor, MockSwingSpeedMonitor):
         monitor.simulate_shot()
 
 
@@ -3065,6 +3070,8 @@ def _attach_camera_replay(shot: Shot, camera_capture) -> None:
 
 def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
     """Mutate a shot with available radar/camera measurements and timings."""
+    if shot.mode == "mock" and _mock_enrichment_enabled():
+        return _ShotEnrichmentResult(iwr6843_ms=monitor.enrich(shot))
 
     # Snapshot orientation before IWR capture can block, and select only data
     # timestamped before impact so impact vibration cannot bias the geometry.
@@ -3713,11 +3720,16 @@ def _emit_ops_enrichment_skipped(shot: Shot, *, reason: str) -> None:
         )
 
 
+def _mock_enrichment_enabled() -> bool:
+    """Whether the mock monitor simulates optional hardware (``--mock-enrichment-ms``)."""
+    return getattr(monitor, "enrichment_ms", 0) > 0 and hasattr(monitor, "enrich")
+
+
 def _has_slow_shot_enrichment(shot: Shot) -> bool:
     """Whether optional hardware can add seconds to this shot callback."""
-    return shot.mode != "mock" and (
-        iwr6843_runtime is not None or camera_capture_runtime is not None
-    )
+    if shot.mode == "mock":
+        return _mock_enrichment_enabled()
+    return iwr6843_runtime is not None or camera_capture_runtime is not None
 
 
 def _drain_shot_enrichment_queue() -> None:
@@ -3956,6 +3968,7 @@ def start_monitor(
     swing_speed_mode: bool = False,
     swing_speed_kwargs: Optional[dict] = None,
     ops_baud: Optional[int] = None,
+    mock_enrichment_ms: float = 0.0,
 ):
     """
     Start the monitor in launch monitor or swing speed mode.
@@ -3966,6 +3979,8 @@ def start_monitor(
         trigger_type: Trigger strategy (sound or speed)
         debug: Enable verbose debug output
         ops_baud: Target UART baud when the OPS243 is on the GPIO header
+        mock_enrichment_ms: In mock mode, simulate optional hardware taking this
+            long, so shots go provisional then final (0 disables)
     """
     global monitor, mock_mode, mock_swing_speed_mode, debug_mode, radar_config
 
@@ -3982,7 +3997,7 @@ def start_monitor(
         print("[MODE] Mock swing speed training mode")
     elif mock:
         # Mock mode for testing without radar
-        monitor = MockLaunchMonitor()
+        monitor = MockLaunchMonitor(enrichment_ms=mock_enrichment_ms)
     elif swing_speed_mode:
         from .swing_speed import SwingSpeedMonitor
 
@@ -4098,7 +4113,11 @@ def start_monitor(
         if iwr6843_runtime is not None:
             iwr6843_runtime.capture_monitor.arm()
     else:
-        monitor.start(shot_callback=on_shot_detected, live_callback=on_live_reading)
+        monitor.start(  # pylint: disable=unexpected-keyword-arg
+            shot_callback=on_shot_detected,
+            live_callback=on_live_reading,
+            processing_callback=on_shot_processing,
+        )
 
 
 def _cloud_raw_uploads_enabled() -> bool:
@@ -4205,13 +4224,26 @@ def stop_monitor():
 
 
 class MockLaunchMonitor:
-    """Mock launch monitor for UI development without radar hardware."""
+    """Mock launch monitor for UI development without radar hardware.
 
-    def __init__(self):
+    Like the rolling-buffer radar it reports ``capturing`` then ``calculating``
+    to ``processing_callback`` (and ``failed`` for ``simulate_shot(fail=True)``).
+    With ``enrichment_ms`` it also stands in for IWR6843/camera hardware: shots
+    are recorded without horizontal launch, club path and spin axis, and
+    ``enrich`` supplies them after that delay, so mock shots go provisional then
+    final through the real enrichment pipeline.
+    """
+
+    def __init__(self, *, enrichment_ms: float = 0.0, processing_step_s: float = 0.15):
         """Initialize mock monitor."""
+        if enrichment_ms < 0:
+            raise ValueError("Mock enrichment delay must not be negative")
+        self.enrichment_ms = enrichment_ms
+        self.processing_step_s = processing_step_s
         self._shots: List[Shot] = []
         self._running = False
         self._shot_callback = None
+        self._processing_callback = None
         self._current_club = ClubType.DRIVER
 
     def connect(self):
@@ -4222,9 +4254,10 @@ class MockLaunchMonitor:
         """Disconnect from mock radar."""
         self.stop()
 
-    def start(self, shot_callback=None, live_callback=None):  # pylint: disable=unused-argument
+    def start(self, shot_callback=None, live_callback=None, processing_callback=None):  # pylint: disable=unused-argument
         """Start mock monitoring."""
         self._shot_callback = shot_callback
+        self._processing_callback = processing_callback
         self._running = True
         print("Mock monitor started - simulate shots via WebSocket")
 
@@ -4232,8 +4265,64 @@ class MockLaunchMonitor:
         """Stop mock monitoring."""
         self._running = False
 
-    def simulate_shot(self, ball_speed: float = None):
-        """Simulate a shot for testing using realistic TrackMan-based values."""
+    def _notify_processing(self, state: str, *, pause: bool = True) -> None:
+        """Report a processing state; UI errors must not break the simulated shot."""
+        if self._processing_callback is None:
+            return
+        try:
+            self._processing_callback(state)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("[MOCK] Processing callback failed", exc_info=True)
+        if pause and self.processing_step_s > 0:
+            time.sleep(self.processing_step_s)
+
+    @staticmethod
+    def _simulated_direction(confidence: float) -> dict:
+        """Horizontal launch, club path and spin axis: what IWR6843/camera measure."""
+        defaults = SHOT_SIMULATION_DEFAULTS
+        launch_h = random.gauss(0, defaults.horizontal_launch_std_dev_deg)
+        return {
+            "launch_angle_horizontal": round(launch_h, 1),
+            "launch_angle_horizontal_confidence": confidence,
+            "launch_angle_horizontal_source": "mock",
+            "club_path_deg": round(
+                random.uniform(-defaults.club_path_max_abs_deg, defaults.club_path_max_abs_deg),
+                1,
+            ),
+            "spin_axis_deg": round(
+                launch_h
+                - random.uniform(
+                    -defaults.spin_axis_error_max_abs_deg,
+                    defaults.spin_axis_error_max_abs_deg,
+                ),
+                1,
+            ),
+        }
+
+    def enrich(self, shot: Shot) -> float:
+        """Simulate optional hardware: wait ``enrichment_ms``, then add direction.
+
+        Returns the elapsed milliseconds, as the hardware timings are reported.
+        """
+        started = time.monotonic()
+        time.sleep(self.enrichment_ms / 1000.0)
+        confidence = shot.launch_angle_confidence or SHOT_SIMULATION_DEFAULTS.confidence_min
+        for field, value in self._simulated_direction(confidence).items():
+            setattr(shot, field, value)
+        return (time.monotonic() - started) * 1000.0
+
+    def simulate_shot(self, ball_speed: float = None, *, fail: bool = False):
+        """Simulate a shot for testing using realistic TrackMan-based values.
+
+        ``fail`` simulates a capture the radar could not process: ``failed`` is
+        reported and no shot is recorded (returns ``None``).
+        """
+        self._notify_processing("capturing")
+        self._notify_processing("calculating", pause=not fail)
+        if fail:
+            self._notify_processing("failed", pause=False)
+            return None
+
         physics = get_club_physics(self._current_club)
         profile = get_club_simulation_profile(self._current_club)
         defaults = SHOT_SIMULATION_DEFAULTS
@@ -4264,9 +4353,14 @@ class MockLaunchMonitor:
             defaults.min_launch_deg,
             random.gauss(physics.optimal_launch_deg, profile.launch_std_dev_deg),
         )
-        launch_h = random.gauss(0, defaults.horizontal_launch_std_dev_deg)
         launch_confidence = round(
             random.uniform(defaults.confidence_min, defaults.confidence_max), 2
+        )
+        # With simulated enrichment these arrive later, as from IWR6843/camera.
+        direction = (
+            {field: None for field in self._simulated_direction(launch_confidence)}
+            if self.enrichment_ms > 0
+            else self._simulated_direction(launch_confidence)
         )
 
         club_aoa = round(
@@ -4285,30 +4379,13 @@ class MockLaunchMonitor:
             spin_rpm=spin_rpm,
             spin_confidence=random.choice(defaults.spin_confidence_choices),
             launch_angle_vertical=round(launch_v, 1),
-            launch_angle_horizontal=round(launch_h, 1),
             launch_angle_confidence=launch_confidence,
             launch_angle_vertical_confidence=launch_confidence,
-            launch_angle_horizontal_confidence=launch_confidence,
             launch_angle_vertical_source="mock",
-            launch_angle_horizontal_source="mock",
             angle_source="mock",
             club_angle_deg=club_aoa,
-            club_path_deg=round(
-                random.uniform(
-                    -defaults.club_path_max_abs_deg,
-                    defaults.club_path_max_abs_deg,
-                ),
-                1,
-            ),
-            spin_axis_deg=round(
-                launch_h
-                - random.uniform(
-                    -defaults.spin_axis_error_max_abs_deg,
-                    defaults.spin_axis_error_max_abs_deg,
-                ),
-                1,
-            ),
             mode="mock",
+            **direction,
         )
 
         self._shots.append(shot)
@@ -4541,6 +4618,16 @@ def main():
         "--mock-swing-speed",
         action="store_true",
         help="Run swing speed training mode with simulated reps and no OPS radar",
+    )
+    parser.add_argument(
+        "--mock-enrichment-ms",
+        type=float,
+        default=0.0,
+        metavar="MS",
+        help=(
+            "With --mock, simulate IWR6843/camera enrichment taking MS milliseconds: "
+            "shots arrive provisional, then final with direction data (default: off)"
+        ),
     )
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     parser.add_argument(
@@ -4959,6 +5046,10 @@ def main():
     # launch angle), so require it whenever the K-LD7 radars are enabled.
     if args.kld7 and args.kld7_mount_tilt is None:
         parser.error("--kld7-mount-tilt is required when --kld7 is passed")
+    if args.mock_enrichment_ms < 0:
+        parser.error("--mock-enrichment-ms must not be negative")
+    if args.mock_enrichment_ms > 0 and (not args.mock or args.mock_swing_speed):
+        parser.error("--mock-enrichment-ms requires --mock (launch monitor mode)")
     if args.mock_swing_speed:
         args.mock = True
         args.swing_speed = True
@@ -5260,6 +5351,7 @@ def main():
             swing_speed_mode=args.swing_speed,
             swing_speed_kwargs=swing_speed_kwargs,
             ops_baud=args.ops_baud,
+            mock_enrichment_ms=args.mock_enrichment_ms,
         )
     except Exception:
         monitor_recovery = (
