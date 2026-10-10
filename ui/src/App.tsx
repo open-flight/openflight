@@ -20,6 +20,7 @@ import {
   LivePanel,
   ProfileNameDialog,
   ProfilesPanel,
+  ClubVisibilityDialog,
   ClearSessionDialog,
   SimulateBubble,
   MenuSheet,
@@ -30,6 +31,8 @@ import {
   ShotsPanel,
   StatsPanel,
   clubSections,
+  filterSectionsByEnabledClubs,
+  pickerGridRows,
   trainingImplementSections,
   type PanelView,
 } from './components/panel';
@@ -42,6 +45,16 @@ import { useLaunchDaddy, LaunchDaddyOverlay, LaunchDaddyBrand } from './componen
 
 import { useI18n } from './i18n/useI18n';
 import './components/panel/panel.css';
+
+/** `profile.settings.enabled_clubs`, validated as a string array. Undefined means "all clubs". */
+function getEnabledClubIds(profile: Profile | null): string[] | undefined {
+  const raw = profile?.settings?.enabled_clubs;
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+  const ids = raw.filter((value): value is string => typeof value === 'string');
+  return ids.length > 0 ? ids : undefined;
+}
 
 function AppContent() {
   const { t } = useI18n();
@@ -79,6 +92,7 @@ function AppContent() {
   );
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) ?? null;
   const activeProfileName = activeProfile?.name ?? '';
+  const enabledClubIds = getEnabledClubIds(activeProfile);
   const { heroMetricId, setHeroMetricId } = useHeroMetricStore(
     useShallow((state) => ({ heroMetricId: state.heroMetricId, setHeroMetricId: state.setHeroMetricId }))
   );
@@ -114,6 +128,7 @@ function AppContent() {
   const [pickerOpen, setPickerOpen] = useState(true);
   const [profileDialog, setProfileDialog] = useState<{ mode: 'add' | 'rename'; target: Profile | null } | null>(null);
   const [profileDialogName, setProfileDialogName] = useState('');
+  const [clubDialogTarget, setClubDialogTarget] = useState<Profile | null>(null);
   const [clearSessionOpen, setClearSessionOpen] = useState(false);
   const { activeReplay, openReplay, closeReplay, reportPlaybackError } = useCameraReplayController();
 
@@ -183,6 +198,15 @@ function AppContent() {
   const closeProfileDialog = () => {
     setProfileDialog(null);
     setProfileDialogName('');
+  };
+
+  const closeClubDialog = () => setClubDialogTarget(null);
+
+  const handleSaveProfileClubs = (clubIds: string[]) => {
+    if (clubDialogTarget) {
+      socketService.setProfileClubs(clubDialogTarget.id, clubIds);
+    }
+    closeClubDialog();
   };
 
   const handleConfirmProfileDialog = () => {
@@ -324,6 +348,7 @@ function AppContent() {
             loaded={profilesLoaded}
             onSelectProfile={handleSelectProfile}
             onRenameProfile={openRenameProfile}
+            onManageClubs={setClubDialogTarget}
             onRemoveProfile={handleRemoveProfile}
             headerAction={addProfileAction}
           />
@@ -411,6 +436,15 @@ function AppContent() {
         />
       ) : null}
 
+      {clubDialogTarget ? (
+        <ClubVisibilityDialog
+          profileName={clubDialogTarget.name}
+          enabledClubIds={getEnabledClubIds(clubDialogTarget)}
+          onSave={handleSaveProfileClubs}
+          onCancel={closeClubDialog}
+        />
+      ) : null}
+
       {clearSessionOpen ? (
         <ClearSessionDialog
           profileName={activeProfileName}
@@ -423,7 +457,14 @@ function AppContent() {
         <PickerOverlay
           title={isSwingSpeedMode ? t('app.selectImplement') : t('app.selectClub')}
           selectedId={isSwingSpeedMode ? selectedTrainingImplement : selectedClub}
-          sections={isSwingSpeedMode ? trainingImplementSections() : clubSections()}
+          sections={
+            isSwingSpeedMode
+              ? trainingImplementSections()
+              : filterSectionsByEnabledClubs(clubSections(), enabledClubIds)
+          }
+          // Fixed to the full club list's row count so tile size doesn't
+          // shift as a profile's enabled-club filter changes what's shown.
+          rows={isSwingSpeedMode ? undefined : pickerGridRows(clubSections())}
           onSelect={handlePickerSelect}
           onClose={() => setPickerOpen(false)}
           wide={isSwingSpeedMode}

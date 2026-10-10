@@ -13,9 +13,28 @@ interface ProfilesPanelProps {
   loaded: boolean;
   onSelectProfile: (profileId: string) => void;
   onRenameProfile: (profile: Profile) => void;
+  onManageClubs: (profile: Profile) => void;
   onRemoveProfile: (profileId: string) => void;
   /** Pinned header control, e.g. Add profile. */
   headerAction?: ReactNode;
+}
+
+/**
+ * Golf-club glyph for the "manage clubs" button. Plain SVG, not an emoji:
+ * a color emoji like the golfer pictogram needs a system emoji font, which
+ * Raspberry Pi OS's kiosk image doesn't ship, so it rendered as a missing-
+ * glyph box on the Pi while showing fine on a desktop that has one.
+ */
+function ClubsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M12.5 1.8 L4.8 13.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M3.6 12.3 C2.1 13.1 1.6 14.7 2.7 15.2 C4.1 15.8 6.2 14.6 5.9 13 C5.7 12 4.6 11.7 3.6 12.3 Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export function ProfilesPanel({
@@ -25,6 +44,7 @@ export function ProfilesPanel({
   loaded,
   onSelectProfile,
   onRenameProfile,
+  onManageClubs,
   onRemoveProfile,
   headerAction,
 }: ProfilesPanelProps) {
@@ -88,6 +108,14 @@ export function ProfilesPanel({
                     onClick={() => onRenameProfile(profile)}
                   >
                     ✎
+                  </button>
+                  <button
+                    type="button"
+                    className="profiles-panel__clubs"
+                    aria-label={t('menu.manageClubsNamed', { name: profile.name })}
+                    onClick={() => onManageClubs(profile)}
+                  >
+                    <ClubsIcon />
                   </button>
                   {canRemove && !selected && count === 0 ? (
                     <button

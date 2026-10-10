@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-profile club visibility.** Each profile can now hide clubs it doesn't
+  carry from the club picker, via a new clubs button (🏌) on its card in the
+  Profiles panel. Pick which clubs show and save; the picker filters down to
+  just those clubs for that profile, and empty club-family tabs are hidden.
+  Existing profiles are unaffected until customized (all clubs remain
+  visible by default). Backed by a new `enabled_clubs` key in the profile's
+  existing open `settings` dict and a new `set_profile_clubs` socket event.
+
 ### Changed
 - **Chromium fallback is reachable during Electron upgrades.** If `ui/dist`
   already exists, a missing Electron install no longer requires Node 22.12 and

@@ -214,6 +214,10 @@ class SocketService {
     this.socket?.emit('remove_profile', { profile_id: profileId });
   }
 
+  setProfileClubs(profileId: string, clubIds: string[]) {
+    this.socket?.emit('set_profile_clubs', { profile_id: profileId, clubs: clubIds });
+  }
+
   uploadCloud() {
     useSystemStore.getState().setCloudUploadStatus('running', 'Uploading...');
     this.socket?.emit('upload_cloud');

@@ -1983,6 +1983,14 @@ def handle_rename_profile(data=None):
     _emit_profiles()
 
 
+@socketio.on("set_profile_clubs")
+def handle_set_profile_clubs(data=None):
+    """Set which clubs a profile sees in the club picker."""
+    payload = _payload_dict(data)
+    get_profile_store().set_enabled_clubs(payload.get("profile_id"), payload.get("clubs"))
+    _emit_profiles()
+
+
 @socketio.on("remove_profile")
 def handle_remove_profile(data=None):
     """Delete a profile. Refused for the active, the last, or one with session rows."""
