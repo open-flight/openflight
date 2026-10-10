@@ -337,7 +337,7 @@ Build it locally with `make docs` (serves at `localhost:8000`).
 - **[LIS3DH Inclinometer Setup](docs/build/inclinometer.md)**: Add enclosure-level compensation to IWR6843 tilt
 - **[OPS243 USB → GPIO UART Migration](docs/build/ops243-uart.md)** — Required before adding the IWR6843
 - **[IWR6843 Firmware Developer Guide](docs/development/firmware.md)** — Build the firmware from source (not needed to flash the prebuilt image)
-- **[Enclosure & Case](docs/build/enclosure.md)** — The printed IARC v3 case
+- **[Enclosure & Case](https://github.com/open-flight/openflight-enclosure)** — The printed case, in its own repository
 - **[Hardware Diagnostic](docs/setup/raspberry-pi.md)** — Pi setup, auto-start, and troubleshooting
 - **[Simulator Connectors](docs/using/simulator/index.md)** — Stream shots to GSPro, OpenGolfSim, PAR-TEE, and others
 - **[Cloud Sync](docs/using/cloud-sync.md)** — Push filtered sessions to FlightWeb

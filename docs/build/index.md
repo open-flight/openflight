@@ -30,9 +30,10 @@ it is done and verified.
 
     *Optional.* Geekworm X1202/X1206 UPS with native telemetry.
 
-- :material-cube-outline: **[Enclosure & case](enclosure.md)**
+- :material-cube-outline: **[Enclosure & case](https://github.com/open-flight/openflight-enclosure)**
 
-    *Optional.* The printed IARC v3 case.
+    The printed case, in its own repository. The older
+    [IARC v3 case](enclosure.md) is kept for existing builds only.
 
 </div>
 
