@@ -28,6 +28,27 @@ Make sure you have all the hardware. See the **[Parts List](../get-started/parts
 
 Use Raspberry Pi Imager to flash **Raspberry Pi OS (64-bit)** to your SD card.
 
+!!! tip "No microSD card reader? Flash through the Pi itself"
+    Raspberry Pi's [usbboot](https://github.com/raspberrypi/usbboot) (`rpiboot`)
+    can make the Pi 5 show up on your computer as a USB drive, with the
+    microSD card in its slot. Raspberry Pi Imager then writes to it like any
+    card reader.
+
+    1. Install `rpiboot` on your computer. Windows has an installer
+       (`rpiboot_setup.exe` on the
+       [releases page](https://github.com/raspberrypi/usbboot/releases)). On
+       Linux and macOS, build it as described in the repository README.
+    2. Insert the microSD card into the Pi and remove its power completely.
+    3. Hold the Pi's power button, then connect a USB-C data cable from your
+       computer to the Pi's USB-C power port.
+    4. Run `sudo rpiboot -d mass-storage-gadget` on Linux and macOS. On
+       Windows, use the **rpiboot - Mass Storage Gadget** Start menu shortcut.
+    5. When the card appears as a drive, flash it with Raspberry Pi Imager as
+       usual. Then disconnect the cable and power the Pi normally.
+
+    If the Pi does not appear, the computer's USB port may not supply enough
+    power. Remove any HATs or connect through a powered USB hub.
+
 On the first boot, before cloning OpenFlight, you'll likely need a few dependencies to run the setup.sh script.
 
 Run the following command:
