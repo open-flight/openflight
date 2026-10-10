@@ -39,7 +39,7 @@ class SessionMetadata:
     # Globally unique session identity for cloud sync dedupe. The
     # timestamp-based session_id stays for filenames and display; this
     # UUID travels inside the data so renamed/copied session files keep
-    # their identity (see docs/cloud-sync-design.md).
+    # their identity (see docs/reference/cloud-uploader-spec.md).
     session_uuid: str = ""
     format_version: int = SESSION_FORMAT_VERSION
     app_version: str = ""

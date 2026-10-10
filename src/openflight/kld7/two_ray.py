@@ -1,14 +1,14 @@
 """Two-ray multipath demodulation estimator for vertical launch angle.
 
-Live port of the validated offline pipeline
-(scripts/analysis/kld7_subframe_stft.py; findings in
-docs/kld7-subframe-stft-findings.md). Each ~28.6 ms RADC frame is split
-into overlapping sub-frame windows; the per-sub-frame Rx2/Rx1 phasor
-ratios are fit to a two-ray (ball + floor image) interference model,
-recovering the ball's true elevation through ground multipath instead of
-averaging across it. Impact time is anchored by the multipath-immune F1B
-range progression (range = tee distance at impact), so the estimator is
-robust to host/OPS clock offsets.
+Live port of the validated offline sub-frame STFT pipeline (the two-ray
+model is explained in docs/legacy/launch-angle-explained.md, section 4).
+Each ~28.6 ms RADC frame is split into overlapping sub-frame windows;
+the per-sub-frame Rx2/Rx1 phasor ratios are fit to a two-ray (ball +
+floor image) interference model, recovering the ball's true elevation
+through ground multipath instead of averaging across it. Impact time is
+anchored by the multipath-immune F1B range progression (range = tee
+distance at impact), so the estimator is robust to host/OPS clock
+offsets.
 
 Validated offline: 2.64 deg MAE pooled PW-4i vs TrackMan (2026-06-08
 sessions, angle offset 3.5), 3.16 deg blind on a drift-era holdout.

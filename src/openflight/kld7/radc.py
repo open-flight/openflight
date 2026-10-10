@@ -1901,7 +1901,7 @@ def extract_launch_angle(
                     "[RADC] OPS-bin penalty: %d/%d frames (%.0f%%) > %d "
                     "bins from expected bin %d (peak bins: %s, weight "
                     "/%.1f). High rate suggests a radar mounting or "
-                    "clutter issue — see docs/kld7-troubleshooting.md.",
+                    "clutter issue — see docs/legacy/troubleshooting.md.",
                     penalty_count,
                     len(clean_bins),
                     pct,

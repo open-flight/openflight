@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **Doc paths named from the Python package resolve again.** The K-LD7
+  OPS-bin penalty warning, the cloud client and session-logger comments,
+  and the two-ray module docstring pointed at flat `docs/*.md` files that
+  moved in the docs restructure. A new test scans `src/openflight` for
+  `docs/…​.md` references and fails on any that do not exist.
 - **Stale doc paths from the docs restructure.** The hardware-help issue
   template and the user-facing messages in `scripts/setup/setup.sh`,
   `setup_kld7_devices.sh`, `capture_kld7_radc.py`, `replay_spin_dechirp.py`,
