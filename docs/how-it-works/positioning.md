@@ -81,4 +81,4 @@ are unaffected.
 
 - [Mounting and geometry](../iwr6843/mounting.md)
 - [Parts list](../get-started/parts.md) — mounting hardware
-- [Enclosure & case](../build/enclosure.md) — the printed housing
+- [Enclosure & case](https://github.com/open-flight/openflight-enclosure) — the printed housing
