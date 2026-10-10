@@ -313,6 +313,7 @@ Areas of interest:
 
 - **Better spin detection**: A dechirped Doppler-sideband estimator is in development (`scripts/analysis/replay_spin_dechirp.py`) — help validating it against launch-monitor truth data is especially welcome
 - **Mobile app**: Bluetooth connection to phone
+- **IWR6843 self-trigger testers**: Experimental IWR6843 firmware that triggers on the shot by itself needs testing on real OpenFlight rigs. If you have a working build with an IWR6843, say so on [Discord](https://discord.gg/w8hhG4WVMN)
 
 ### Running Tests
 
