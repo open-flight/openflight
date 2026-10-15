@@ -16,6 +16,7 @@ from openflight.ballistics import (
     LaunchConditions,
     _cd,
     _cl,
+    _derivatives,
     _poly,
     resolve_launch,
     simulate,
@@ -263,3 +264,35 @@ class TestAeroCoefficientSafeguards:
         assert 30.0 < traj.carry_yards < 90.0, (
             f"lob wedge carry {traj.carry_yards:.1f} yd is not plausible"
         )
+
+
+def _reference_rk4_step(state, omega, axis, air_density, dt):
+    """The generator-expression RK4 step that _rk4_step replaced (kept for equality)."""
+    k1 = _derivatives(state, omega, axis, air_density)
+    s2 = tuple(state[i] + 0.5 * dt * k1[i] for i in range(6))
+    k2 = _derivatives(s2, omega, axis, air_density)
+    s3 = tuple(state[i] + 0.5 * dt * k2[i] for i in range(6))
+    k3 = _derivatives(s3, omega, axis, air_density)
+    s4 = tuple(state[i] + dt * k3[i] for i in range(6))
+    k4 = _derivatives(s4, omega, axis, air_density)
+    return tuple(state[i] + (dt / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) for i in range(6))
+
+
+class TestRk4StepExactness:
+    """The unrolled RK4 step must be bit-identical to the reference step."""
+
+    @pytest.mark.parametrize("speed", [60.0, 120.0, 175.0])
+    @pytest.mark.parametrize("spin", [0.0, 2500.0, 9000.0])
+    @pytest.mark.parametrize("angle", [4.0, 18.0, 40.0])
+    def test_simulate_equals_reference_step(self, monkeypatch, speed, spin, angle):
+        conditions = LaunchConditions(
+            ball_speed_mph=speed,
+            launch_angle_v=angle,
+            launch_angle_h=2.5,
+            spin_rpm=spin,
+            spin_axis_deg=-8.0,
+            spin_source="measured",
+        )
+        new = simulate(conditions)
+        monkeypatch.setattr("openflight.ballistics._rk4_step", _reference_rk4_step)
+        assert simulate(conditions) == new

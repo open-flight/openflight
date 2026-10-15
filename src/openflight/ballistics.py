@@ -235,16 +235,46 @@ def _rk4_step(
     air_density: float,
     dt: float,
 ) -> tuple:
+    # Unrolled per component (no generator expressions); same operation order
+    # as the tuple(...) form so results are bit-identical.
+    half = 0.5 * dt
+    x, y, z, vx, vy, vz = state
     k1 = _derivatives(state, omega, axis, air_density)
-    s2 = tuple(state[i] + 0.5 * dt * k1[i] for i in range(6))
+    s2 = (
+        x + half * k1[0],
+        y + half * k1[1],
+        z + half * k1[2],
+        vx + half * k1[3],
+        vy + half * k1[4],
+        vz + half * k1[5],
+    )
     k2 = _derivatives(s2, omega, axis, air_density)
-    s3 = tuple(state[i] + 0.5 * dt * k2[i] for i in range(6))
+    s3 = (
+        x + half * k2[0],
+        y + half * k2[1],
+        z + half * k2[2],
+        vx + half * k2[3],
+        vy + half * k2[4],
+        vz + half * k2[5],
+    )
     k3 = _derivatives(s3, omega, axis, air_density)
-    s4 = tuple(state[i] + dt * k3[i] for i in range(6))
+    s4 = (
+        x + dt * k3[0],
+        y + dt * k3[1],
+        z + dt * k3[2],
+        vx + dt * k3[3],
+        vy + dt * k3[4],
+        vz + dt * k3[5],
+    )
     k4 = _derivatives(s4, omega, axis, air_density)
-    return tuple(
-        state[i] + (dt / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
-        for i in range(6)
+    w = dt / 6.0
+    return (
+        x + w * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
+        y + w * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]),
+        z + w * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]),
+        vx + w * (k1[3] + 2 * k2[3] + 2 * k3[3] + k4[3]),
+        vy + w * (k1[4] + 2 * k2[4] + 2 * k3[4] + k4[4]),
+        vz + w * (k1[5] + 2 * k2[5] + 2 * k3[5] + k4[5]),
     )
 
 
