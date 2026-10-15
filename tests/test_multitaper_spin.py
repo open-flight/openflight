@@ -94,15 +94,15 @@ def test_process_capture_uses_multitaper_estimator(monkeypatch):
 def test_process_capture_does_not_repeat_standard_fft_windows(monkeypatch):
     """Standard windows are a subset of the overlapping FFT timeline."""
     processor = RollingBufferProcessor()
-    process_block = processor._process_block
+    peaks_from_magnitude = processor._peaks_from_magnitude
     calls = 0
 
-    def count_process_block(*args, **kwargs):
+    def count_windows(*args, **kwargs):
         nonlocal calls
         calls += 1
-        return process_block(*args, **kwargs)
+        return peaks_from_magnitude(*args, **kwargs)
 
-    monkeypatch.setattr(processor, "_process_block", count_process_block)
+    monkeypatch.setattr(processor, "_peaks_from_magnitude", count_windows)
 
     assert processor.process_capture(_modulated_capture()) is not None
     expected_overlapping_windows = (
