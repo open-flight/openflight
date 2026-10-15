@@ -177,3 +177,56 @@ def test_shot_method_defaults_to_none():
     shot = Shot(ball_speed_mph=100.0, timestamp=datetime.now())
 
     assert shot.spin_method is None
+
+
+def _reference_remove_multipath_fade(
+    envelope, sample_rate_hz, *, fade_band_hz, search_width_hz=8.0, grid_step_hz=0.25
+):
+    """Per-candidate fade search that the broadcast version replaced."""
+    # pylint: disable=protected-access
+    from openflight.rolling_buffer import multitaper
+
+    def sine_columns(length, frequency_hz):
+        phase = 2.0 * np.pi * frequency_hz * (np.arange(length, dtype=np.float64) / sample_rate_hz)
+        return np.column_stack((np.sin(phase), np.cos(phase)))
+
+    polynomial = multitaper._polynomial_design(len(envelope))
+    hint = multitaper._dominant_frequency(envelope, sample_rate_hz, fade_band_hz)
+    low = max(fade_band_hz[0], hint - search_width_hz)
+    high = min(fade_band_hz[1], hint + search_width_hz)
+    best_frequency, best_residual, best_sse = hint, None, float("inf")
+    for fade_hz in np.arange(low, high + grid_step_hz / 2.0, grid_step_hz):
+        design = np.column_stack(
+            (
+                polynomial,
+                sine_columns(len(envelope), fade_hz),
+                sine_columns(len(envelope), 2.0 * fade_hz),
+            )
+        )
+        coefficients = np.linalg.lstsq(design, envelope, rcond=None)[0]
+        residual = envelope - design @ coefficients
+        sse = float(residual @ residual)
+        if sse < best_sse:
+            best_frequency, best_residual, best_sse = float(fade_hz), residual, sse
+    return best_residual, best_frequency
+
+
+@pytest.mark.parametrize("seed", range(6))
+@pytest.mark.parametrize("fade_hz", [30.0, 48.3, 71.7])
+def test_fade_removal_matches_per_candidate_reference_exactly(seed, fade_hz):
+    from openflight.rolling_buffer.multitaper import _remove_multipath_fade  # pylint: disable=protected-access
+
+    rng = np.random.default_rng(seed)
+    sample_rate_hz = 30_000.0 / 32
+    t = np.arange(400) / sample_rate_hz
+    envelope = (
+        1.0
+        + 0.15 * np.sin(2 * np.pi * fade_hz * t + seed)
+        + 0.015 * np.sin(2 * np.pi * 120.0 * t)
+        + rng.normal(0, 0.01, t.size)
+    )
+    band = (25.0, 90.0)
+    expected = _reference_remove_multipath_fade(envelope, sample_rate_hz, fade_band_hz=band)
+    actual = _remove_multipath_fade(envelope, sample_rate_hz, fade_band_hz=band)
+    assert actual[1] == expected[1]
+    assert np.array_equal(actual[0], expected[0])
