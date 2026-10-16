@@ -81,6 +81,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   full horizontal speed, overstating attack angle on any shot with club path.
 
 ### Added
+- **Network shot stream and club API for phone apps, and catch-up after a
+  reconnect.** `GET /api/shots/stream` sends the same schema 2 messages as BLE
+  as Server-Sent Events: a stream opens with the current club, profiles and
+  (with `--battery`) power status, then the session's shots, then live shots
+  and events, with a heartbeat every 15 s. It needs no flag and accepts up to
+  eight clients (`503` beyond that). `GET`/`POST /api/club` reads and sets the
+  club through the same server operation as the kiosk and BLE, and club
+  changes are broadcast on the stream too. A reconnecting phone names the
+  newest shot it has (`last_event_id` in BLE `hello`, or `Last-Event-ID` on the
+  stream) and is sent that shot again plus every later current-session shot,
+  oldest first, up to 100; replays are the exact bytes sent live, and cleared
+  or deleted shots are never replayed. Shots deleted on the kiosk while the
+  phone was away are sent first, as `shot_deleted` events, and a shot taken
+  during a BLE catch-up no longer pushes a missed shot out of the delivery
+  queue. `hello` advertises the `shot_catch_up` and `deletion_catch_up`
+  features, and the stream names the same list in an `OpenFlight-Features`
+  header, so phone apps can tell an older Pi apart. See
+  [phone app connection](ios-ble.md#catch-up-after-a-reconnect).
 - **Bluetooth LE connection for phone apps.** `--ble` (with the optional `ble`
   extra, `bless==0.3.0` on Linux) advertises one GATT service with a shot and a
   control characteristic, speaking schema version 2; without BlueZ or the

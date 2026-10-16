@@ -29,6 +29,7 @@ from openflight.server import (
     swing_speed_to_dict,
     swing_speed_to_shot_dict,
 )
+from openflight.shot_stream import HEARTBEAT_FRAME, SSE_MIMETYPE, ShotStreamBroker
 from openflight.swing_speed import SwingSpeedEvent
 
 
@@ -1234,6 +1235,76 @@ class TestStaticRoutes:
 
         assert response.status_code == 200
         assert b'<div id="root"></div>' in response.data
+
+
+class TestShotStreamRoute:
+    """Tests for the Server-Sent Events shot endpoint used by the iOS app."""
+
+    @staticmethod
+    def _shot_data(ball_speed=151.4):
+        return {
+            "timestamp": "2026-07-29T19:42:10",
+            "club": "driver",
+            "ball_speed_mph": ball_speed,
+            "club_speed_mph": None,
+            "smash_factor": None,
+            "estimated_carry_yards": 264,
+            "launch_angle_vertical": None,
+            "launch_angle_horizontal": None,
+            "spin_rpm": None,
+            "club_path_deg": None,
+            "spin_axis_deg": None,
+        }
+
+    def test_stream_replays_session_shots_as_sse(self, monkeypatch):
+        """A phone that connects mid-session gets the session's shots immediately."""
+        broker = ShotStreamBroker(heartbeat_interval_s=0.01)
+        monitor = MockLaunchMonitor()
+        monitor._shots.append(
+            Shot(
+                ball_speed_mph=151.4,
+                timestamp=datetime(2026, 7, 29, 19, 42, 10),
+                club=ClubType.DRIVER,
+                shot_number=1,
+            )
+        )
+        monkeypatch.setattr(server_module, "monitor", monitor)
+        monkeypatch.setattr(server_module, "phone_shot_cache", server_module.PhoneShotCache())
+        monkeypatch.setattr(server_module, "shot_stream", broker)
+
+        response = server_module.app.test_client().get("/api/shots/stream")
+        try:
+            assert response.status_code == 200
+            assert response.mimetype == SSE_MIMETYPE
+            assert response.headers["Cache-Control"] == "no-cache"
+
+            frames = response.response
+            assert next(frames).decode("utf-8") == HEARTBEAT_FRAME
+
+            frame = next(frames).decode("utf-8")
+            while not frame.startswith("event: shot\n"):  # state events come first
+                frame = next(frames).decode("utf-8")
+            event = json.loads(frame.split("data: ", 1)[1])
+            assert frame.startswith(f"event: shot\nid: {event['event_id']}\ndata: ")
+            assert event["schema_version"] == 2
+            assert event["ball_speed_mph"] == 151.4
+        finally:
+            response.close()
+
+        assert broker.subscriber_count == 0
+
+    def test_stream_refuses_clients_beyond_the_limit(self, monkeypatch):
+        """The threaded dev server must not be swamped by stream connections."""
+        broker = ShotStreamBroker(heartbeat_interval_s=0.01, max_subscribers=1)
+        monkeypatch.setattr(server_module, "shot_stream", broker)
+        client = server_module.app.test_client()
+
+        first = client.get("/api/shots/stream")
+        try:
+            second = client.get("/api/shots/stream")
+            assert second.status_code == 503
+        finally:
+            first.close()
 
 
 class TestShotToDict:
@@ -4182,6 +4253,69 @@ class TestOnShotDetected:
 
         assert len(published) == 1
         assert published[0]["ball_speed_mph"] == 100.0
+
+    def test_shot_stream_publish_survives_websocket_failure(self, monkeypatch):
+        """A broken web client must not suppress the independent network transport."""
+        broker = ShotStreamBroker()
+        subscriber = broker.subscribe()
+
+        monkeypatch.setattr(server_module, "monitor", None)
+        monkeypatch.setattr(server_module, "sim_connectors", [])
+        monkeypatch.setattr(server_module, "ble_publisher", None)
+        monkeypatch.setattr(server_module, "shot_stream", broker)
+        monkeypatch.setattr(server_module, "debug_mode", False)
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(
+            server_module.socketio,
+            "emit",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("socket closed")),
+        )
+
+        on_shot_detected(
+            Shot(
+                ball_speed_mph=100.0,
+                timestamp=datetime.now(),
+                club=ClubType.IRON_7,
+                mode="mock",
+            )
+        )
+        _wait_for_shot_finalization_idle()
+
+        streamed = json.loads(subscriber.get_nowait())
+        assert streamed["schema_version"] == 2
+        assert streamed["ball_speed_mph"] == 100.0
+
+    def test_shot_stream_failure_does_not_break_shot_processing(self, monkeypatch):
+        """A raising broker must not escape into the shot pipeline."""
+        forwarded = []
+
+        class BrokenBroker:
+            def publish(self, _shot_data):
+                raise RuntimeError("stream is wedged")
+
+        monkeypatch.setattr(server_module, "monitor", None)
+        monkeypatch.setattr(server_module, "ble_publisher", None)
+        monkeypatch.setattr(server_module, "shot_stream", BrokenBroker())
+        monkeypatch.setattr(server_module, "debug_mode", False)
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(server_module.socketio, "emit", lambda *_a, **_k: None)
+        monkeypatch.setattr(
+            server_module,
+            "_forward_shot_to_simulators",
+            lambda shot: forwarded.append(shot),
+        )
+
+        on_shot_detected(
+            Shot(
+                ball_speed_mph=100.0,
+                timestamp=datetime.now(),
+                club=ClubType.IRON_7,
+                mode="mock",
+            )
+        )
+        _wait_for_shot_finalization_idle()
+
+        assert len(forwarded) == 1
 
     def test_implausible_club_aoa_is_rejected(self, monkeypatch):
         """A +31° club AoA is physically impossible and should be discarded."""
