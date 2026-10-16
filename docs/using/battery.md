@@ -10,6 +10,7 @@ down Linux automatically.
 | Provider | CLI value | Hardware | Setup guide |
 |---|---|---|---|
 | Geekworm | `geekworm` | X1202 and X1206 | [Geekworm X1202/X1206](../build/battery.md) |
+| Simulated | `mock` | None: cycles through every power state for testing the UI and phone apps | [Simulating hardware](../ios-ble.md#simulating-hardware-on-a-pi-without-it) |
 
 Start OpenFlight with an installed provider:
 

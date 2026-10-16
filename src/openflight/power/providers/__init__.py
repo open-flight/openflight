@@ -2,5 +2,6 @@
 
 from .geekworm import GeekwormPowerReader
 from .linux import LinuxPowerReader
+from .mock import MockPowerReader
 
-__all__ = ["GeekwormPowerReader", "LinuxPowerReader"]
+__all__ = ["GeekwormPowerReader", "LinuxPowerReader", "MockPowerReader"]
