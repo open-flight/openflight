@@ -216,6 +216,15 @@ For the prototype's measured `11.5` degree mounting angle:
 Do not add the current floor slope to this number. The LIS3DH supplies that
 runtime correction.
 
+!!! note "Saved phone calibration"
+
+    A phone app can measure and save the TI tilt instead; see
+    [Calibrate TI radar tilt with the phone](../ios-ble.md#calibrate-ti-radar-tilt-with-the-phone).
+    At startup the tilt comes from `--iwr6843-tilt-deg` if given, otherwise from
+    the saved phone calibration in
+    `~/.config/openflight/iwr6843_phone_orientation.json`, otherwise from the
+    calibration JSON.
+
 ## Start OpenFlight
 
 Example production startup:

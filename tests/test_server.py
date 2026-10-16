@@ -513,6 +513,11 @@ class TestIWR6843ShotIntegration:
         """Production capture must always request the firmware-frozen boundary ring immediately."""
         captured = {}
         calibration = Calibration.identity()
+        monkeypatch.setattr(
+            server_module,
+            "PHONE_ORIENTATION_CALIBRATION_PATH",
+            tmp_path / "missing-phone-orientation.json",
+        )
 
         class FakeCaptureMonitor:
             def __init__(self, **kwargs):
@@ -561,6 +566,11 @@ class TestIWR6843ShotIntegration:
         club path relative to boresight instead of the target line.
         """
         calibration = Calibration.identity()
+        monkeypatch.setattr(
+            server_module,
+            "PHONE_ORIENTATION_CALIBRATION_PATH",
+            tmp_path / "missing-phone-orientation.json",
+        )
 
         class FakeCaptureMonitor:
             def __init__(self, **kwargs):

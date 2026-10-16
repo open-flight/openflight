@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Phone-assisted IWR6843 tilt calibration.** A phone can send a stable
+  accelerometer measurement with the BLE command
+  `iwr6843_orientation_calibration` or `POST /api/calibration/iwr6843/orientation`
+  (`GET` reads the current tilt). The Pi recomputes tilt and roll from the
+  gravity vector, rejects unstable or inconsistent measurements, subtracts the
+  enclosure LIS3DH pitch when it is enabled, applies the tilt immediately and
+  saves it to `~/.config/openflight/iwr6843_phone_orientation.json`. At startup
+  `--iwr6843-tilt-deg` wins over the saved phone calibration, which wins over
+  the calibration JSON. This is the first BLE command that writes persisted
+  configuration; see
+  [Security and scope](ios-ble.md#security-and-scope).
+
 ### Changed
 - **Chromium fallback is reachable during Electron upgrades.** If `ui/dist`
   already exists, a missing Electron install no longer requires Node 22.12 and

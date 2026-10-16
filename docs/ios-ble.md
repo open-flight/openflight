@@ -69,6 +69,49 @@ phone club change affects the same launch, spin, and carry processing state.
 > provide a useful end-to-end BLE hardware test there. Use a physical iPhone
 > and Raspberry Pi for manual connection testing.
 
+## Calibrate TI radar tilt with the phone
+
+A phone app can measure the IWR6843 mount tilt with its accelerometer and send
+it to the Pi with the `iwr6843_orientation_calibration` command. Over HTTP the
+same operation is `POST /api/calibration/iwr6843/orientation` (and `GET` on the
+same route reads the current tilt); both call one server function.
+
+1. Start OpenFlight with `--iwr6843` and `--ble`.
+2. Remove the phone case. Hold the phone upright in portrait with its back flat
+   against a straight reference surface parallel to the TI antenna face. Keep
+   the screen facing the target and avoid resting on the camera bump.
+3. Keep the radar and phone still while the app averages gravity samples
+   (at least 30; about two seconds is typical).
+4. Level the radar left to right within 3 degrees, then apply the calibration.
+
+The payload is `schema_version` (`1`), the averaged gravity vector
+(`gravity_x_g`, `gravity_y_g`, `gravity_z_g`), the app's computed
+`mount_tilt_deg` and `roll_deg`, `sample_count`, `tilt_stddev_deg`,
+`roll_stddev_deg`, `measured_at` (ISO-8601) and an optional `device_model`. The
+Pi recomputes tilt and roll from gravity and rejects the measurement (`400`,
+`ok:false` over BLE) when they disagree by more than 0.25 degrees, the gravity
+magnitude is outside 0.9 to 1.1 g, either standard deviation exceeds 0.5
+degrees, the roll exceeds 3 degrees, or the tilt is outside -30 to 45 degrees.
+Without `--iwr6843` it fails with `409` `TI IWR6843 radar is not enabled`.
+
+If the optional [enclosure LIS3DH](build/inclinometer.md) is active, OpenFlight
+waits up to two seconds for a stable reading and subtracts the calibrated
+enclosure pitch, so the saved value stays the TI antenna's angle relative to
+the enclosure; an unstable sensor fails the command with `409` and changes
+nothing. Otherwise the measured phone tilt is used directly.
+
+The applied value takes effect immediately, is broadcast on Socket.IO as
+`iwr6843_orientation_calibrated`, and is saved at
+`~/.config/openflight/iwr6843_phone_orientation.json`. On startup the TI tilt
+comes from `--iwr6843-tilt-deg` if given, otherwise from this saved phone
+calibration, otherwise from the calibration JSON. Session logs record the
+change with source `ios_companion`.
+
+This measures pitch and verifies roll. It deliberately does not change
+`--iwr6843-azimuth-offset-deg`: an accelerometer cannot establish yaw relative
+to the target line, and phone compass readings near radar electronics are not a
+precision substitute for target-line alignment.
+
 ## Wire protocol
 
 Phones speak JSON messages, schema version 2, split across BLE notifications.
@@ -135,12 +178,13 @@ the same broadcasts.
 | `hello` | `{"client_schema_max":2}` | see [Negotiation](#negotiation) | |
 | `get_club` | `{}` | `{"status":"current","club":"7-iron"}`: the Pi-owned club, unchanged | |
 | `set_club` | `{"club":"7-iron"}` | `{"status":"applied","club":"7-iron"}` | `club_changed` |
+| `iwr6843_orientation_calibration` | phone gravity measurement, see [Calibrate TI radar tilt](#calibrate-ti-radar-tilt-with-the-phone) | `status, persistent, measured_mount_tilt_deg, enclosure_pitch_deg, configured_iwr_tilt_deg, roll_deg, azimuth_offset_deg` | |
 | `get_profiles` | `{}` | `{"status":"sent"}` | `profiles`: the roster arrives as the event, not in the result |
 | `set_active_profile` | `{"profile_id":…}` | `{"status":"applied","active_profile_id":…}`, or `ok:false` `Unknown profile` | `profiles` (also when rejected) |
 | `get_power_status` | `{}` | the `power_status` payload, or `ok:false` `Battery monitoring is not enabled` / `No battery reading yet` | |
 
-Over BLE the phone is read-and-select only (see [Security](#security-and-scope)).
-Adding, renaming and removing profiles, `clear_session` and `delete_shot` stay
+Over BLE the phone is read-and-select only, plus TI tilt calibration (see
+[Security](#security-and-scope)). Adding, renaming and removing profiles, `clear_session` and `delete_shot` stay
 on Socket.IO and the kiosk; sent over BLE, they and any unknown command fail
 with `Unsupported phone command: <type>`. Phones still learn about those
 changes from the `profiles`, `session_cleared` and `shot_deleted` events. An
@@ -243,11 +287,20 @@ message that would not fit instead of sending a truncated one.
 
 The phone protocol intentionally has no application authentication or
 encryption layer. Enable BLE only where nearby Bluetooth devices receiving
-shots and issuing club and profile selections is acceptable.
+shots, issuing club and profile selections, and calibrating the TI radar tilt
+is acceptable.
 
 BLE is unauthenticated: any nearby device can connect and write the control
 characteristic. The protocol therefore exposes only reading state, selecting
-(club, active profile) over Bluetooth. Actions that delete data, clearing a session or deleting a shot, and
+(club, active profile) and TI tilt calibration over Bluetooth. Calibration is
+the one BLE command that writes persisted configuration: a nearby device can
+send a well-formed measurement that replaces the TI mount tilt, takes effect
+immediately and survives restarts (unless `--iwr6843-tilt-deg` is passed). The
+Pi validates the measurement's internal consistency and range, but cannot tell
+whether it came from a phone held against the radar. A wrong tilt does not
+error; it produces plausible but wrong launch angles. Only enable `--ble` with
+`--iwr6843` in a trusted environment, and pin the tilt with
+`--iwr6843-tilt-deg` if that is not acceptable. Actions that delete data, clearing a session or deleting a shot, and
 profile add, rename and remove stay on the kiosk (Socket.IO), where
 they have the same exposure the browser UI already has. Revisit this only with
 authenticated pairing.
@@ -267,8 +320,11 @@ Bluetooth adapter or `bless` install:
 - `tests/test_ble_loopback.py` uses it end to end against the real server
   dispatch: latest-shot replay, `hello` in either request envelope, a
   provisional-then-final shot reaching every phone with one `event_id`, club
-  and profile commands, unknown commands, and one phone leaving while another
-  keeps receiving.
+  and profile commands, the calibration `409` path, unknown commands, and one
+  phone leaving while another keeps receiving.
+- `tests/test_phone_orientation_calibration.py` covers calibration validation,
+  persistence, enclosure-pitch subtraction, the unstable-sensor failure and
+  startup tilt precedence.
 - `tests/fixtures/ble_goldens/*.json` hold framed hex for every message type.
   `server_to_client` files are generated by
   `uv run python scripts/ble/generate_goldens.py` and checked by
