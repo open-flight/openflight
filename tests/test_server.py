@@ -2356,6 +2356,25 @@ class TestProfileSocketHandlers:
 
         assert self._last_snapshot(emitted)["profiles"][-1]["name"] == "Range"
 
+    def test_set_profile_clubs_broadcasts_enabled_clubs(self, store, emitted):
+        added = store.add("Range")
+
+        server_module.handle_set_profile_clubs(
+            {"profile_id": added.id, "clubs": ["driver", "7-iron"]}
+        )
+
+        snapshot = self._last_snapshot(emitted)
+        profile_entry = next(p for p in snapshot["profiles"] if p["id"] == added.id)
+        assert profile_entry["settings"]["enabled_clubs"] == ["driver", "7-iron"]
+
+    def test_set_profile_clubs_with_unknown_id_broadcasts_unchanged_snapshot(self, store, emitted):
+        server_module.handle_get_profiles()
+        before = self._last_snapshot(emitted)["profiles"]
+
+        server_module.handle_set_profile_clubs({"profile_id": "ghost", "clubs": ["driver"]})
+
+        assert self._last_snapshot(emitted)["profiles"] == before
+
     def test_remove_profile_deletes_inactive(self, store, emitted):
         doomed = store.add("Doomed")
         store.add("Keeper")
@@ -2438,6 +2457,7 @@ class TestProfileSocketHandlers:
         server_module.handle_set_active_profile(None)
         server_module.handle_add_profile("not a dict")
         server_module.handle_rename_profile(None)
+        server_module.handle_set_profile_clubs(None)
         server_module.handle_remove_profile(None)
 
         assert len(self._last_snapshot(emitted)["profiles"]) == 1

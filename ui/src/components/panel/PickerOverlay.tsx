@@ -12,6 +12,14 @@ interface PickerOverlayProps {
   onClose: () => void;
   /** Word-length labels (training implements) use a slightly smaller type size. */
   wide?: boolean;
+  /**
+   * Row count to size tiles against, overriding the default (the densest
+   * *visible* section). Pass the count for the full, unfiltered set when
+   * `sections` can be a filtered subset (e.g. per-profile club visibility),
+   * so tile size stays constant as the filter changes instead of growing
+   * or shrinking tiles each time a section gains or loses options.
+   */
+  rows?: number;
 }
 
 /**
@@ -19,12 +27,20 @@ interface PickerOverlayProps {
  * hairline-bordered option buttons grouped by tab. Four columns span the
  * overlay; row height is capped so irons stay on screen.
  */
-export function PickerOverlay({ title, selectedId, sections, onSelect, onClose, wide = false }: PickerOverlayProps) {
+export function PickerOverlay({
+  title,
+  selectedId,
+  sections,
+  onSelect,
+  onClose,
+  wide = false,
+  rows: rowsOverride,
+}: PickerOverlayProps) {
   const { t } = useI18n();
   const [sectionName, setSectionName] = useState(() => initialPickerSection(sections, selectedId));
   const activeSection = sections.find((section) => section.name === sectionName) ?? sections[0];
   const options = activeSection?.options ?? [];
-  const rows = pickerGridRows(sections);
+  const rows = rowsOverride ?? pickerGridRows(sections);
 
   return (
     <div
