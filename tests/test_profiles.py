@@ -305,6 +305,105 @@ class TestSettings:
         assert store.list()[-1].settings == {"altitude_m": 120}
 
 
+class TestSetEnabledClubs:
+    """Per-profile club visibility for the picker. Absent/empty means unfiltered."""
+
+    def test_set_enabled_clubs_stores_valid_ids(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        assert store.set_enabled_clubs(added.id, ["driver", "7-iron", "pw"]) is True
+
+        reloaded = next(
+            profile for profile in ProfileStore(store_path).list() if profile.id == added.id
+        )
+        assert reloaded.settings["enabled_clubs"] == ["driver", "7-iron", "pw"]
+
+    def test_set_enabled_clubs_drops_invalid_ids(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        assert store.set_enabled_clubs(added.id, ["driver", "bogus-club", "pw", 123]) is True
+
+        assert added.settings["enabled_clubs"] == ["driver", "pw"]
+
+    def test_set_enabled_clubs_deduplicates(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        store.set_enabled_clubs(added.id, ["driver", "driver", "pw"])
+
+        assert added.settings["enabled_clubs"] == ["driver", "pw"]
+
+    def test_set_enabled_clubs_rejects_unknown_profile_id(self, store_path):
+        store = ProfileStore(store_path)
+
+        assert store.set_enabled_clubs("ghost", ["driver"]) is False
+
+    def test_set_enabled_clubs_rejects_non_list(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        assert store.set_enabled_clubs(added.id, "driver") is False
+        assert "enabled_clubs" not in added.settings
+
+    def test_empty_list_means_unfiltered(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+        store.set_enabled_clubs(added.id, ["driver"])
+
+        assert store.set_enabled_clubs(added.id, []) is True
+
+        assert "enabled_clubs" not in added.settings
+
+    def test_all_club_ids_present_means_unfiltered(self, store_path):
+        from openflight.clubs import ClubType
+
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+        # The real, picker-selectable set -- UNKNOWN is a ClubType value but
+        # never offered as a tile, so it must not be part of "the full set".
+        all_ids = [club.value for club in ClubType if club is not ClubType.UNKNOWN]
+
+        store.set_enabled_clubs(added.id, all_ids)
+
+        assert "enabled_clubs" not in added.settings
+
+    def test_unknown_sentinel_is_not_a_selectable_club(self, store_path):
+        """ClubType.UNKNOWN is a real enum value but never a picker tile.
+
+        Accepting it as a valid id breaks two things: "Select all" in the UI
+        (which only ever sends the real, picker-visible ids) would no longer
+        match the "full set" and would persist as a spurious filter instead
+        of being treated as unfiltered; and a caller passing ["unknown"]
+        alone would leave the picker showing zero clubs for that profile.
+        """
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        assert store.set_enabled_clubs(added.id, ["unknown"]) is True
+
+        assert "enabled_clubs" not in added.settings
+
+    def test_set_enabled_clubs_persists_across_reload(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+        store.set_enabled_clubs(added.id, ["driver", "7-iron"])
+
+        reloaded = next(
+            profile for profile in ProfileStore(store_path).list() if profile.id == added.id
+        )
+        assert reloaded.settings["enabled_clubs"] == ["driver", "7-iron"]
+
+    def test_invalid_ids_only_leaves_empty_list_treated_as_unfiltered(self, store_path):
+        store = ProfileStore(store_path)
+        added = store.add("Range")
+
+        assert store.set_enabled_clubs(added.id, ["bogus", "also-bogus"]) is True
+
+        assert "enabled_clubs" not in added.settings
+
+
 class TestSnapshot:
     """snapshot() is the socket payload."""
 
