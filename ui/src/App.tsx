@@ -372,6 +372,7 @@ function AppContent() {
                 mockMode={mockMode}
                 onToggle={() => socketService.toggleDebug()}
                 onUpdateConfig={(config) => socketService.setRadarConfig(config)}
+                onReinitializeRadar={() => socketService.reinitializeRadar()}
                 triggerDiagnostics={triggerDiagnostics}
                 triggerStatus={triggerStatus}
               />

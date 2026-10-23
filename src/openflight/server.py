@@ -2253,6 +2253,35 @@ radar_config = {
 }
 
 
+# Prevent concurrent recovery requests from issuing overlapping serial commands.
+_manual_radar_recovery_lock = threading.Lock()
+
+
+@socketio.on("reinitialize_radar")
+def handle_reinitialize_radar():
+    """Operator-requested OPS recovery; sound-trigger mode only, no flash writes."""
+    from .rolling_buffer.monitor import RollingBufferMonitor  # pylint: disable=import-outside-toplevel
+
+    if mock_mode or not isinstance(monitor, RollingBufferMonitor):
+        return {"ok": False, "message": "Recovery requires a real rolling-buffer radar"}
+    if getattr(monitor, "trigger_type", None) != "sound":
+        return {"ok": False, "message": "Recovery is available only in sound-trigger mode"}
+    if not _manual_radar_recovery_lock.acquire(blocking=False):
+        return {"ok": False, "message": "A radar recovery is already running"}
+    try:
+        logger.warning("[SERVER] Manual OPS radar reinitialisation requested from Debug menu")
+        monitor.reinitialize_radar()
+        return {
+            "ok": True,
+            "message": "Radar configuration sent. Test a sound trigger to verify recovery.",
+        }
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception("[SERVER] Manual OPS radar reinitialisation failed")
+        return {"ok": False, "message": f"Reinitialisation failed: {exc}"}
+    finally:
+        _manual_radar_recovery_lock.release()
+
+
 @socketio.on("get_radar_config")
 def handle_get_radar_config():
     """Get current radar configuration."""
