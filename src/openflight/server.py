@@ -1104,6 +1104,31 @@ def static_files(path):
     return send_from_directory(app.static_folder, path)
 
 
+@app.route("/api/screen/sleep", methods=["POST"])
+def api_screen_sleep():
+    """Switch off the display without stopping OpenFlight."""
+    backlight = Path(
+        os.environ.get(
+            "OPENFLIGHT_BACKLIGHT_PATH",
+            "/sys/class/backlight/panel_backlight@1/brightness",
+        )
+    )
+
+    try:
+        if not backlight.exists():
+            return jsonify({"error": "Display backlight not found"}), 404
+
+        backlight.write_text("0\n")
+        logger.info("[SERVER] Screen backlight switched off")
+        return jsonify({"status": "sleeping"}), 200
+
+    except OSError:
+        logger.exception("[SERVER] Unable to switch off screen")
+        return jsonify({"error": "Unable to control backlight"}), 500
+
+
+
+
 @app.route("/api/shutdown", methods=["POST"])
 def api_shutdown():
     """Cleanly shut down the server via REST API."""
