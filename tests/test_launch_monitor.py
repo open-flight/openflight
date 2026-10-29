@@ -4,10 +4,36 @@ import pytest
 from datetime import datetime
 from openflight.clubs import ClubType
 from openflight.launch_monitor import (
+    MAX_SMASH_FACTOR,
     Shot,
+    compute_smash_factor,
+    summarize_shots,
     estimate_carry_distance,
     adjust_carry_for_launch_angle,
 )
+
+
+class TestComputeSmashFactor:
+    """Tests for the shared, capped smash factor helper."""
+
+    def test_max_is_usga_driver_limit(self):
+        assert MAX_SMASH_FACTOR == 1.5
+
+    def test_ratio_below_max(self):
+        assert compute_smash_factor(125.0, 100.0) == pytest.approx(1.25)
+
+    def test_exactly_max_unchanged(self):
+        assert compute_smash_factor(150.0, 100.0) == 1.5
+
+    def test_just_over_max_is_none(self):
+        assert compute_smash_factor(150.1, 100.0) is None
+
+    def test_far_over_max_is_none(self):
+        assert compute_smash_factor(170.0, 50.0) is None
+
+    @pytest.mark.parametrize("club", [None, 0.0, -5.0])
+    def test_unusable_club_speed_returns_none(self, club):
+        assert compute_smash_factor(150.0, club) is None
 
 
 class TestEstimateCarryDistance:
@@ -80,6 +106,41 @@ class TestShot:
             timestamp=datetime.now(),
         )
         assert shot.smash_factor == 1.5
+
+    def test_smash_factor_none_above_max(self):
+        """An over-max ratio means club speed was under-read: report no smash."""
+        shot = Shot(
+            ball_speed_mph=160.0,
+            club_speed_mph=90.0,  # raw ratio 1.78
+            timestamp=datetime.now(),
+        )
+        assert shot.smash_factor is None
+        assert shot.to_dict()["smash_factor"] is None
+        assert shot.club_speed_mph == 90.0  # club speed itself is left as measured
+
+    def test_smash_factor_below_max_unchanged(self):
+        """Ratios under the cap are reported as-is."""
+        shot = Shot(ball_speed_mph=130.0, club_speed_mph=100.0, timestamp=datetime.now())
+        assert shot.smash_factor == pytest.approx(1.3)
+
+    def test_session_avg_smash_excludes_over_max_shots(self):
+        """Session average must not be inflated by over-max shots."""
+        shots = [
+            Shot(ball_speed_mph=160.0, club_speed_mph=80.0, timestamp=datetime.now()),
+            Shot(ball_speed_mph=140.0, club_speed_mph=100.0, timestamp=datetime.now()),
+        ]
+        stats = summarize_shots(shots, mode="test")
+        assert stats["avg_smash_factor"] == pytest.approx(1.4)
+
+    def test_session_avg_smash_none_when_all_over_max(self):
+        """With only over-max shots there is no smash average."""
+        shots = [Shot(ball_speed_mph=160.0, club_speed_mph=80.0, timestamp=datetime.now())]
+        assert summarize_shots(shots, mode="test")["avg_smash_factor"] is None
+
+    def test_smash_factor_none_with_negative_club_speed(self):
+        """A non-positive club speed is not a usable reading."""
+        shot = Shot(ball_speed_mph=150.0, club_speed_mph=-10.0, timestamp=datetime.now())
+        assert shot.smash_factor is None
 
     def test_smash_factor_none_without_club_speed(self):
         """Smash factor should be None if no club speed."""

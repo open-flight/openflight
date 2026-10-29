@@ -17,9 +17,9 @@ This script:
   4. Displays speed data and re-arms for the next trigger
 
 Usage:
-    uv run python scripts/test_sound_trigger.py
-    uv run python scripts/test_sound_trigger.py --pre-trigger 16
-    uv run python scripts/test_sound_trigger.py --port /dev/ttyACM0 --swings-only
+    uv run python scripts/hardware-test/test_sound_trigger.py
+    uv run python scripts/hardware-test/test_sound_trigger.py --pre-trigger 16
+    uv run python scripts/hardware-test/test_sound_trigger.py --port /dev/ttyACM0 --swings-only
 """
 
 import argparse
@@ -192,17 +192,17 @@ How it works:
   rolling buffer. This script reads the I/Q data and processes it.
 
 Examples:
-  # Default settings
-  uv run python scripts/test_sound_trigger.py
+  # Default settings on the Pi GPIO UART
+  uv run python scripts/hardware-test/test_sound_trigger.py
 
-  # Specify port explicitly
-  uv run python scripts/test_sound_trigger.py --port /dev/ttyACM0
+  # Use an OPS connected over USB
+  uv run python scripts/hardware-test/test_sound_trigger.py --port /dev/ttyACM0
 
   # More pre-trigger history (16 segments = ~68ms before impact)
-  uv run python scripts/test_sound_trigger.py --pre-trigger 16
+  uv run python scripts/hardware-test/test_sound_trigger.py --pre-trigger 16
 
   # Only show real swings, discard false triggers silently
-  uv run python scripts/test_sound_trigger.py --swings-only
+  uv run python scripts/hardware-test/test_sound_trigger.py --swings-only
 
 Tips:
   - Adjust the SEN-14262 onboard pot to set trigger sensitivity
@@ -211,7 +211,9 @@ Tips:
         """,
     )
     parser.add_argument(
-        "--port", help="Serial port for radar (auto-detect if not specified)"
+        "--port", default="/dev/ttyAMA0",
+        help="OPS243 serial port (default: /dev/ttyAMA0 for Pi GPIO UART; "
+             "use --port /dev/ttyACM0 for USB)",
     )
     parser.add_argument(
         "--pre-trigger", "-p", type=int, default=12,

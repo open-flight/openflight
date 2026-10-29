@@ -22,6 +22,21 @@ SPIN_CONFIDENCE_HIGH = 0.7
 # but the carry table substitutes the club-optimal spin for the ball speed.
 SPIN_CONFIDENCE_RELIABLE = 0.6
 
+# Physical ceiling on ball speed / club speed. The USGA COR limit (0.830)
+# caps a conforming driver at ~1.50; every other club is lower. A larger
+# ratio means club speed was under-read, so no smash is reported at all.
+MAX_SMASH_FACTOR = 1.5
+
+
+def compute_smash_factor(ball_speed_mph: float, club_speed_mph: Optional[float]) -> Optional[float]:
+    """Ball speed / club speed; None without a club speed or above MAX_SMASH_FACTOR."""
+    if club_speed_mph is None or club_speed_mph <= 0:
+        return None
+    smash = ball_speed_mph / club_speed_mph
+    if smash > MAX_SMASH_FACTOR:
+        return None
+    return smash
+
 
 def estimate_carry_distance(ball_speed_mph: float, club: ClubType = ClubType.DRIVER) -> float:
     """
@@ -311,11 +326,11 @@ class Shot:
         - Wedges: 1.20-1.25
 
         Returns:
-            Smash factor or None if club speed not available
+            Smash factor, or None if club speed is unavailable or the ratio
+            exceeds MAX_SMASH_FACTOR (physically impossible, so club speed
+            was mis-measured)
         """
-        if self.club_speed_mph is None or self.club_speed_mph == 0:
-            return None
-        return self.ball_speed_mph / self.club_speed_mph
+        return compute_smash_factor(self.ball_speed_mph, self.club_speed_mph)
 
     @property
     def estimated_carry_yards(self) -> float:

@@ -11,6 +11,7 @@ interface DebugPanelProps {
   mockMode: boolean;
   onToggle: () => void;
   onUpdateConfig: (config: Partial<RadarConfig>) => void;
+  onReinitializeRadar: () => Promise<{ ok: boolean; message: string }>;
   triggerDiagnostics: TriggerDiagnostic[];
   triggerStatus: TriggerStatus;
 }
@@ -304,10 +305,25 @@ export function DebugPanel({
   radarConfig,
   mockMode,
   onUpdateConfig,
+  onReinitializeRadar,
   triggerDiagnostics,
   triggerStatus,
 }: DebugPanelProps) {
   const [activeTab, setActiveTab] = useState<DebugTab>('status');
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const requestRecovery = async () => {
+    if (recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryResult(null);
+    try {
+      setRecoveryResult(await onReinitializeRadar());
+    } catch {
+      setRecoveryResult({ ok: false, message: 'Recovery request failed' });
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
   const isRollingBuffer = triggerStatus.mode === 'rolling-buffer';
   const isSwingSpeed = triggerStatus.mode === 'swing-speed';
   const tuningDisabled = mockMode && !isSwingSpeed;
@@ -349,6 +365,24 @@ export function DebugPanel({
         {activeTab === 'status' && (
           <>
             <SystemStatus status={triggerStatus} />
+            {isRollingBuffer && !mockMode && (
+              <div className="debug-panel__section">
+                <h4>Radar Recovery</h4>
+                <p className="debug-panel__hint">
+                  If sound triggering stops responding, reapply the OPS rolling-buffer settings without restarting
+                  OpenFlight. Do not use during a shot.
+                </p>
+                <button type="button" disabled={recoveryBusy} onClick={requestRecovery}>
+                  {recoveryBusy ? 'Reinitialising radar…' : 'Reinitialise Radar'}
+                </button>
+                {recoveryResult && (
+                  <p role="status" className="debug-panel__hint">
+                    {recoveryResult.ok ? 'Commands completed: ' : 'Recovery failed: '}
+                    {recoveryResult.message}
+                  </p>
+                )}
+              </div>
+            )}
             {isRollingBuffer && <LastTriggerCard diag={lastDiag} />}
             {!isRollingBuffer && triggerStatus.mode !== 'mock' && (
               <div className="debug-panel__section">

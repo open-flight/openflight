@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
 
-from ..launch_monitor import SPIN_CONFIDENCE_RELIABLE
+from ..launch_monitor import SPIN_CONFIDENCE_RELIABLE, compute_smash_factor
 
 
 @dataclass
@@ -370,10 +370,8 @@ class ProcessedCapture:
 
     @property
     def smash_factor(self) -> Optional[float]:
-        """Ball speed / club speed ratio."""
-        if self.club_speed_mph and self.club_speed_mph > 0:
-            return self.ball_speed_mph / self.club_speed_mph
-        return None
+        """Ball speed / club speed ratio; None if above MAX_SMASH_FACTOR."""
+        return compute_smash_factor(self.ball_speed_mph, self.club_speed_mph)
 
     @property
     def has_spin(self) -> bool:

@@ -13,5 +13,12 @@ export function useSocket() {
     }
   }, []);
 
-  return { shutdown };
+  const sleepScreen = useCallback(async () => {
+    const response = await fetch('/api/screen/sleep', { method: 'POST' });
+    if (!response.ok) {
+      throw new Error(`Screen sleep request failed (${response.status})`);
+    }
+  }, []);
+
+  return { shutdown, sleepScreen };
 }

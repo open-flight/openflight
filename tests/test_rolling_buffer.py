@@ -1292,6 +1292,32 @@ class TestRollingBufferMonitorSpinPlausibility:
         assert shot.impact_timestamp_kld7 == pytest.approx(1715000000.115)
 
 
+class TestProcessedCaptureSmashFactor:
+    """ProcessedCapture.smash_factor must share Shot's physical max."""
+
+    @staticmethod
+    def _processed(ball: float, club) -> ProcessedCapture:
+        return ProcessedCapture(
+            timeline=SpeedTimeline(readings=[], sample_rate_hz=937.5),
+            ball_speed_mph=ball,
+            ball_timestamp_ms=68.0,
+            club_speed_mph=club,
+        )
+
+    def test_none_above_max(self):
+        assert self._processed(160.0, 90.0).smash_factor is None
+
+    def test_exactly_max_unchanged(self):
+        assert self._processed(150.0, 100.0).smash_factor == 1.5
+
+    def test_below_max_unchanged(self):
+        assert self._processed(140.0, 100.0).smash_factor == pytest.approx(1.4)
+
+    def test_none_without_club_speed(self):
+        assert self._processed(140.0, None).smash_factor is None
+        assert self._processed(140.0, 0.0).smash_factor is None
+
+
 class TestRollingBufferShotIdentity:
     """Raw OPS captures and downstream shots must share a monotonic identity."""
 
