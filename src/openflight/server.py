@@ -25,6 +25,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 
 from .ballistics import resolve_launch, simulate
+from .buzzer import BuzzerController
 from .ble.protocol import (
     FEATURES as PHONE_FEATURES,
     build_club_event,
@@ -92,6 +93,21 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Global state
 monitor = None
+
+_buzzer_controller = None
+_buzzer_lock = threading.Lock()
+
+
+def get_buzzer_controller():
+    """Return the optional GPIO buzzer when enabled."""
+    global _buzzer_controller
+    if os.environ.get("OPENFLIGHT_BUZZER") != "1":
+        return None
+    with _buzzer_lock:
+        if _buzzer_controller is None:
+            _buzzer_controller = BuzzerController(pin=27)
+        return _buzzer_controller
+
 power_monitor: Optional[PowerMonitor] = None
 battery_provider: str | None = None
 mock_mode: bool = False
@@ -4145,6 +4161,12 @@ def _handle_shot_detected(shot: Shot) -> None:
     shot.profile_id = active_profile.id
     shot.profile_name = active_profile.name
     logger.info("[SERVER] Shot callback: %.1f mph", shot.ball_speed_mph)
+
+    if shot.mode != "mock":
+        buzzer = get_buzzer_controller()
+        if buzzer is not None:
+            buzzer.confirmed_shot()
+
 
     if not _has_slow_shot_enrichment(shot):
         _register_shot_for_finalization(
