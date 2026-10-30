@@ -9,9 +9,9 @@ BOOT_CONFIG="${OPENFLIGHT_GEEKWORM_BOOT_CONFIG:-/boot/firmware/config.txt}"
 MODULES_CONFIG="${OPENFLIGHT_GEEKWORM_MODULES_CONFIG:-/etc/modules-load.d/openflight-geekworm.conf}"
 POWER_SUPPLY_ROOT="${OPENFLIGHT_GEEKWORM_POWER_SUPPLY_ROOT:-/sys/class/power_supply}"
 PI_MODEL_PATH="${OPENFLIGHT_GEEKWORM_PI_MODEL_PATH:-/proc/device-tree/model}"
-PANEL_PACKAGE="$BATTERY_SCRIPT_DIR/packages/wfplug-batt_1.3+openflight4_arm64.deb"
-PANEL_PACKAGE_VERSION="1.3+openflight4"
-PANEL_PACKAGE_SHA256="55db8a460f99758f2dac9d509b29907e0e268ee88bbff4edb6adcee312046d5c"
+PANEL_PACKAGE="$BATTERY_SCRIPT_DIR/packages/wfplug-batt_1.11+openflight1_arm64.deb"
+PANEL_PACKAGE_VERSION="1.11+openflight1"
+PANEL_PACKAGE_SHA256="950e985dcc83c669b6abbc8a4769fc410a5842785c1488a12e7ed8f2829fbda1"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 I2C_LINE="dtparam=i2c_arm=on"
@@ -73,6 +73,23 @@ os_codename() {
 panel_package_supported() {
     [[ "$(dpkg --print-architecture 2>/dev/null || true)" == "arm64" ]] \
         && [[ "$(os_codename)" == "trixie" ]]
+}
+
+# An OS update can bring an upstream wfplug-batt newer than the bundled build.
+# Installing ours over it would be a downgrade against an older panel ABI.
+panel_upstream_is_newer() {
+    local installed_version="$1"
+
+    [[ -n "$installed_version" && "$installed_version" != *+openflight* ]] \
+        && dpkg --compare-versions "$installed_version" gt "$PANEL_PACKAGE_VERSION"
+}
+
+warn_panel_rebuild_needed() {
+    local installed_version="$1"
+
+    warn "Installed wfplug-batt $installed_version is newer than the bundled $PANEL_PACKAGE_VERSION."
+    warn "Rebuild it with scripts/battery/build_wfplug_batt.sh; the taskbar will show 0% until then."
+    warn "OpenFlight battery telemetry will still work."
 }
 
 update_boot_config() {
@@ -272,10 +289,14 @@ install_panel_package() {
         log "Raspberry Pi taskbar patch is already installed."
         return
     fi
+    if panel_upstream_is_newer "$installed_version"; then
+        warn_panel_rebuild_needed "$installed_version"
+        return
+    fi
 
     log "Installing Raspberry Pi taskbar battery compatibility support."
     if ! as_root apt-get install -y "$PANEL_PACKAGE"; then
-        die "The bundled panel package is incompatible with this OS; rerun with --no-panel"
+        die "apt-get could not install the bundled panel package; rerun with --no-panel"
     fi
     PANEL_RESTART_REQUIRED=true
 }
@@ -372,6 +393,9 @@ verify_installation() {
         if [[ "$installed_version" == "$PANEL_PACKAGE_VERSION" ]] \
             && dpkg -V wfplug-batt >/dev/null 2>&1; then
             log "Taskbar package verified: wfplug-batt $installed_version"
+        elif panel_upstream_is_newer "$installed_version"; then
+            warn_panel_rebuild_needed "$installed_version"
+            failures=$((failures + 1))
         else
             warn "Taskbar package is not the verified OpenFlight build (found: ${installed_version:-missing})."
             failures=$((failures + 1))
