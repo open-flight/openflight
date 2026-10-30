@@ -61,12 +61,25 @@ on the board before counting.
 | Pin 10 | `GND` | 6 (or any GND) | GND |
 | Pin 7 | `TxD` (out) | 10 | GPIO15 / `RXD0` |
 | Pin 6 | `RxD` (in) | 8 | GPIO14 / `TXD0` |
-| Pin 3 | `HOST_INT` | — | sound detector `GATE` (unchanged) |
+| Pin 3 | `HOST_INT` | 11, through the `GATE` splice | sound detector `GATE` and GPIO17 |
 
-![OPS243 UART migration wiring: the radar leaves USB and runs from the Raspberry Pi 5 header with 5V on J3 pin 9, ground on pin 10, and a crossed UART pair on pins 7 and 6, while the SEN-14262 GATE output is spliced three ways to J3 pin 3 and Pi physical pin 11.](../assets/ops243-uart-wiring.svg)
+![OPS243 UART wiring with the SEN-14262 sound trigger: the radar, drawn with its J3 pins pointing up and the micro-USB to their left, runs from the Raspberry Pi 5 header with 5V on J3 pin 9 to Pi pin 4, ground on J3 pin 10 to Pi pin 6, and a crossed UART pair on J3 pins 7 and 6 to Pi pins 10 and 8. The sound detector runs on 3.3V from Pi pin 1 with ground on Pi pin 9, and its GATE output is spliced to J3 pin 3 (HOST_INT) and Pi pin 11 (GPIO17). The Pi is rotated so its USB ports face up and the header runs down its left edge; of its two ribbon connectors, CAM/DISP 1, nearer the USB ports, takes the camera and CAM/DISP 0, below it, takes the Touch Display 2.](../assets/ops243-uart-wiring.svg)
 
-*The diagram picks physical pin 4 for 5V and pin 14 for ground; any 5V and any
-GND pin work as long as the ground is the same rail the sound detector uses.*
+*The diagram picks physical pin 4 for 5V, pin 6 for the radar's ground and pin
+9 for the sound detector's; any 5V and any GND pin work as long as all boards
+share the same ground rail. For orientation it also labels the two ribbon
+connectors: a camera on CAM/DISP 1 needs `dtoverlay=ov9281,cam1` in
+`/boot/firmware/config.txt`, and the Touch Display 2 on CAM/DISP 0 is detected
+automatically.*
+
+The full header map for this build, with the sound detector, the LIS3DH,
+display power and the UPS pogo pins:
+
+![Raspberry Pi 5 GPIO header map as mounted in the case: OPS243 on physical pins 4, 6, 8 and 10, SEN-14262 sound detector VCC on 1, GND on 9 and GATE on 11 (GPIO17), display power on 2 and 14, LIS3DH on 3, 5, 17 and 20, Geekworm X1202 UPS pogo pins on 3, 5, 31 and 36.](../assets/pi5-gpio-header-map.svg)
+
+The OPS243-A J3 header from the front:
+
+![OPS243-A J3 header viewed from the front, pin 1 on the left and ground on the right: pin 3 HOST_INT to the sound detector GATE, pin 6 RxD to Pi pin 8, pin 7 TxD to Pi pin 10, pin 9 5V to Pi pin 4, pin 10 GND to Pi pin 6; pins 1, 2, 4, 5 and 8 open.](../assets/ops243-j3-header.svg)
 
 TX and RX are **crossed**: the radar's transmit goes to the Pi's receive, and
 the Pi's transmit goes to the radar's receive. Getting pin 6 wrong is the
