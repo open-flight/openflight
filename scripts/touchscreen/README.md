@@ -24,11 +24,17 @@ Find your touchscreen input device:
 
     python3 -c "from evdev import InputDevice, list_devices; [print(InputDevice(p).name, p) for p in list_devices()]"
 
-The default configuration was tested with:
+With no configuration, the server and the wake service both use the
+panel backlight they find under /sys/class/backlight/ (any
+`panel_backlight*`, else the first backlight), and the wake service
+watches the Goodix touchscreen, else the first device that reports touches.
 
-- Touchscreen: Goodix Capacitive TouchScreen
-- Backlight: /sys/class/backlight/panel_backlight@1/brightness
-- Wake brightness: 15
+This works unconfigured on the Raspberry Pi Touch Display 2: its touch
+controller reports itself as `Goodix Capacitive TouchScreen`, and the
+backlight's name varies between setups (`panel_backlight@0` on a Pi 5 with
+the `vc4-kms-dsi-ili9881-7inch` overlay; this guide previously assumed
+`panel_backlight@1`). Double tap wakes the screen at the brightness it had
+before sleeping.
 
 Other hardware may require different settings.
 
@@ -36,13 +42,14 @@ Other hardware may require different settings.
 
 The wake script supports these environment variables:
 
-- OPENFLIGHT_BACKLIGHT_PATH
-- OPENFLIGHT_TOUCHSCREEN_NAME
-- OPENFLIGHT_WAKE_BRIGHTNESS
+- OPENFLIGHT_BACKLIGHT_PATH: the backlight's `brightness` file, if
+  detection picks the wrong one
+- OPENFLIGHT_TOUCHSCREEN_NAME: part of the touchscreen's input name
+- OPENFLIGHT_WAKE_BRIGHTNESS: wake level when the previous one is unknown
+  (default 15, capped at the display's `max_brightness`)
 
-The OpenFlight server also supports OPENFLIGHT_BACKLIGHT_PATH.
-
-Configure the same backlight path for both the server and wake service.
+The OpenFlight server also supports OPENFLIGHT_BACKLIGHT_PATH. If you set
+it, set the same path for both the server and the wake service.
 
 ## Install
 
