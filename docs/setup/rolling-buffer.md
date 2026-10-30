@@ -54,6 +54,28 @@ procedure needs an explicit port, and the power cycle is the 5 V jumper on J3
 pin 9 rather than a USB cable. See
 [Re-running the one-time rolling-buffer setup](../build/ops243-uart.md#re-running-the-one-time-rolling-buffer-setup).
 
+## Idle While OpenFlight Is Not Running
+
+The OPS243 powers up sampling and transmitting in its saved rolling-buffer
+mode. OpenFlight puts it into idle (`PI`) when it shuts down: the radar stops
+sampling and powers its RF down, drawing about 0.6 W instead of 1.5 W per the
+OPS243 datasheet. `PI` is a power state, not a mode change, so the radar stays
+in rolling-buffer mode and the next start wakes it with the usual
+`PI` → `GC` → `PA` sequence.
+
+To idle it from boot until OpenFlight first starts, which matters most on
+battery, install the boot service with your radar's port:
+
+```bash
+scripts/setup/install_ops_idle_service.sh --port /dev/ttyAMA0   # GPIO UART
+scripts/setup/install_ops_idle_service.sh                       # USB
+```
+
+It runs once before `openflight.service` and leaves the radar alone if
+OpenFlight is already running. Remove it with `--uninstall`. A crash that skips
+OpenFlight's shutdown leaves the radar active until the next clean start and
+stop, or the next boot.
+
 ## Related
 
 - [Sound trigger wiring](../build/sound-trigger.md) — do this first; the
