@@ -31,6 +31,7 @@ nav = [
     "build/index.md",
     "build/sound-trigger.md",
     "build/ops243-uart.md",
+    "build/ops243-flashing.md",
     { "IWR6843 angle radar" = [
       "iwr6843/index.md",
       "iwr6843/wiring.md",

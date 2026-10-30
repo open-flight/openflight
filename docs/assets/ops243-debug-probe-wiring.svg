@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1080" viewBox="0 0 1200 1080" role="img" aria-labelledby="title desc">
+<title id="title">Raspberry Pi Debug Probe to Treedix breakout connections</title>
+<desc id="desc">Colored arrows show the three connections from the Debug Probe D port: black to ordinary GND, yellow to SWIO, orange to CLK. The ribbon plug is seated in the breakout socket and connects to OPS243 J2. The unchanged side-view detail shows three soldered header pins with spacers above the board and solder underneath.</desc>
+<defs>
+  <linearGradient id="case" x2="1" y2="1"><stop stop-color="#f7faf8" stop-opacity=".95"/><stop offset="1" stop-color="#d9e4df" stop-opacity=".9"/></linearGradient>
+  <linearGradient id="plastic" x2="1" y2="1"><stop stop-color="#363c41"/><stop offset="1" stop-color="#13181c"/></linearGradient>
+  <linearGradient id="metal" x2="0" y2="1"><stop stop-color="#eff1f3"/><stop offset=".5" stop-color="#a5afb5"/><stop offset="1" stop-color="#d5dce0"/></linearGradient>
+  <g id="pad"><circle r="11" fill="#c7a659" stroke="#e6cd8e" stroke-width="3"/><circle r="6" fill="#18271f"/></g>
+  <g id="pin"><rect x="-4" y="-5" width="8" height="10" rx="1" fill="#e7c978" stroke="#ac8640"/></g>
+  <g id="screw"><circle r="12" fill="#d4c793"/><circle r="7" fill="#f4f5f3" stroke="#a6aea9" stroke-width="2"/></g>
+  <marker id="arrow-black" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="#272c30"/></marker>
+  <marker id="arrow-yellow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="#bc941a"/></marker>
+  <marker id="arrow-orange" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="#e87532"/></marker>
+</defs>
+<style>
+  text { font-family: Arial, Helvetica, sans-serif; fill: #1b2931; }
+  .title { font-size: 30px; font-weight: 700; }
+  .label { font-size: 23px; font-weight: 700; }
+  .note { font-size: 21px; }
+  .small { font-size: 18px; }
+  .silk { fill: #f4f3e6; font-size: 20px; font-weight: 700; }
+  .wire { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+<rect width="1200" height="1080" rx="18" fill="#fff"/>
+<text class="title" x="40" y="48">Debug Probe → breakout → OPS243</text>
+<text class="note" x="40" y="80">Power off before connecting wires.</text>
+
+<text class="label" x="58" y="180">Raspberry Pi Debug Probe</text>
+<path class="wire" d="M184 225 V199 H18 V139 H40" stroke="#fff" stroke-width="19"/>
+<path class="wire" d="M184 225 V199 H18 V139 H40" stroke="#d73452" stroke-width="12"/>
+<rect x="40" y="125" width="40" height="28" rx="4" fill="url(#plastic)"/>
+<rect x="31" y="129" width="12" height="20" rx="2" fill="url(#metal)"/>
+<text class="note" x="91" y="120">To Pi USB</text>
+<rect x="79" y="226" width="221" height="278" rx="35" fill="#cfdbd5" opacity=".5"/>
+<rect x="88" y="219" width="205" height="278" rx="32" fill="url(#case)" stroke="#a8b8b0" stroke-width="2"/>
+<rect x="105" y="239" width="171" height="237" rx="18" fill="#5a9477" stroke="#46765e" stroke-width="2"/>
+<g fill="none" stroke="#a5c7ac" stroke-width="2" opacity=".6">
+  <path d="M125 272 H153 V305 H165 M257 272 H231 V303 H219 M123 442 H155 V405 H173 M256 442 H229 V405 H210"/>
+  <path d="M126 295 H141 V337 H163 M255 295 H242 V336 H220 M129 420 H145 V380 H163 M253 419 H239 V381 H219"/>
+</g>
+<use href="#screw" x="123" y="258"/><use href="#screw" x="258" y="258"/>
+<use href="#screw" x="123" y="458"/><use href="#screw" x="258" y="458"/>
+<rect x="159" y="318" width="64" height="64" rx="6" fill="#252c30" stroke="#939d9f" stroke-width="3"/>
+<text x="191" y="344" text-anchor="middle" fill="#dbe4df" style="fill:#dbe4df;font-size:11px">RP2040</text>
+<g fill="#d1d1b1" stroke="#77917e">
+  <rect x="130" y="299" width="19" height="9"/><rect x="232" y="299" width="19" height="9"/>
+  <rect x="140" y="393" width="12" height="20"/><rect x="229" y="393" width="12" height="20"/>
+</g>
+<rect x="163" y="218" width="45" height="34" rx="4" fill="url(#metal)" stroke="#7c8b91" stroke-width="2"/>
+<rect x="165" y="205" width="41" height="22" rx="3" fill="#d73452" stroke="#ab2541"/>
+<rect x="118" y="446" width="44" height="28" rx="3" fill="#f5f4e9" stroke="#b4b7af" stroke-width="2"/>
+<rect x="211" y="446" width="44" height="28" rx="3" fill="#f5f4e9" stroke="#9faaa1" stroke-width="2"/>
+<text class="silk" x="140" y="435" text-anchor="middle">U</text>
+<text class="silk" x="233" y="435" text-anchor="middle">D</text>
+<path d="M221 455 V469 M233 455 V469 M245 455 V469" stroke="#b6beb8" stroke-width="2"/>
+<text class="small" x="135" y="526" text-anchor="middle">U stays empty</text>
+
+<text class="label" x="608" y="114">Treedix breakout</text>
+<text class="note" x="931" y="112">To OPS243 J2</text>
+<path d="M620 235 H970 V554 H620 Z" fill="#1b291f"/>
+<rect x="610" y="225" width="350" height="318" rx="6" fill="#34412b" stroke="#17261c" stroke-width="3"/>
+<g fill="none" stroke="#64794b" stroke-width="2" opacity=".65">
+  <path d="M640 280 H716 V296 H742 M640 335 H704 V326 H742 M640 390 H696 V354 H742 M640 500 H709 V462 H742"/>
+  <path d="M935 280 H863 V296 H827 M935 335 H875 V326 H827 M935 390 H885 V354 H827 M935 500 H868 V462 H827"/>
+</g>
+<use href="#pad" x="640" y="280"/><use href="#pad" x="640" y="335"/>
+<use href="#pad" x="640" y="390"/><use href="#pad" x="640" y="445"/><use href="#pad" x="640" y="500"/>
+<use href="#pad" x="935" y="280"/><use href="#pad" x="935" y="335"/>
+<use href="#pad" x="935" y="390"/><use href="#pad" x="935" y="445"/><use href="#pad" x="935" y="500"/>
+<text class="silk" x="663" y="287">VCC</text><text class="silk" x="663" y="342">GND</text>
+<text class="silk" x="663" y="397">GND</text><text class="silk" x="663" y="452">KEY</text><text class="silk" x="663" y="507">GNDd</text>
+<text class="silk" x="912" y="287" text-anchor="end">SWIO</text><text class="silk" x="912" y="342" text-anchor="end">CLK</text>
+<text class="silk" x="912" y="397" text-anchor="end">SWO</text><text class="silk" x="912" y="452" text-anchor="end">NC</text><text class="silk" x="912" y="507" text-anchor="end">RST</text>
+<path d="M729 265 H849 V510 H729 V418 H742 V365 H729 Z" fill="#111719" stroke="#465047" stroke-width="3"/>
+<rect x="741" y="277" width="96" height="220" rx="3" fill="#090e10"/>
+<path d="M747 283 H829 V487 H747 V411 H735 V365 H747 Z" fill="#333b3c" stroke="#717a78" stroke-width="2"/>
+<path d="M829 283 L837 292 V493 L829 487 Z" fill="#151d20"/>
+<path d="M747 487 H829 L837 493 H747 Z" fill="#1a2326"/>
+<path d="M754 357 V166 Q754 132 788 132 H1065 V193 H820 V357 Z" fill="#d9dde0" stroke="#8f999f" stroke-width="2"/>
+<path d="M762 356 V168 Q762 140 790 140 H1064" fill="none" stroke="#c74b5c" stroke-width="4"/>
+<g fill="none" stroke="#aab1b6" stroke-width="3">
+  <path d="M772 356 V174 Q772 150 796 150 H1064"/>
+  <path d="M783 356 V179 Q783 160 802 160 H1064"/>
+  <path d="M794 356 V184 Q794 170 808 170 H1064"/>
+  <path d="M805 356 V188 Q805 180 813 180 H1064"/>
+</g>
+<rect x="744" y="346" width="86" height="25" rx="3" fill="url(#plastic)" stroke="#687271" stroke-width="2"/>
+<path d="M753 353 H821" stroke="#828986" stroke-width="2"/>
+<path d="M760 395 H816 M760 407 H816 M760 419 H816" stroke="#4b5553" stroke-width="3"/>
+<rect x="1047" y="127" width="57" height="72" rx="5" fill="url(#plastic)" stroke="#0c1012" stroke-width="2"/>
+<text class="small" x="621" y="569">Ribbon plug seated inside the keyed socket</text>
+
+<path class="wire" d="M233 469 V533 Q233 549 249 549 H512 Q535 549 535 526 V351 Q535 335 551 335 H625" stroke="#fff" stroke-width="8"/>
+<path class="wire" d="M233 469 V533 Q233 549 249 549 H512 Q535 549 535 526 V351 Q535 335 551 335 H625" stroke="#272c30" stroke-width="3" marker-end="url(#arrow-black)"/>
+<path class="wire" d="M245 469 V570 Q245 587 262 587 H1016 Q1037 587 1037 566 V296 Q1037 280 1021 280 H950" stroke="#fff" stroke-width="8"/>
+<path class="wire" d="M245 469 V570 Q245 587 262 587 H1016 Q1037 587 1037 566 V296 Q1037 280 1021 280 H950" stroke="#bc941a" stroke-width="3" marker-end="url(#arrow-yellow)"/>
+<path class="wire" d="M221 469 V609 Q221 626 238 626 H1056 Q1077 626 1077 605 V351 Q1077 335 1061 335 H950" stroke="#fff" stroke-width="8"/>
+<path class="wire" d="M221 469 V609 Q221 626 238 626 H1056 Q1077 626 1077 605 V351 Q1077 335 1061 335 H950" stroke="#e87532" stroke-width="3" marker-end="url(#arrow-orange)"/>
+<use href="#pin" x="640" y="335"/><use href="#pin" x="935" y="280"/><use href="#pin" x="935" y="335"/>
+
+<rect x="40" y="667" width="1120" height="89" rx="12" fill="#f3f6f4" stroke="#dce4df"/>
+<circle cx="70" cy="695" r="6" fill="#272c30"/><text class="note" x="87" y="703">Black → GND</text>
+<circle cx="400" cy="695" r="6" fill="#f1ce31" stroke="#aa8917"/><text class="note" x="417" y="703">Yellow → SWIO</text>
+<circle cx="774" cy="695" r="6" fill="#f07b36"/><text class="note" x="791" y="703">Orange → CLK</text>
+<text class="small" x="66" y="735">Only 3 header pins are needed. Header pins are not included with the breakout.</text>
+
+<rect x="40" y="780" width="1120" height="263" rx="12" fill="#f8faf9" stroke="#dce4df"/>
+<text class="label" x="65" y="818">Solder one header pin into each marked pad</text>
+<text class="small" x="1010" y="818">Side views</text>
+<g fill="#34412b" stroke="#1b291f" stroke-width="2">
+  <path d="M100 949 H254 V968 H100 Z"/>
+  <path d="M280 949 H394 V968 H280 Z"/>
+  <path d="M420 949 H549 V968 H420 Z"/>
+</g>
+<path d="M100 968 H254 V973 H100 Z M280 968 H394 V973 H280 Z M420 968 H549 V973 H420 Z" fill="#1e2d22"/>
+<g fill="#c3cbca" stroke="#8a9695" stroke-width="2">
+  <path d="M174 970 Q184 985 197 970 L198 979 Q185 989 172 979 Z"/>
+  <path d="M314 970 Q324 985 337 970 L338 979 Q325 989 312 979 Z"/>
+  <path d="M454 970 Q464 985 477 970 L478 979 Q465 989 452 979 Z"/>
+</g>
+<g fill="#c5a34d" stroke="#97732b">
+  <rect x="179" y="866" width="12" height="130" rx="1"/>
+  <rect x="319" y="866" width="12" height="130" rx="1"/>
+  <rect x="459" y="866" width="12" height="130" rx="1"/>
+</g>
+<g fill="#eed387">
+  <rect x="180" y="867" width="4" height="128"/>
+  <rect x="320" y="867" width="4" height="128"/>
+  <rect x="460" y="867" width="4" height="128"/>
+</g>
+<g fill="#252d2f" stroke="#11191b" stroke-width="2">
+  <rect x="167" y="930" width="36" height="19" rx="2"/>
+  <rect x="307" y="930" width="36" height="19" rx="2"/>
+  <rect x="447" y="930" width="36" height="19" rx="2"/>
+</g>
+<text class="note" x="185" y="1025" text-anchor="middle">GND</text>
+<text class="note" x="325" y="1025" text-anchor="middle">SWIO</text>
+<text class="note" x="465" y="1025" text-anchor="middle">CLK</text>
+<g fill="none" stroke="#7d898c" stroke-width="2">
+  <path d="M646 880 H518 L475 886"/>
+  <path d="M646 934 H499 L482 939"/>
+  <path d="M646 988 H499 L480 979"/>
+</g>
+<text class="note" x="668" y="886">Male header pins</text>
+<text class="note" x="668" y="941">Black spacers sit above the board</text>
+<text class="note" x="668" y="995">Solder joints underneath</text>
+</svg>

@@ -2,6 +2,8 @@
 
 Hardware components for building the OpenFlight golf launch monitor.
 
+To update your OPS243 firmware, follow the [OPS243 firmware update guide](../build/ops243-flashing.md).
+
 > **Ordering shortcut:** A shared **[OpenFlight Mouser project](https://www.mouser.com/en/Tools/Project/Share?AccessID=4c97a00bbc)** is available for the parts Mouser stocks. Check it against the tables below before you order: anything Mouser does not carry has a direct vendor link here.
 
 > **Next step after gathering parts:** See the [Raspberry Pi Setup Guide](../setup/raspberry-pi.md) for assembly and software installation.
