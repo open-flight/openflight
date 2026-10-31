@@ -63,13 +63,22 @@ function displayTime(value: string | null | undefined): string {
 }
 
 function metric(value: number | null, decimals = 1): string {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? value.toFixed(decimals)
-    : '—';
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(decimals) : '—';
 }
 
 function ShotDetails({ data }: { data: Record<string, unknown> }) {
-  return <div className="history-extra-data">{Object.entries(data).filter(([key, value]) => value !== null && key !== "camera_replay").map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><strong>{typeof value === "object" ? JSON.stringify(value) : String(value)}</strong></div>)}</div>;
+  return (
+    <div className="history-extra-data">
+      {Object.entries(data)
+        .filter(([key, value]) => value !== null && key !== 'camera_replay')
+        .map(([key, value]) => (
+          <div key={key}>
+            <span>{key.replaceAll('_', ' ')}</span>
+            <strong>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</strong>
+          </div>
+        ))}
+    </div>
+  );
 }
 
 export function HistoryPanel({ onReplayShot }: Props) {
@@ -79,19 +88,15 @@ export function HistoryPanel({ onReplayShot }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [details, setDetails] = useState<Details | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    void fetch(
-      `${getServerOrigin()}/api/sessions/history?include_empty=${showEmpty}&show_hidden=${showHidden}`,
-      { signal: controller.signal },
-    )
+    void fetch(`${getServerOrigin()}/api/sessions/history?include_empty=${showEmpty}&show_hidden=${showHidden}`, {
+      signal: controller.signal,
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error('Unable to load sessions');
         return response.json() as Promise<{ sessions: Session[] }>;
@@ -113,20 +118,13 @@ export function HistoryPanel({ onReplayShot }: Props) {
 
   useEffect(() => {
     if (!selectedId) {
-      setDetails(null);
-      setDetailsLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    setDetails(null);
-    setDetailsLoading(true);
-    setError(null);
-
-    void fetch(
-      `${getServerOrigin()}/api/sessions/history/${encodeURIComponent(selectedId)}`,
-      { signal: controller.signal },
-    )
+    void fetch(`${getServerOrigin()}/api/sessions/history/${encodeURIComponent(selectedId)}`, {
+      signal: controller.signal,
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error('Unable to load shots');
         return response.json() as Promise<Details>;
@@ -148,19 +146,16 @@ export function HistoryPanel({ onReplayShot }: Props) {
 
   async function changeVisibility(id: string, hidden: boolean) {
     try {
-      const response = await fetch(
-        `${getServerOrigin()}/api/sessions/history/${encodeURIComponent(id)}/visibility`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hidden }),
-        },
-      );
+      const response = await fetch(`${getServerOrigin()}/api/sessions/history/${encodeURIComponent(id)}/visibility`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden }),
+      });
       if (!response.ok) throw new Error('Visibility update failed');
 
-      setSessions((items) => items
-        .map((item) => item.id === id ? { ...item, hidden } : item)
-        .filter((item) => showHidden || !item.hidden));
+      setSessions((items) =>
+        items.map((item) => (item.id === id ? { ...item, hidden } : item)).filter((item) => showHidden || !item.hidden)
+      );
       setError(null);
     } catch {
       setError('Unable to change session visibility.');
@@ -173,11 +168,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
     <div className="panel">
       <PanelHeader
         title="History"
-        subtitle={
-          selectedId
-            ? 'Recorded shot measurements'
-            : `${sessions.length} previous sessions`
-        }
+        subtitle={selectedId ? 'Recorded shot measurements' : `${sessions.length} previous sessions`}
       />
 
       <div className="history-content">
@@ -186,7 +177,12 @@ export function HistoryPanel({ onReplayShot }: Props) {
             <button
               className="history-back"
               type="button"
-              onClick={() => setSelectedId(null)}
+              onClick={() => {
+                setSelectedId(null);
+                setDetails(null);
+                setDetailsLoading(false);
+                setError(null);
+              }}
             >
               <span aria-hidden="true">‹</span> All sessions
             </button>
@@ -201,9 +197,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
                   {selected?.location ?? 'Range'}
                 </p>
               </div>
-              <span className="history-count">
-                {details?.shot_count ?? selected?.shot_count ?? 0} shots
-              </span>
+              <span className="history-count">{details?.shot_count ?? selected?.shot_count ?? 0} shots</span>
             </div>
 
             {detailsLoading && <p className="history-message">Loading shots…</p>}
@@ -212,9 +206,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
               <div className="history-shot-row" key={`${shot.shot_number}-${index}`}>
                 <div className="history-shot-heading">
                   <div>
-                    <span className="history-shot-number">
-                      SHOT {shot.shot_number}
-                    </span>
+                    <span className="history-shot-number">SHOT {shot.shot_number}</span>
                     <strong>{shot.club || 'Unknown club'}</strong>
                   </div>
                   {shot.camera_available ? (
@@ -233,15 +225,21 @@ export function HistoryPanel({ onReplayShot }: Props) {
                 <div className="history-metrics">
                   <div>
                     <span>BALL SPEED</span>
-                    <strong>{metric(shot.ball_speed_mph)} <small>mph</small></strong>
+                    <strong>
+                      {metric(shot.ball_speed_mph)} <small>mph</small>
+                    </strong>
                   </div>
                   <div>
                     <span>CLUB SPEED</span>
-                    <strong>{metric(shot.club_speed_mph)} <small>mph</small></strong>
+                    <strong>
+                      {metric(shot.club_speed_mph)} <small>mph</small>
+                    </strong>
                   </div>
                   <div>
                     <span>CARRY</span>
-                    <strong>{metric(shot.estimated_carry_yards)} <small>yd</small></strong>
+                    <strong>
+                      {metric(shot.estimated_carry_yards)} <small>yd</small>
+                    </strong>
                   </div>
                   <div>
                     <span>SMASH</span>
@@ -267,9 +265,19 @@ export function HistoryPanel({ onReplayShot }: Props) {
                       return (
                         <div key={key}>
                           <span>{label}</span>
-                          <strong>{typeof value === 'number' ? (key.endsWith('confidence') ? (value * 100).toFixed(1) + '%' : value.toFixed(1) + ' ' + unit) : '—'}</strong>
-                          {key === 'spin_rpm' && <small>{String(shot.recorded_data.spin_quality ?? 'Quality unknown')}</small>}
-                          {key === 'launch_angle_vertical' && <small>{String(shot.recorded_data.launch_angle_vertical_source ?? 'Source unknown')}</small>}
+                          <strong>
+                            {typeof value === 'number'
+                              ? key.endsWith('confidence')
+                                ? (value * 100).toFixed(1) + '%'
+                                : value.toFixed(1) + ' ' + unit
+                              : '—'}
+                          </strong>
+                          {key === 'spin_rpm' && (
+                            <small>{String(shot.recorded_data.spin_quality ?? 'Quality unknown')}</small>
+                          )}
+                          {key === 'launch_angle_vertical' && (
+                            <small>{String(shot.recorded_data.launch_angle_vertical_source ?? 'Source unknown')}</small>
+                          )}
                           {key === 'experimental_attack_angle_deg' && <small>Experimental</small>}
                           {key === 'experimental_club_path_deg' && <small>Experimental</small>}
                         </div>
@@ -280,7 +288,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
                       <strong>
                         {Array.isArray(shot.recorded_data.carry_range)
                           ? shot.recorded_data.carry_range
-                              .map((value) => typeof value === 'number' ? value.toFixed(1) : '—')
+                              .map((value) => (typeof value === 'number' ? value.toFixed(1) : '—'))
                               .join('–') + ' yd'
                           : '—'}
                       </strong>
@@ -311,20 +319,30 @@ export function HistoryPanel({ onReplayShot }: Props) {
             <div className="history-toolbar">
               <span className="history-eyebrow">SAVED SESSIONS</span>
               <label className="history-toggle">
-                <input type="checkbox" checked={shortOnly}
-                  onChange={(event) => setShortOnly(event.target.checked)} />
+                <input type="checkbox" checked={shortOnly} onChange={(event) => setShortOnly(event.target.checked)} />
                 Short sessions (1–4)
               </label>
               <label className="history-toggle">
-                <input type="checkbox" checked={showHidden}
-                  onChange={(event) => setShowHidden(event.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={showHidden}
+                  onChange={(event) => {
+                    setLoading(true);
+                    setError(null);
+                    setShowHidden(event.target.checked);
+                  }}
+                />
                 Show hidden
               </label>
               <label className="history-toggle">
                 <input
                   type="checkbox"
                   checked={showEmpty}
-                  onChange={(event) => setShowEmpty(event.target.checked)}
+                  onChange={(event) => {
+                    setLoading(true);
+                    setError(null);
+                    setShowEmpty(event.target.checked);
+                  }}
                 />
                 Show empty
               </label>
@@ -332,51 +350,56 @@ export function HistoryPanel({ onReplayShot }: Props) {
 
             {loading && <p className="history-message">Loading sessions…</p>}
 
-            {sessions.filter((session) => !shortOnly || (session.shot_count >= 1 && session.shot_count <= 4)).map((session) => (
-              <div className="history-session-item" key={session.id}>
-              <button
-                className="history-session-row"
-                type="button"
-                key={session.id}
-                onClick={() => setSelectedId(session.id)}
-              >
-                <div className="history-session-top">
-                  <div>
-                    <strong>{displayDate(session.started_at)}</strong>
-                    <span>
-                      {displayTime(session.started_at)}
-                      {' · '}
-                      {session.location}
-                    </span>
-                  </div>
-                  <span className="history-chevron">›</span>
+            {sessions
+              .filter((session) => !shortOnly || (session.shot_count >= 1 && session.shot_count <= 4))
+              .map((session) => (
+                <div className="history-session-item" key={session.id}>
+                  <button
+                    className="history-session-row"
+                    type="button"
+                    key={session.id}
+                    onClick={() => {
+                      setDetails(null);
+                      setDetailsLoading(true);
+                      setError(null);
+                      setSelectedId(session.id);
+                    }}
+                  >
+                    <div className="history-session-top">
+                      <div>
+                        <strong>{displayDate(session.started_at)}</strong>
+                        <span>
+                          {displayTime(session.started_at)}
+                          {' · '}
+                          {session.location}
+                        </span>
+                      </div>
+                      <span className="history-chevron">›</span>
+                    </div>
+                    <div className="history-session-stats">
+                      <span className="history-shots-count">{session.shot_count} shots</span>
+                      <span>◉ {session.camera_capture_count} recordings</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="history-visibility"
+                    onClick={() => void changeVisibility(session.id, !session.hidden)}
+                  >
+                    {session.hidden ? 'Restore' : 'Hide'}
+                  </button>
                 </div>
-                <div className="history-session-stats">
-                  <span className="history-shots-count">
-                    {session.shot_count} shots
-                  </span>
-                  <span>
-                    ◉ {session.camera_capture_count} recordings
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                className="history-visibility"
-                onClick={() => void changeVisibility(session.id, !session.hidden)}
-              >
-                {session.hidden ? 'Restore' : 'Hide'}
-              </button>
-              </div>
-            ))}
+              ))}
 
-            {!loading && sessions.length === 0 && !error && (
-              <p className="history-message">No sessions found.</p>
-            )}
+            {!loading && sessions.length === 0 && !error && <p className="history-message">No sessions found.</p>}
           </>
         )}
 
-        {error && <p className="history-error" role="alert">{error}</p>}
+        {error && (
+          <p className="history-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

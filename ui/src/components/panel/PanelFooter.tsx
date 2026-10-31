@@ -123,7 +123,6 @@ export function PanelFooter({
         </div>
       </details>
 
-
       <div className="panel-footer__meta">
         {showUnits ? <span className="panel-footer__units">{unitsLabel}</span> : null}
         {powerStatus ? <PowerExperience status={powerStatus} variant="chrome" /> : null}
