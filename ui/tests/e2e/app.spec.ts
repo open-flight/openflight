@@ -696,3 +696,21 @@ test('tabbing to a menu segmented control shows a real keyboard focus ring, not 
   // The individual button's own outline stays suppressed — no double ring.
   await expect(metricButton).toHaveCSS('outline-style', 'none');
 });
+
+for (const viewport of KIOSK_VIEWPORTS) {
+  test.describe(`radar LEDs at ${viewport.width}×${viewport.height}`, () => {
+    test.use({ hasTouch: true, viewport });
+
+    test('shows the Radar LEDs switch on the Tuning tab without scrolling', async ({ page }) => {
+      await gotoApp(page);
+      await dismissPicker(page);
+
+      await page.getByRole('button', { name: 'Debug' }).click();
+      await page.getByRole('button', { name: 'Tuning' }).click();
+
+      const leds = page.getByRole('group', { name: 'Radar LEDs' });
+      await expect(leds).toBeInViewport({ ratio: 1 });
+      await expect(leds.getByRole('button', { name: 'On' })).toHaveAttribute('aria-pressed', 'true');
+    });
+  });
+}

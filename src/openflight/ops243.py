@@ -992,6 +992,10 @@ class OPS243Radar:
             raise ValueError("Power level must be 0-7")
         self._send_command(f"P{level}")
 
+    def set_leds(self, enabled: bool):
+        """Turn the board's LEDs on (OL) or off (Ol), per AN-010-AF p16."""
+        self._send_command("OL" if enabled else "Ol")
+
     def enable_peak_averaging(self, enabled: bool = True):
         """
         Enable/disable peak speed averaging.
