@@ -1,3 +1,4 @@
+import { getServerOrigin } from './utils/serverOrigin';
 import { useState, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSocket } from './hooks/useSocket';
@@ -28,6 +29,7 @@ import {
   PanelAction,
   PickerOverlay,
   ShotsPanel,
+  HistoryPanel,
   StatsPanel,
   clubSections,
   trainingImplementSections,
@@ -362,6 +364,24 @@ function AppContent() {
             onDeleteShot={(timestamp) => socketService.deleteShot(timestamp)}
             onReplayShot={(shot) => {
               if (shot.camera_replay) openReplay(shot.camera_replay);
+            }}
+          />
+        )}
+
+        {currentView === 'history' && (
+          <HistoryPanel
+            onReplayShot={(sessionId, shotNumber) => {
+              const url = `${getServerOrigin()}/api/sessions/history/${encodeURIComponent(sessionId)}/shots/${shotNumber}/replay`;
+
+              void fetch(url, { method: 'POST' })
+                .then(async (response) => {
+                  if (!response.ok) throw new Error('Historical replay unavailable');
+                  return response.json();
+                })
+                .then((replay) => openReplay(replay))
+                .catch((error) => {
+                  console.error('Historical replay failed:', error);
+                });
             }}
           />
         )}

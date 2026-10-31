@@ -1277,6 +1277,7 @@ def init_camera_capture(
     horizontal_offset_deg: float,
     use_gpio_trigger: bool,
     shot_analysis_enabled: bool = False,
+    replay_mirror_override: bool | None = None,
 ) -> bool:
     """Initialize passive high-speed camera capture for offline alignment."""
     global camera_capture_runtime, camera_capture_config  # pylint: disable=global-statement
@@ -1313,7 +1314,7 @@ def init_camera_capture(
         settings = camera_capture_runtime.settings
         from .camera.replay import CameraReplayManager
 
-        camera_replay_manager = CameraReplayManager(output_dir)
+        camera_replay_manager = CameraReplayManager(output_dir, mirror_display=replay_mirror_override)
         from openflight.camera.club_delivery import (  # noqa: PLC0415
             ReferenceBallTracker,
         )
@@ -1673,6 +1674,80 @@ def camera_capture_exposure_quality():
     quality = camera_capture_runtime.exposure_quality()
     quality["auto_exposure"] = camera_capture_runtime.auto_exposure_status()
     return jsonify(quality)
+
+
+
+@app.route("/api/sessions/history")
+def historical_sessions():
+    """List saved sessions, excluding zero-shot sessions by default."""
+    from .session_history import list_sessions
+
+    include_empty = request.args.get("include_empty", "").lower() == "true"
+
+    session_log = get_session_logger()
+    log_dir = (
+        session_log.log_dir
+        if session_log is not None
+        else None
+    )
+
+    from .session_metadata import load_hidden_sessions
+    from .session_logger import SessionLogger
+
+    root = Path(log_dir or SessionLogger.DEFAULT_LOG_DIR)
+    hidden = load_hidden_sessions(root)
+    show_hidden = request.args.get("show_hidden", "").lower() == "true"
+
+    sessions = list_sessions(root, include_empty=include_empty)
+    sessions = [dict(item, hidden=item["id"] in hidden) for item in sessions]
+    if not show_hidden:
+        sessions = [item for item in sessions if not item["hidden"]]
+
+    return jsonify({"sessions": sessions, "count": len(sessions)})
+
+
+
+@app.route("/api/sessions/history/<session_id>")
+def historical_session_details(session_id: str):
+    """Return recorded shot measurements for a historical session."""
+    from .session_history import get_session_details
+
+    session_log = get_session_logger()
+    log_dir = session_log.log_dir if session_log is not None else None
+
+    details = get_session_details(session_id, log_dir)
+    if details is None:
+        return jsonify({"error": "Session not found"}), 404
+
+    return jsonify(details)
+
+
+
+@app.route("/api/sessions/history/<session_id>/shots/<int:shot_number>/replay", methods=["POST"])
+def historical_shot_replay(session_id: str, shot_number: int):
+    """Register an existing historical capture for replay."""
+    from .session_history import find_shot_capture
+
+    if camera_replay_manager is None:
+        return jsonify({"error": "Camera replay is unavailable"}), 503
+
+    session_log = get_session_logger()
+    log_dir = session_log.log_dir if session_log is not None else None
+
+    capture = find_shot_capture(session_id, shot_number, log_dir)
+    if capture is None:
+        return jsonify({"error": "Camera recording not found"}), 404
+
+    try:
+        replay = camera_replay_manager.register(
+            capture["capture_path"],
+            capture["metadata"],
+        )
+    except (ValueError, OSError) as error:
+        logger.warning("[HISTORY] Replay unavailable: %s", error)
+        return jsonify({"error": "Camera recording unavailable"}), 404
+
+    return jsonify(replay)
 
 
 @app.route("/api/camera/replays/<replay_id>/prepare", methods=["GET", "POST"])
@@ -5072,6 +5147,11 @@ def main():
         help="Mirror saved frames left-to-right after mount rotation.",
     )
     parser.add_argument(
+        "--camera-replay-no-mirror",
+        action="store_true",
+        help="Display camera replays without additional horizontal mirroring.",
+    )
+    parser.add_argument(
         "--session-location",
         "-l",
         default="range",
@@ -5603,6 +5683,7 @@ def main():
             scaler_crop=camera_capture_scaler_crop,
             use_gpio_trigger=not args.iwr6843,
             shot_analysis_enabled=args.camera_shot_analysis,
+            replay_mirror_override=False if args.camera_replay_no_mirror else None,
         ):
             print("Camera capture unavailable - running without high-speed camera capture")
             startup_status.skip("camera", "High-speed camera unavailable; continuing")
@@ -5611,6 +5692,22 @@ def main():
             if args.camera_shot_analysis:
                 print("Impact-aware camera shot analysis: ENABLED")
             startup_status.ready("camera", "High-speed camera connected")
+
+    # Existing camera recordings must remain replayable even when
+    # camera capture hardware is disabled or unavailable.
+    global camera_replay_manager
+    if camera_replay_manager is None:
+        from .camera.replay import CameraReplayManager
+
+        replay_base = (
+            Path(args.log_dir).expanduser()
+            if args.log_dir
+            else Path.home() / "openflight_sessions"
+        )
+        camera_replay_manager = CameraReplayManager(
+            replay_base / args.session_location / "camera",
+            mirror_display=False if args.camera_replay_no_mirror else None,
+        )
 
     if args.iwr6843:
         startup_status.start("ti", "Connecting TI radar")
@@ -5809,6 +5906,33 @@ def main():
         )
     finally:
         _cleanup_hardware_for_shutdown()
+
+
+@app.route("/api/sessions/history/<session_id>/visibility", methods=["POST"])
+def historical_session_visibility(session_id: str):
+    """Hide or restore a historical session without deleting recordings."""
+    from .session_history import get_session_details
+    from .session_metadata import load_hidden_sessions, save_hidden_sessions
+    from .session_logger import SessionLogger
+
+    session_log = get_session_logger()
+    root = Path(session_log.log_dir if session_log is not None else SessionLogger.DEFAULT_LOG_DIR)
+
+    if get_session_details(session_id, root) is None:
+        return jsonify({"error": "Session not found"}), 404
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get("hidden")) is not bool:
+        return jsonify({"error": "Expected a boolean hidden value"}), 400
+
+    hidden = load_hidden_sessions(root)
+    if payload["hidden"]:
+        hidden.add(session_id)
+    else:
+        hidden.discard(session_id)
+
+    save_hidden_sessions(root, hidden)
+    return jsonify({"id": session_id, "hidden": payload["hidden"]})
 
 
 if __name__ == "__main__":

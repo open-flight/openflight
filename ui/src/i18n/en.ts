@@ -3,6 +3,7 @@ export const en = {
   'nav.profiles': 'Profiles',
   'nav.stats': 'Stats',
   'nav.shots': 'Shots',
+  'nav.history': 'History',
   'nav.camera': 'Camera',
   'nav.debug': 'Debug',
   'nav.panels': 'Panels',

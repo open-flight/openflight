@@ -63,11 +63,13 @@ class CameraReplayManager:
         *,
         runner: Runner | None = None,
         ffmpeg_path: str = "ffmpeg",
+        mirror_display: bool | None = None,
     ) -> None:
         self.output_root = Path(output_root).expanduser().resolve()
         self._runner = runner or subprocess.run
         self._resolve_ffmpeg = runner is None
         self._ffmpeg_path = ffmpeg_path
+        self._mirror_display = mirror_display
         self._entries: dict[str, _ReplayEntry] = {}
         self._ids_by_capture: dict[Path, str] = {}
         self._lock = threading.Lock()
@@ -108,7 +110,11 @@ class CameraReplayManager:
                 "duration_seconds": frame_count / PLAYBACK_FPS,
                 # The operator-facing replay is mirrored by default. Captures
                 # already mirrored during persistence must not be flipped twice.
-                "display_mirror_horizontal": not saved_mirror_horizontal,
+                "display_mirror_horizontal": (
+                    not saved_mirror_horizontal
+                    if self._mirror_display is None
+                    else self._mirror_display
+                ),
             }
             self._entries[replay_id] = _ReplayEntry(
                 replay_id=replay_id,

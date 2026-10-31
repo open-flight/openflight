@@ -99,6 +99,31 @@ export function PanelFooter({
         />
       </div>
 
+      <details className="panel-footer__mobile-nav">
+        <summary>
+          {options.find((option) => option.id === currentView)?.label ?? 'Panels'}
+          <span aria-hidden="true"> ▾</span>
+        </summary>
+        <div className="panel-footer__mobile-options">
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={option.id === currentView ? 'mobile-nav__active' : ''}
+              aria-current={option.id === currentView ? 'page' : undefined}
+              onClick={(event) => {
+                onChangeView(option.id);
+                event.currentTarget.closest('details')?.removeAttribute('open');
+              }}
+            >
+              {option.label}
+              {'badge' in option ? option.badge : null}
+            </button>
+          ))}
+        </div>
+      </details>
+
+
       <div className="panel-footer__meta">
         {showUnits ? <span className="panel-footer__units">{unitsLabel}</span> : null}
         {powerStatus ? <PowerExperience status={powerStatus} variant="chrome" /> : null}

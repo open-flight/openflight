@@ -217,3 +217,26 @@ def test_unexpected_encoder_io_error_is_wrapped_and_retryable(tmp_path):
 
     assert not (capture_dir / "replay.mp4").exists()
     assert list(capture_dir.glob(".replay-*.mp4")) == []
+
+
+@pytest.mark.parametrize("saved_mirror_horizontal", [False, True])
+def test_register_can_disable_display_mirroring(
+    tmp_path, saved_mirror_horizontal
+):
+    capture_dir = _write_capture(tmp_path)
+    manager = CameraReplayManager(
+        tmp_path,
+        runner=_successful_runner([]),
+        mirror_display=False,
+    )
+
+    replay = manager.register(
+        capture_dir,
+        {
+            "frame_count": 6,
+            "pre_trigger_frames": 4,
+            "settings": {"mirror_horizontal": saved_mirror_horizontal},
+        },
+    )
+
+    assert replay["display_mirror_horizontal"] is False
