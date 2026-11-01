@@ -144,7 +144,7 @@ const TriggerRow = memo(function TriggerRow({ diag }: TriggerRowProps) {
         )}
         {diag.iwr6843 && (
           <span className={`trigger-row__iwr trigger-row__iwr--${diag.iwr6843.state}`}>
-            TI {diag.iwr6843.state.toUpperCase()}
+            TI {diag.iwr6843.state.replace('_', ' ').toUpperCase()}
             {diag.iwr6843.angle_deg !== undefined
               ? ` ${diag.iwr6843.angle_deg.toFixed(1)}°`
               : `: ${formatReason(diag.iwr6843.reason)}`}
@@ -224,7 +224,7 @@ function LastTriggerCard({ diag }: { diag: TriggerDiagnostic | null }) {
 
         {diag.iwr6843 && (
           <div className={`last-trigger__iwr last-trigger__iwr--${diag.iwr6843.state}`}>
-            <strong>TI radar: {diag.iwr6843.state}</strong>
+            <strong>TI radar: {diag.iwr6843.state.replace('_', ' ')}</strong>
             {diag.iwr6843.angle_deg !== undefined
               ? ` at ${diag.iwr6843.angle_deg.toFixed(1)}°`
               : ` — ${formatReason(diag.iwr6843.reason)}`}

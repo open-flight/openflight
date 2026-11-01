@@ -1346,6 +1346,29 @@ class TestIWR6843ShotIntegration:
         assert shot.ball_speed_mph == 100.0
         assert emitted[-1][1]["iwr6843"] == {"state": "error", "reason": "no onboard result"}
 
+    def test_missing_onboard_result_with_a_saved_readback_is_not_an_error(self, monkeypatch):
+        """--debug: the dump arrived, only the board's result packet did not."""
+        emitted = []
+        capture = SimpleNamespace(
+            trigger_timestamp=100.01,
+            path=None,
+            raw=b"dump",
+            dump_duration_s=7.1,
+            error=None,
+            valid=True,
+            onboard_only=False,
+            sequence=7,
+            onboard_result=None,
+        )
+        shot = self._onboard_shot(monkeypatch, None, emitted=emitted, capture=capture)
+
+        assert shot.iwr6843_onboard is None
+        assert shot.ball_speed_mph == 100.0
+        assert emitted[-1][1]["iwr6843"] == {
+            "state": "no_onboard",
+            "reason": "no onboard result; --debug readback #7 saved",
+        }
+
     def test_vetoed_capture_reports_its_veto(self, monkeypatch):
         emitted = []
         self._onboard_shot(

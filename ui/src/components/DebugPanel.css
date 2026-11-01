@@ -413,6 +413,11 @@
   color: var(--color-warning);
 }
 
+.trigger-row__iwr--no_onboard,
+.last-trigger__iwr--no_onboard {
+  color: var(--color-info);
+}
+
 .trigger-row__iwr--error,
 .last-trigger__iwr--error {
   color: var(--color-danger);
