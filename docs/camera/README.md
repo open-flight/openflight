@@ -136,6 +136,24 @@ with `scripts/setup/configure_ov9281_camera.sh --remove`.
 Rerun the script if you add or move a DSI display, so that connector is left
 alone.
 
+When you answer yes to the camera question, `scripts/setup/setup.sh` also
+builds and installs the [high-speed driver](#high-speed-driver), so the single
+reboot enables both the overlay and the high-speed modes. `--verify` warns
+when the high-speed modes are missing.
+
+## Focus The Lens
+
+Setup cannot focus the camera; this is the one step you always do by hand.
+After the reboot, with OpenFlight stopped, open the live preview:
+
+```bash
+scripts/hardware-test/preview_camera_alignment.sh
+```
+
+Place a ball at the hitting position, turn the lens until its edge is sharp,
+then tighten the lens locking ring if it has one so vibration cannot shift the
+focus. Refocus whenever you change the mount or the distance to the ball.
+
 The standard Raspberry Pi driver should list the stock OV9281 modes. The
 OpenFlight high-speed driver additionally lists `640x200`, `640x100`, and
 `320x200` raw modes.

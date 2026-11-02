@@ -14,11 +14,14 @@ BOOT_CONFIG="${OPENFLIGHT_CAMERA_BOOT_CONFIG:-/boot/firmware/config.txt}"
 DT_ROOT="${OPENFLIGHT_CAMERA_DT_ROOT:-/proc/device-tree}"
 I2C_DEVICES_ROOT="${OPENFLIGHT_CAMERA_I2C_DEVICES_ROOT:-/sys/bus/i2c/devices}"
 PI_MODEL_PATH="${OPENFLIGHT_CAMERA_PI_MODEL_PATH:-$DT_ROOT/model}"
+RPICAM_HELLO="${OPENFLIGHT_CAMERA_RPICAM_HELLO:-rpicam-hello}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 BLOCK_BEGIN="# BEGIN OpenFlight OV9281 camera (managed by scripts/setup/configure_ov9281_camera.sh)"
 BLOCK_END="# END OpenFlight OV9281 camera"
 OV9281_I2C_ADDRESS="0060"
+# Only the OpenFlight high-speed driver lists this mode.
+HIGH_SPEED_MODE="320x200"
 
 # Pi 5 connector N uses csiN/dsiN and the camera I2C bus i2c-(10 + N).
 PI5_CONNECTORS=(0 1)
@@ -234,11 +237,14 @@ verify_camera() {
         esac
     fi
 
-    if command -v rpicam-hello >/dev/null 2>&1; then
-        listing="$(rpicam-hello --list-cameras 2>&1 || true)"
+    if command -v "$RPICAM_HELLO" >/dev/null 2>&1; then
+        listing="$("$RPICAM_HELLO" --list-cameras 2>&1 || true)"
         if grep -Eqi 'ov928[12]' <<< "$listing"; then
             log "libcamera lists the camera:"
             printf '%s\n' "$listing"
+            if ! grep -Fq "$HIGH_SPEED_MODE" <<< "$listing"; then
+                warn "The $HIGH_SPEED_MODE high-speed mode is missing; run scripts/setup/install_ov9281_high_speed_driver.sh and reboot."
+            fi
         else
             die "libcamera does not list an OV9281. Output of rpicam-hello --list-cameras: $listing"
         fi

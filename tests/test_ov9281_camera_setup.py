@@ -322,10 +322,93 @@ def test_verify_fails_before_configuration(tmp_path):
     assert "camera block is missing" in result.stderr
 
 
-def test_main_setup_offers_camera_configuration_without_asking_for_a_connector():
+def _fake_rpicam_hello(tmp_path: Path, modes: str) -> str:
+    stub = tmp_path / "rpicam-hello"
+    stub.write_text(
+        "#!/bin/bash\n"
+        "echo 'Available cameras'\n"
+        "echo '0 : ov9281 [1280x800 10-bit MONO] (/base/axi/rp1/i2c@88000/ov9281@60)'\n"
+        f"echo '    Modes: {modes}'\n",
+        encoding="ascii",
+        newline="\n",
+    )
+    stub.chmod(0o755)
+    return stub.as_posix()
+
+
+@pytest.mark.parametrize(
+    ("modes", "warns"),
+    [
+        ("'R8' : 320x200 [576.00 fps] 640x200 [536.00 fps] 640x400 [288.00 fps]", False),
+        ("'R8' : 640x400 [244.00 fps] 1280x800 [120.00 fps]", True),
+    ],
+)
+def test_verify_warns_only_when_high_speed_modes_are_missing(tmp_path, modes, warns):
+    config = _write_config(tmp_path)
+    env = {
+        **_fake_board(tmp_path, bound_cameras=(1,)),
+        "OPENFLIGHT_CAMERA_BOOT_CONFIG": str(config),
+        "OPENFLIGHT_CAMERA_RPICAM_HELLO": _fake_rpicam_hello(tmp_path, modes),
+    }
+    _run("main", env)
+
+    result = _run('main "$1"', env, "--verify")
+
+    assert result.returncode == 0, result.stderr
+    assert "libcamera lists the camera" in result.stdout
+    assert ("320x200 high-speed mode is missing" in result.stderr) is warns
+
+
+def test_verify_fails_when_libcamera_does_not_list_the_camera(tmp_path):
+    config = _write_config(tmp_path)
+    stub = tmp_path / "rpicam-hello"
+    stub.write_text("#!/bin/bash\necho 'No cameras available!'\n", encoding="ascii", newline="\n")
+    stub.chmod(0o755)
+    env = {
+        **_fake_board(tmp_path, bound_cameras=(1,)),
+        "OPENFLIGHT_CAMERA_BOOT_CONFIG": str(config),
+        "OPENFLIGHT_CAMERA_RPICAM_HELLO": stub.as_posix(),
+    }
+    _run("main", env)
+
+    result = _run('main "$1"', env, "--verify")
+
+    assert result.returncode != 0
+    assert "libcamera does not list an OV9281" in result.stderr
+
+
+def _main_setup_camera_step() -> str:
     script = MAIN_SETUP_SCRIPT.read_text(encoding="utf-8")
     start = script.index("# --- OV9281 camera ---")
-    camera_step = script[start : script.index("# --- Bluetooth (BLE phone app) ---")]
+    return script[start : script.index("# --- Bluetooth (BLE phone app) ---")]
+
+
+def test_main_setup_installs_the_high_speed_driver_after_the_overlay():
+    camera_step = _main_setup_camera_step()
+    overlay = camera_step.index('"$SCRIPT_DIR/configure_ov9281_camera.sh"')
+    driver = camera_step.index('"$SCRIPT_DIR/install_ov9281_high_speed_driver.sh"')
+
+    assert overlay < driver
+    # A failed driver build must not hide that the camera itself is configured.
+    assert "camera still works in its stock modes" in camera_step
+
+
+def test_main_setup_reminds_the_user_to_focus_the_lens_by_hand():
+    camera_step = _main_setup_camera_step()
+
+    assert "focused by hand" in camera_step
+    assert "./scripts/hardware-test/preview_camera_alignment.sh" in camera_step
+
+
+def test_camera_guide_documents_manual_focus():
+    guide = CAMERA_GUIDE.read_text(encoding="utf-8")
+
+    assert "## Focus The Lens" in guide
+    assert "scripts/hardware-test/preview_camera_alignment.sh" in guide
+
+
+def test_main_setup_offers_camera_configuration_without_asking_for_a_connector():
+    camera_step = _main_setup_camera_step()
 
     assert 'confirm "Do you have an InnoMaker OV9281 camera to set up?" "N"' in camera_step
     assert '"$SCRIPT_DIR/configure_ov9281_camera.sh"' in camera_step
