@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **A bag per profile, with two of the same club allowed.** Each profile card
   on the Profiles view has a **Bag** button. Add the clubs you carry and record
-  each one's brand, model, loft, bounce, lie, shaft and notes, so two 56° sand
+  each one's brand, model, loft, bounce, lie, shaft, hand (right or left) and
+  notes, all optional, so two 56° sand
   wedges on test stay separate. Once a profile has a bag, the club picker shows
   its clubs with the loft under the label and the model below it. Built-in
   clubs the bag lacks are on an **Other** tab. The header names the selected

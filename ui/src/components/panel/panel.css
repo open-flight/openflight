@@ -1474,11 +1474,14 @@
   color: var(--color-danger);
 }
 
-/* Four columns of field buttons; the keyboard below types into the focused one. */
+/*
+ * Two rows of five: club, hand, brand, model, loft / bounce, lie, shaft and a
+ * double-width notes field. The keyboard below types into the focused one.
+ */
 .bag-editor__fields {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 10px 12px 0;
 }
@@ -1503,6 +1506,42 @@
 
 .bag-editor__field--club {
   background: var(--color-surface);
+}
+
+.bag-editor__field--wide {
+  grid-column: span 2;
+}
+
+.bag-editor__field--hand {
+  cursor: default;
+}
+
+.bag-editor__hand-options {
+  align-self: stretch;
+  display: flex;
+  gap: 4px;
+}
+
+.bag-editor__hand {
+  flex: 1;
+  min-width: 0;
+  min-height: 1.75rem;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.bag-editor__hand--selected {
+  background: var(--color-accent-block);
+  border-color: var(--color-accent-block);
+  color: var(--color-accent-fg);
 }
 
 .bag-editor__field--focused {

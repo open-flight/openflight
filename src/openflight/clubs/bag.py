@@ -26,6 +26,9 @@ LOFT_RANGE_DEG: Tuple[float, float] = (0.0, 80.0)
 BOUNCE_RANGE_DEG: Tuple[float, float] = (-10.0, 30.0)
 LIE_RANGE_DEG: Tuple[float, float] = (40.0, 80.0)
 
+# Which hand the club is built for. None means not recorded.
+HANDS = ("right", "left")
+
 
 class BagValidationError(ValueError):
     """A bag entry a client sent cannot be stored as given."""
@@ -44,6 +47,7 @@ class BagClub:
     lie_deg: Optional[float] = None
     shaft: str = ""
     notes: str = ""
+    hand: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Wire/disk representation. ``club`` uses the ``ClubType`` value."""
@@ -57,6 +61,7 @@ class BagClub:
             "lie_deg": self.lie_deg,
             "shaft": self.shaft,
             "notes": self.notes,
+            "hand": self.hand,
         }
 
     @classmethod
@@ -65,7 +70,8 @@ class BagClub:
 
         Raises:
             BagValidationError: the entry is not an object, names no selectable
-                club, or has an out-of-range or non-numeric angle.
+                club, has an out-of-range or non-numeric angle, or names a
+                hand other than ``right`` or ``left``.
         """
         if not isinstance(raw, dict):
             raise BagValidationError("Bag club must be an object")
@@ -81,6 +87,7 @@ class BagClub:
             lie_deg=_parse_angle(raw.get("lie_deg"), "lie_deg", LIE_RANGE_DEG),
             shaft=_clean_text(raw.get("shaft"), MAX_TEXT_LENGTH),
             notes=_clean_text(raw.get("notes"), MAX_NOTES_LENGTH),
+            hand=_parse_hand(raw.get("hand")),
         )
 
 
@@ -174,6 +181,16 @@ def _parse_angle(raw: Any, name: str, bounds: Tuple[float, float]) -> Optional[f
     return round(value, 1)
 
 
+def _parse_hand(raw: Any) -> Optional[str]:
+    """``right`` or ``left``, any case. Blank means not recorded."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    hand = raw.strip().lower() if isinstance(raw, str) else raw
+    if hand not in HANDS:
+        raise BagValidationError("hand must be right or left")
+    return hand
+
+
 def _clean_text(raw: Any, max_length: int) -> str:
     if raw is None:
         return ""
@@ -184,6 +201,7 @@ __all__ = [
     "BagClub",
     "BagValidationError",
     "BOUNCE_RANGE_DEG",
+    "HANDS",
     "LIE_RANGE_DEG",
     "LOFT_RANGE_DEG",
     "MAX_BAG_CLUBS",

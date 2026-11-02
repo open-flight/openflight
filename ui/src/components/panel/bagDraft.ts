@@ -4,6 +4,7 @@ import {
   BAG_TEXT_MAX,
   type BagAngleField,
   type BagClub,
+  type BagHand,
   type BagTextField,
 } from '../../data/bag';
 
@@ -11,8 +12,11 @@ import {
 export const BAG_FORM_FIELDS = ['brand', 'model', 'loft_deg', 'bounce_deg', 'lie_deg', 'shaft', 'notes'] as const;
 export type BagFormField = (typeof BAG_FORM_FIELDS)[number];
 
-/** The form's working copy: angles stay as typed text until saved. */
-export type BagClubDraft = { id: string; club: string } & Record<BagFormField, string>;
+/**
+ * The form's working copy: angles stay as typed text until saved. Club type
+ * and hand are picked with buttons, not typed; '' hand is "not recorded".
+ */
+export type BagClubDraft = { id: string; club: string; hand: BagHand | '' } & Record<BagFormField, string>;
 
 export type AngleError = 'number' | 'range';
 export type DraftErrors = Partial<Record<BagAngleField, AngleError>>;
@@ -37,7 +41,18 @@ export function newBagClubId(): string {
 }
 
 export function newBagClubDraft(club: string): BagClubDraft {
-  return { id: '', club, brand: '', model: '', loft_deg: '', bounce_deg: '', lie_deg: '', shaft: '', notes: '' };
+  return {
+    id: '',
+    club,
+    hand: '',
+    brand: '',
+    model: '',
+    loft_deg: '',
+    bounce_deg: '',
+    lie_deg: '',
+    shaft: '',
+    notes: '',
+  };
 }
 
 export function draftFromBagClub(club: BagClub): BagClubDraft {
@@ -45,6 +60,7 @@ export function draftFromBagClub(club: BagClub): BagClubDraft {
   return {
     id: club.id,
     club: club.club,
+    hand: club.hand ?? '',
     brand: club.brand,
     model: club.model,
     shaft: club.shaft,
@@ -96,6 +112,7 @@ export function bagClubFromDraft(draft: BagClubDraft): BagClub | null {
     lie_deg: lie.value,
     shaft: cleanText(draft.shaft, 'shaft'),
     notes: cleanText(draft.notes, 'notes'),
+    hand: draft.hand || null,
   };
 }
 

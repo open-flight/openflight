@@ -59,6 +59,7 @@ describe('bag club keys and labels', () => {
     lie_deg: null,
     shaft: '',
     notes: '',
+    hand: null,
   });
   const shotWith = (overrides: Partial<Shot>): Shot => ({ club: 'sw', ball_speed_mph: 80, ...overrides }) as Shot;
 

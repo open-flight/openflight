@@ -161,7 +161,7 @@ describe('StatsPanel', () => {
       makeShot({
         club: 'sw',
         timestamp,
-        bag_club: { bounce_deg: null, lie_deg: null, shaft: '', notes: '', ...bagClub },
+        bag_club: { bounce_deg: null, lie_deg: null, shaft: '', notes: '', hand: null, ...bagClub },
       });
     const shots = [
       bagShot(spinner, 'a'),

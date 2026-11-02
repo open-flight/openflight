@@ -27,11 +27,18 @@ function bagClub(overrides: Partial<BagClub> = {}): BagClub {
     lie_deg: null,
     shaft: '',
     notes: '',
+    hand: null,
     ...overrides,
   };
 }
 
-const SPEC_LABELS = { loft_deg: 'loft', bounce_deg: 'bounce', lie_deg: 'lie' };
+const SPEC_LABELS = {
+  loft_deg: 'loft',
+  bounce_deg: 'bounce',
+  lie_deg: 'lie',
+  right: 'Right-handed',
+  left: 'Left-handed',
+};
 
 describe('profileBag', () => {
   it('is empty for a missing profile or a profile without a bag', () => {
@@ -73,7 +80,21 @@ describe('profileBag', () => {
       lie_deg: null,
       shaft: '',
       notes: '',
+      hand: null,
     });
+  });
+
+  it('keeps a recorded hand and drops anything else', () => {
+    const bag = profileBag(
+      profileWith([
+        bagClub({ id: 'l', hand: 'left' }),
+        bagClub({ id: 'r', hand: 'right' }),
+        { ...bagClub({ id: 'x' }), hand: 'both' },
+        { ...bagClub({ id: 'old' }), hand: undefined },
+      ])
+    );
+
+    expect(bag.map((club) => club.hand)).toEqual(['left', 'right', null, null]);
   });
 });
 
@@ -133,5 +154,12 @@ describe('bag club labels', () => {
     expect(bagClubSpecs(bagClub({ lie_deg: 64 }), SPEC_LABELS)).toBe('56° loft · 10° bounce · 64° lie');
     expect(bagClubSpecs(bagClub({ loft_deg: null }), SPEC_LABELS)).toBe('10° bounce');
     expect(bagClubSpecs(bagClub({ loft_deg: null, bounce_deg: null }), SPEC_LABELS)).toBe('');
+  });
+
+  it('ends the specs line with the hand when recorded', () => {
+    expect(bagClubSpecs(bagClub({ hand: 'left' }), SPEC_LABELS)).toBe('56° loft · 10° bounce · Left-handed');
+    expect(bagClubSpecs(bagClub({ loft_deg: null, bounce_deg: null, hand: 'right' }), SPEC_LABELS)).toBe(
+      'Right-handed'
+    );
   });
 });

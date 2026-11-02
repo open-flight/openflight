@@ -55,6 +55,7 @@ function bagEntry(id: string, type: string, extra: Partial<BagClub> = {}): BagCl
     lie_deg: null,
     shaft: '',
     notes: '',
+    hand: null,
     ...extra,
   };
 }

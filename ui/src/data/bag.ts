@@ -16,6 +16,8 @@ export interface BagClub {
   lie_deg: number | null;
   shaft: string;
   notes: string;
+  /** Which hand the club is built for; null when not recorded. */
+  hand: BagHand | null;
 }
 
 // Limits mirror src/openflight/clubs/bag.py. The server re-validates every save.
@@ -31,11 +33,19 @@ export const BAG_ANGLE_RANGES = {
 
 export type BagAngleField = keyof typeof BAG_ANGLE_RANGES;
 export type BagTextField = 'brand' | 'model' | 'shaft' | 'notes';
+export type BagHand = 'right' | 'left';
+export const BAG_HANDS: readonly BagHand[] = ['right', 'left'];
+/** Words for the editor's specs line, e.g. { loft_deg: 'loft', left: 'Left-handed' }. */
+export type BagSpecLabels = Record<BagAngleField | BagHand, string>;
 
 const CLUB_IDS = new Set(ALL_CLUBS.map((club) => club.id));
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function hand(value: unknown): BagHand | null {
+  return value === 'right' || value === 'left' ? value : null;
 }
 
 function angle(value: unknown): number | null {
@@ -67,6 +77,7 @@ export function profileBag(profile: Profile | null | undefined): BagClub[] {
       lie_deg: angle(record.lie_deg),
       shaft: text(record.shaft),
       notes: text(record.notes),
+      hand: hand(record.hand),
     });
   }
   return bag;
@@ -106,10 +117,10 @@ export function bagClubCompactLabel(club: BagClub): string {
   return [clubShortLabel(club.club), formatDegrees(club.loft_deg), club.model || club.brand].filter(Boolean).join(' ');
 }
 
-/** Specs line for the bag editor: "56° loft · 10° bounce · 64° lie". */
-export function bagClubSpecs(club: BagClub, labels: Record<BagAngleField, string>): string {
-  return (Object.keys(BAG_ANGLE_RANGES) as BagAngleField[])
+/** Specs line for the bag editor: "56° loft · 10° bounce · 64° lie · Left-handed". */
+export function bagClubSpecs(club: BagClub, labels: BagSpecLabels): string {
+  const angles = (Object.keys(BAG_ANGLE_RANGES) as BagAngleField[])
     .filter((field) => club[field] !== null)
-    .map((field) => `${formatDegrees(club[field])} ${labels[field]}`)
-    .join(' · ');
+    .map((field) => `${formatDegrees(club[field])} ${labels[field]}`);
+  return [...angles, club.hand ? labels[club.hand] : ''].filter(Boolean).join(' · ');
 }

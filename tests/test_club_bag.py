@@ -38,6 +38,7 @@ class TestFromDict:
             "lie_deg": 64.0,
             "shaft": "Stiff steel",
             "notes": "Testing vs the old one",
+            "hand": "left",
         }
 
         club = BagClub.from_dict(raw)
@@ -51,6 +52,7 @@ class TestFromDict:
         assert club.club_type is ClubType.IRON_7
         assert club.brand == club.model == club.shaft == club.notes == ""
         assert club.loft_deg is None and club.bounce_deg is None and club.lie_deg is None
+        assert club.hand is None
 
     def test_missing_id_gets_a_fresh_unique_one(self):
         first = BagClub.from_dict({"club": "sw"})
@@ -127,6 +129,27 @@ class TestFromDict:
         assert club.brand == "Acme Golf"
         assert len(club.model) == MAX_TEXT_LENGTH
         assert len(club.notes) == MAX_NOTES_LENGTH
+
+    @pytest.mark.parametrize(
+        ("raw", "hand"), [("right", "right"), ("left", "left"), (" Left ", "left")]
+    )
+    def test_hand_is_normalised(self, raw, hand):
+        assert BagClub.from_dict(_entry(hand=raw)).hand == hand
+
+    @pytest.mark.parametrize("blank", [None, "", "  "])
+    def test_blank_hand_means_not_recorded(self, blank):
+        assert BagClub.from_dict(_entry(hand=blank)).hand is None
+
+    @pytest.mark.parametrize("bad", ["both", "lefty", "r", 1, True, ["left"]])
+    def test_unknown_hand_is_rejected(self, bad):
+        with pytest.raises(BagValidationError, match="hand"):
+            BagClub.from_dict(_entry(hand=bad))
+
+    def test_stored_bag_without_hand_still_loads(self):
+        # Bags saved before the hand field existed have no "hand" key.
+        (club,) = load_bag([_entry()])
+
+        assert club.hand is None
 
     def test_non_string_text_is_stringified(self):
         assert BagClub.from_dict(_entry(model=588)).model == "588"

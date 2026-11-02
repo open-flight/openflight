@@ -23,6 +23,7 @@ const WEDGE: BagClub = {
   lie_deg: null,
   shaft: 'Stiff',
   notes: '',
+  hand: 'left',
 };
 
 describe('parseAngle', () => {
@@ -73,6 +74,7 @@ describe('drafts', () => {
     expect(newBagClubDraft('sw')).toEqual({
       id: '',
       club: 'sw',
+      hand: '',
       brand: '',
       model: '',
       loft_deg: '',
@@ -89,6 +91,13 @@ describe('drafts', () => {
     expect(draft.loft_deg).toBe('56');
     expect(draft.lie_deg).toBe('');
     expect(bagClubFromDraft(draft)).toEqual(WEDGE);
+  });
+
+  it('carries the hand through a draft, and saves a blank hand as not recorded', () => {
+    expect(draftFromBagClub(WEDGE).hand).toBe('left');
+    expect(draftFromBagClub({ ...WEDGE, hand: null }).hand).toBe('');
+    expect(bagClubFromDraft({ ...newBagClubDraft('sw'), hand: 'right' })?.hand).toBe('right');
+    expect(bagClubFromDraft(newBagClubDraft('sw'))?.hand).toBeNull();
   });
 
   it('reports each invalid angle', () => {

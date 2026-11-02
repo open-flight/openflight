@@ -19,6 +19,7 @@ function wedge(id: string, overrides: Partial<BagClub> = {}): BagClub {
     lie_deg: null,
     shaft: '',
     notes: '',
+    hand: null,
     ...overrides,
   };
 }
@@ -54,6 +55,13 @@ describe('BagEditor', () => {
     expect(html).toContain('56° loft · 10° bounce');
     expect(html).toContain('56° loft · 14° bounce');
     expect(html.match(/bag-editor__club">SW</g)).toHaveLength(2);
+  });
+
+  it('adds the hand to the specs line when recorded', () => {
+    const html = render({ bag: [wedge('a', { hand: 'left' }), wedge('b', { hand: 'right' })] });
+
+    expect(html).toContain('56° loft · 10° bounce · Left-handed');
+    expect(html).toContain('56° loft · 10° bounce · Right-handed');
   });
 
   it('labels each row for editing and removal', () => {

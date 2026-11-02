@@ -2,12 +2,15 @@ import { useRef, useState } from 'react';
 import { getClubName } from '../../data/clubs';
 import {
   BAG_ANGLE_RANGES,
+  BAG_HANDS,
   MAX_BAG_CLUBS,
   bagClubMakeModel,
   bagClubSpecs,
   clubShortLabel,
   formatDegrees,
   type BagClub,
+  type BagHand,
+  type BagSpecLabels,
 } from '../../data/bag';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import type { MessageKey } from '../../i18n';
@@ -38,6 +41,11 @@ const FIELD_LABEL_KEYS: Record<BagFormField, MessageKey> = {
   lie_deg: 'bag.lie',
   shaft: 'bag.shaft',
   notes: 'bag.notes',
+};
+
+const HAND_BUTTON_KEYS: Record<BagHand, MessageKey> = {
+  right: 'bag.handRight',
+  left: 'bag.handLeft',
 };
 
 /** A new club defaults to the most common one to carry twice while testing. */
@@ -125,7 +133,13 @@ function BagClubList({ bag, onEdit, onRemove }: BagClubListProps) {
   const { t } = useI18n();
   const listRef = useRef<HTMLDivElement>(null);
   const dragScroll = useDragScroll(listRef);
-  const specLabels = { loft_deg: t('bag.loftShort'), bounce_deg: t('bag.bounceShort'), lie_deg: t('bag.lieShort') };
+  const specLabels: BagSpecLabels = {
+    loft_deg: t('bag.loftShort'),
+    bounce_deg: t('bag.bounceShort'),
+    lie_deg: t('bag.lieShort'),
+    right: t('bag.rightHanded'),
+    left: t('bag.leftHanded'),
+  };
 
   if (bag.length === 0) {
     return (
@@ -227,6 +241,28 @@ function BagClubForm({ draft, isNew, onChange, onSave, onCancel }: BagClubFormPr
           <span className="bag-editor__field-label">{t('bag.club')}</span>
           <span className="bag-editor__field-value">{getClubName(draft.club)}</span>
         </button>
+        <div className="bag-editor__field bag-editor__field--hand" role="group" aria-labelledby="bag-hand-label">
+          <span id="bag-hand-label" className="bag-editor__field-label">
+            {t('bag.hand')}
+          </span>
+          <span className="bag-editor__hand-options">
+            {BAG_HANDS.map((hand) => {
+              const selected = draft.hand === hand;
+              return (
+                <button
+                  key={hand}
+                  type="button"
+                  className={`bag-editor__hand${selected ? ' bag-editor__hand--selected' : ''}`}
+                  aria-pressed={selected}
+                  // Tapping the chosen hand again clears it: hand is optional.
+                  onClick={() => onChange({ ...draft, hand: selected ? '' : hand })}
+                >
+                  {t(HAND_BUTTON_KEYS[hand])}
+                </button>
+              );
+            })}
+          </span>
+        </div>
         {BAG_FORM_FIELDS.map((field) => {
           const error = errorText(field);
           const selected = field === focused;
@@ -234,7 +270,7 @@ function BagClubForm({ draft, isNew, onChange, onSave, onCancel }: BagClubFormPr
             <button
               key={field}
               type="button"
-              className={`bag-editor__field${selected ? ' bag-editor__field--focused' : ''}${error ? ' bag-editor__field--invalid' : ''}`}
+              className={`bag-editor__field${field === 'notes' ? ' bag-editor__field--wide' : ''}${selected ? ' bag-editor__field--focused' : ''}${error ? ' bag-editor__field--invalid' : ''}`}
               aria-pressed={selected}
               aria-invalid={error ? true : undefined}
               onClick={() => setFocused(field)}
