@@ -101,17 +101,40 @@ uv sync --extra camera
 
 OpenCV is intentionally not installed for radar-only OpenFlight systems.
 
-Reboot after enabling or changing camera hardware:
+## Enable The Camera
+
+The Raspberry Pi firmware's `camera_auto_detect` only recognises official
+Raspberry Pi camera modules, so an OV9281 always needs a `dtoverlay` line in
+`/boot/firmware/config.txt`. You do not need to work out which connector the
+camera uses. Answer yes to the camera question in `scripts/setup/setup.sh`, or
+run the camera step on its own:
 
 ```bash
+cd ~/openflight
+scripts/setup/configure_ov9281_camera.sh
 sudo reboot
 ```
 
-Verify that the camera is detected:
+On a Pi 5 the script loads the `ov9281` overlay on both CAM/DISP connectors,
+skipping any connector that already drives a DSI display such as the Touch
+Display 2. At boot the kernel probes each connector; the empty one fails its
+probe harmlessly, so the camera works on whichever connector it is plugged
+into, including after you move it. The script also sets
+`camera_auto_detect=0`, keeps its lines in one marked block, backs up
+`config.txt` before changing it, and is safe to re-run. It replaces any
+`dtoverlay=ov9281` lines you added by hand.
+
+After the reboot, check which connector found the camera:
 
 ```bash
-rpicam-hello --list-cameras
+scripts/setup/configure_ov9281_camera.sh --verify
 ```
+
+This also runs `rpicam-hello --list-cameras`. Remove the camera block again
+with `scripts/setup/configure_ov9281_camera.sh --remove`.
+
+Rerun the script if you add or move a DSI display, so that connector is left
+alone.
 
 The standard Raspberry Pi driver should list the stock OV9281 modes. The
 OpenFlight high-speed driver additionally lists `640x200`, `640x100`, and

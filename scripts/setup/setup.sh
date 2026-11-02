@@ -7,6 +7,7 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - Optional OV9281 camera overlay (connector found automatically)
 #   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
@@ -267,6 +268,22 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         info "    ./scripts/battery/geekworm/setup.sh --verify"
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- OV9281 camera ---
+    # The firmware cannot auto-detect a third-party OV9281, so the script loads
+    # its overlay on every connector not driving a DSI display; the kernel then
+    # finds the camera on whichever CAM/DISP connector it is plugged into.
+    echo ""
+    if confirm "Do you have an InnoMaker OV9281 camera to set up?" "N"; then
+        if "$SCRIPT_DIR/configure_ov9281_camera.sh"; then
+            info "Reboot before verifying the camera with:"
+            info "    ./scripts/setup/configure_ov9281_camera.sh --verify"
+        else
+            warn "Camera configuration failed. See docs/camera/README.md."
+        fi
+    else
+        info "Skipped. Run later with: ./scripts/setup/configure_ov9281_camera.sh"
     fi
 
     # --- Bluetooth (BLE phone app) ---
