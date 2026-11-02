@@ -51,12 +51,14 @@ class GC2Monitor:
     # ------------------------------------------------------------------
 
     def connect(self):
+        """Validate the environment and prepare the monitor."""
         if not sys.platform.startswith("linux"):
             raise RuntimeError("GC2 Bluetooth connection is supported on Linux only.")
         logger.info("GC2 monitor ready (Bluetooth %s)", self.mac)
         return True
 
     def disconnect(self):
+        """Stop the monitor and clean up resources."""
         self.stop()
 
     def start(
@@ -66,6 +68,7 @@ class GC2Monitor:
         diagnostic_callback=None,  # pylint: disable=unused-argument
         processing_callback=None,  # pylint: disable=unused-argument
     ):
+        """Start the monitor and begin reading shots."""
         self._shot_callback = shot_callback
         self._running = True
 
@@ -75,6 +78,7 @@ class GC2Monitor:
         logger.info("GC2 monitor started")
 
     def stop(self):
+        """Stop the monitor thread and wait for it to finish."""
         self._running = False
         if self._thread and self._thread is not threading.current_thread():
             self._thread.join(timeout=GC2_CONNECT_TIMEOUT_SECONDS + 1)
@@ -82,18 +86,23 @@ class GC2Monitor:
         logger.info("GC2 monitor stopped")
 
     def get_shots(self):
+        """Return a copy of the list of shots recorded in the current session."""
         return self._shots.copy()
 
     def clear_session(self):
+        """Clear all shots recorded in the current session."""
         self._shots.clear()
 
     def get_session_stats(self):
+        """Return summarized statistics for the current session."""
         return summarize_shots(self._shots, mode="gc2")
 
     def get_radar_info(self):
+        """Return information about the radar device."""
         return {"Version": "GC2", "Connected": self._connected}
 
     def set_club(self, club):
+        """Set the current club type for the monitor."""
         self._current_club = club
 
     # ------------------------------------------------------------------
@@ -101,6 +110,7 @@ class GC2Monitor:
     # ------------------------------------------------------------------
 
     def _open_socket(self):
+        """Open a Bluetooth socket to the GC2 device."""
         logger.info("Connecting to GC2 [%s] on RFCOMM channel %d", self.mac, GC2_RFCOMM_CHANNEL)
         sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
         try:
@@ -113,6 +123,7 @@ class GC2Monitor:
         return sock
 
     def _run(self):
+        """Main loop for the monitor thread, handling connection and reconnection."""
         retry_delay = GC2_RETRY_DELAY_MIN_SECONDS
         while self._running:
             try:
@@ -136,6 +147,7 @@ class GC2Monitor:
             self._sleep(GC2_RETRY_DELAY_MIN_SECONDS)
 
     def _read_loop(self, sock):
+        """Read data from the GC2 device and feed it to the parser."""
         # A fresh parser per connection drops the stale last-shot report the
         # GC2 sends on connect.
         parser = GC2StreamParser(self._handle_shot_data)
@@ -149,6 +161,8 @@ class GC2Monitor:
             parser.poll()
 
     def _sleep(self, seconds):
+        """Sleep for the specified number of seconds, but wake early if the monitor 
+        stops running."""
         deadline = time.monotonic() + seconds
         while self._running and time.monotonic() < deadline:
             time.sleep(0.1)
@@ -158,6 +172,7 @@ class GC2Monitor:
     # ------------------------------------------------------------------
 
     def _handle_shot_data(self, data: GC2ShotData):
+        """Handle incoming shot data from the GC2 device."""
         shot = self._build_shot(data)
         self._shots.append(shot)
 
