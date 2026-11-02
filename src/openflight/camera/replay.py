@@ -88,9 +88,7 @@ class CameraReplayManager:
         under another session location, such as historical replays.
         """
         root = (
-            self.output_root
-            if allowed_root is None
-            else Path(allowed_root).expanduser().resolve()
+            self.output_root if allowed_root is None else Path(allowed_root).expanduser().resolve()
         )
         resolved = Path(capture_path).expanduser().resolve()
         if not resolved.is_relative_to(root):
