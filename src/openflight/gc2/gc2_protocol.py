@@ -43,6 +43,7 @@ class GC2ShotData:
 
 
 def message_value(message: str, key: str) -> Optional[float]:
+    """Extract the value for a given key from a GC2 message, or None if not found."""
     match = re.search(r"(?:^|,)" + re.escape(key) + r"=([^,]*)", message)
     if not match:
         return None
@@ -53,11 +54,13 @@ def message_value(message: str, key: str) -> Optional[float]:
 
 
 def extract_tm(message: str) -> int:
+    """Extract the shot number (TM) from a GC2 message, or -1 if not found."""
     value = message_value(message, "TM")
     return -1 if value is None else int(value)
 
 
 def _weco_tokens(payload: str, payload_start: int) -> list:
+    """Extract WECO tokens from the payload starting at the given index."""
     tokens = []
     index = payload_start
     while index + 2 < len(payload):
@@ -73,7 +76,7 @@ def _weco_tokens(payload: str, payload_start: int) -> list:
 
 
 def decode_weco(line: str) -> Optional[dict]:
-    """Decode a #WECO club-data record; returns None if malformed."""
+    """Decode a #WECO club-data record; returns a dictionary of club data or None if malformed."""
     if len(line) < 15 or not line.startswith("#WECO"):
         return None
     payload_start = WECO_HEADER_LEN + WECO_PAYLOAD_HEADER_LEN
@@ -118,6 +121,11 @@ def decode_weco(line: str) -> Optional[dict]:
 
 
 def _spin_axis(side_spin: float, total_spin: float) -> float:
+    """Compute the spin axis angle from side spin and total spin.
+    This calculation requires checked. The GC2 provides back spin and side spin 
+    separately. The spin axis is currently computed as the arcsine of the ratio 
+    of side spin to total spin.
+    """
     if not total_spin:
         return 0.0
     ratio = max(-1.0, min(1.0, side_spin / total_spin))
@@ -138,6 +146,7 @@ class GC2StreamParser:
         on_shot: Callable[[GC2ShotData], None],
         merge_window: float = SHOT_MERGE_WINDOW_SECONDS,
     ):
+        """Initialize the GC2 stream parser with a callback and merge window."""
         self._on_shot = on_shot
         self._merge_window = merge_window
         self._line_buffer = ""
@@ -148,6 +157,7 @@ class GC2StreamParser:
         self._pending_deadline = 0.0
 
     def feed(self, data: bytes) -> None:
+        """Feed raw bytes from the GC2 device into the parser."""
         self._flush_expired()
         self._last_data_time = time.monotonic()
         self._line_buffer += data.decode("latin-1", errors="replace")
