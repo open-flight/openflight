@@ -195,7 +195,7 @@ def test_club_changes_reach_every_transport(phones):
     server_module.apply_club_selection({"club": "pw"})
 
     assert stream.clubs == ble.clubs == ["pw"]
-    assert ("club_changed", {"club": "pw"}) in emitted
+    assert ("club_changed", {"club": "pw", "bag_club_id": ""}) in emitted
 
 
 # -- command routing -------------------------------------------------------------------

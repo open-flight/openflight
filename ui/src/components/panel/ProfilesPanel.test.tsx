@@ -28,6 +28,7 @@ function render(overrides: Partial<Parameters<typeof ProfilesPanel>[0]> = {}) {
         onSelectProfile={() => {}}
         onRenameProfile={() => {}}
         onRemoveProfile={() => {}}
+        onOpenBag={() => {}}
         {...overrides}
       />
     )
@@ -96,5 +97,18 @@ describe('ProfilesPanel', () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toContain('Home');
     expect(html).not.toContain('Range');
+  });
+
+  it('offers a bag button per profile, counting the clubs it carries', () => {
+    const bag = [
+      { id: 'a', club: 'sw' },
+      { id: 'b', club: 'sw' },
+    ];
+    const html = render({ profiles: [{ ...profile('aaa', 'Home'), settings: { bag } }, profile('bbb', 'Range')] });
+
+    expect(html).toContain('aria-label="Edit the bag for Home"');
+    expect(html).toContain('aria-label="Edit the bag for Range"');
+    expect(html).toMatch(/profiles-panel__bag"[^>]*>Bag · 2</);
+    expect(html).toMatch(/aria-label="Edit the bag for Range"[^>]*>Bag</);
   });
 });

@@ -14,13 +14,18 @@ interface ProfileState {
   activeProfileId: string;
   /** False until the first snapshot arrives; the UI shows a skeleton meanwhile. */
   loaded: boolean;
+  /** Why the server rejected the last bag save; cleared by the next save or snapshot. */
+  bagError: string | null;
   applySnapshot: (snapshot: ProfilesSnapshot) => void;
+  setBagError: (error: string | null) => void;
 }
 
 export const useProfileStore = create<ProfileState>((set) => ({
   profiles: [],
   activeProfileId: '',
   loaded: false,
+  bagError: null,
+  setBagError: (bagError) => set({ bagError }),
   applySnapshot: (snapshot) => {
     if (!snapshot || !Array.isArray(snapshot.profiles)) return;
     set({

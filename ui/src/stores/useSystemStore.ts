@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import type { PowerStatus } from '../types/power';
 import type { SimShotInfo, SimStatus } from '../types/socket';
 
+/** The server's club selection: a built-in type, plus the bag club when one is chosen. */
+export interface ClubSelection {
+  club: string;
+  /** "" when no specific bag club is selected. */
+  bagClubId: string;
+}
+
 interface SystemState {
   connected: boolean;
   mockMode: boolean;
@@ -10,7 +17,8 @@ interface SystemState {
   cloudUploadMessage: string;
   simStatuses: Record<string, SimStatus>;
   latestSimShots: Record<string, SimShotInfo>;
-  serverClub: string | null;
+  /** A fresh object per server update, so repeating the same selection still re-applies. */
+  serverClub: ClubSelection | null;
   powerStatus: PowerStatus | null;
   setConnected: (connected: boolean) => void;
   setMockMode: (mockMode: boolean) => void;
@@ -18,7 +26,7 @@ interface SystemState {
   setCloudUploadStatus: (state: SystemState['cloudUploadState'], message: string) => void;
   setSimStatus: (status: SimStatus) => void;
   setLatestSimShot: (shot: SimShotInfo) => void;
-  setServerClub: (club: string | null) => void;
+  setServerClub: (selection: ClubSelection | null) => void;
   setPowerStatus: (status: PowerStatus) => void;
 }
 

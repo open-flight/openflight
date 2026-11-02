@@ -44,7 +44,7 @@ def test_socket_set_club_without_monitor_still_broadcasts(no_monitor_transports)
     server_module.handle_set_club({"club": "7-iron"})
 
     assert server_module.active_club is ClubType.IRON_7
-    assert emitted == [("club_changed", {"club": "7-iron"})]
+    assert emitted == [("club_changed", {"club": "7-iron", "bag_club_id": ""})]
     assert stream.clubs == ["7-iron"]
     assert ble.clubs == ["7-iron"]
 
@@ -57,7 +57,7 @@ def test_network_club_post_without_monitor_applies_and_broadcasts(no_monitor_tra
     assert response.status_code == 200
     assert response.get_json() == {"status": "applied", "club": "pw"}
     assert server_module.active_club is ClubType.PW
-    assert emitted == [("club_changed", {"club": "pw"})]
+    assert emitted == [("club_changed", {"club": "pw", "bag_club_id": ""})]
     assert stream.clubs == ["pw"]
     assert ble.clubs == ["pw"]
 

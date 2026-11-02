@@ -18,6 +18,7 @@ import { ingestSessionClub } from './sessionClubSync';
 import { remainingShotsAfterClear } from './sessionClear';
 import { useProfileStore } from '../stores/useProfileStore';
 import type { ProfilesSnapshot } from '../types/profile';
+import type { BagClub } from '../data/bag';
 
 const SOCKET_URL = getServerOrigin();
 
@@ -104,8 +105,12 @@ class SocketService {
       console.warn(`Sim shot dropped: ${data.reason}`);
     });
 
-    this.socket.on('club_changed', (data: { club: string }) => {
-      ingestSessionClub(data.club);
+    this.socket.on('club_changed', (data: { club: string; bag_club_id?: string }) => {
+      ingestSessionClub(data.club, data.bag_club_id);
+    });
+
+    this.socket.on('profile_bag_error', (data: { error?: string }) => {
+      useProfileStore.getState().setBagError(data?.error || 'Unknown error');
     });
 
     this.socket.on('profiles', (data: ProfilesSnapshot) => {
@@ -124,7 +129,7 @@ class SocketService {
       if (data.debug_mode !== undefined) {
         systemStore.setDebugMode(data.debug_mode);
       }
-      ingestSessionClub(data.club);
+      ingestSessionClub(data.club, data.bag_club_id);
     });
 
     this.socket.on('debug_toggled', (data: { enabled: boolean }) => {
@@ -219,8 +224,15 @@ class SocketService {
     this.socket?.emit('upload_cloud');
   }
 
-  setClub(club: string) {
-    this.socket?.emit('set_club', { club });
+  /** Select a club type, or one specific club from the active profile's bag. */
+  setClub(club: string, bagClubId = '') {
+    this.socket?.emit('set_club', bagClubId ? { club, bag_club_id: bagClubId } : { club });
+  }
+
+  /** Replace a profile's whole bag; the server answers with a `profiles` snapshot. */
+  setProfileBag(profileId: string, bag: BagClub[]) {
+    useProfileStore.getState().setBagError(null);
+    this.socket?.emit('set_profile_bag', { profile_id: profileId, bag });
   }
 
   setTrainingImplement(implement: string) {

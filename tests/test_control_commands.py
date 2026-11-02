@@ -54,7 +54,7 @@ def test_apply_club_selection_updates_monitor_and_broadcasts(monkeypatch):
     assert status == 200
     assert response == {"status": "applied", "club": "7-iron"}
     assert monitor.clubs == [ClubType.IRON_7]
-    assert emitted == [("club_changed", {"club": "7-iron"})]
+    assert emitted == [("club_changed", {"club": "7-iron", "bag_club_id": ""})]
     assert server_module.active_club is ClubType.IRON_7
     assert stream.clubs == ["7-iron"]
     assert ble.clubs == ["7-iron"]

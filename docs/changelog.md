@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A bag per profile, with two of the same club allowed.** Each profile card
+  on the Profiles view has a **Bag** button. Add the clubs you carry and record
+  each one's brand, model, loft, bounce, lie, shaft and notes, so two 56° sand
+  wedges on test stay separate. Once a profile has a bag, the club picker shows
+  its clubs with the loft under the label and the model below it. Built-in
+  clubs the bag lacks are on an **Other** tab. The header names the selected
+  club with its loft, e.g. `Sand Wedge · 56° · Spinner`. Each shot records the
+  bag club that hit it (`bag_club` in the shot payload and session JSONL), and
+  Stats gives every bag club its own filter chip. Simulators, phones and
+  `/api/club` still choose by club type. That keeps the selected bag club when
+  it is already that type, and otherwise lands on the bag club when the bag has
+  exactly one of that type. The bag is stored under
+  `settings.bag` in `profiles.json`.
 - **Optional low-battery shutdown for UPS builds.**
   `scripts/battery/install_battery_guard.sh` installs a systemd service that,
   when external power is offline and the battery is at or below 10% or 3.40 V

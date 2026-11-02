@@ -176,7 +176,7 @@ def test_club_command_and_club_changed_reach_every_phone(pi):
             raw for raw in phone.raw(CONTROL_CHARACTERISTIC_UUID) if b"club_changed" in raw
         ]
         assert raw_events == [encode_message(build_club_event("7-iron"))]
-    assert ("club_changed", {"club": "7-iron"}) in pi.emitted
+    assert ("club_changed", {"club": "7-iron", "bag_club_id": ""}) in pi.emitted
 
     current = second_phone.request("get_club")
     assert current["result"] == {"status": "current", "club": "7-iron"}

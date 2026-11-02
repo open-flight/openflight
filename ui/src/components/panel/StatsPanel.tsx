@@ -4,8 +4,9 @@ import {
   computeStats,
   computeSwingSpeedStats,
   filterShotsByProfile,
-  getUniqueClubs,
   isSwingSpeedShot,
+  shotClubKey,
+  shotClubLabel,
 } from '../../types/shot';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useUnitPreference } from '../../state/useUnitPreference';
@@ -16,6 +17,7 @@ import { PanelHeader } from './PanelHeader';
 
 interface StatsPanelProps {
   shots: Shot[];
+  /** The selection's `clubSelectionKey`: a bag club key, or a club type. */
   activeClub: string;
   profileId: string;
   profileName: string;
@@ -38,7 +40,7 @@ interface StatTile {
 export function StatsPanel({ shots, activeClub, profileId, profileName, headerAction }: StatsPanelProps) {
   const { t } = useI18n();
   const profileShots = useMemo(() => filterShotsByProfile(shots, profileId), [shots, profileId]);
-  const hasShotsForActiveClub = profileShots.some((shot) => shot.club === activeClub);
+  const hasShotsForActiveClub = profileShots.some((shot) => shotClubKey(shot) === activeClub);
   const [selectedClub, setSelectedClub] = useState<string | null>(hasShotsForActiveClub ? activeClub : null);
   const [prevActiveClub, setPrevActiveClub] = useState(activeClub);
   const [prevProfileId, setPrevProfileId] = useState(profileId);
@@ -56,17 +58,26 @@ export function StatsPanel({ shots, activeClub, profileId, profileName, headerAc
   const speedUnit = getSpeedUnit(unitSystem);
   const distanceUnit = getDistanceUnit(unitSystem);
 
-  const availableClubs = useMemo(() => getUniqueClubs(profileShots), [profileShots]);
-  const clubCounts = useMemo(() => {
+  // One chip per bag club (or per type for shots without one), labelled from
+  // the first shot recorded with it, in first-seen order.
+  const { availableClubs, clubCounts, clubLabels } = useMemo(() => {
     const counts: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+    const keys: string[] = [];
     for (const shot of profileShots) {
-      counts[shot.club] = (counts[shot.club] ?? 0) + 1;
+      const key = shotClubKey(shot);
+      if (!(key in counts)) {
+        keys.push(key);
+        labels[key] = shotClubLabel(shot);
+        counts[key] = 0;
+      }
+      counts[key] += 1;
     }
-    return counts;
+    return { availableClubs: keys, clubCounts: counts, clubLabels: labels };
   }, [profileShots]);
 
   const filteredShots = useMemo(
-    () => (selectedClub === null ? profileShots : profileShots.filter((shot) => shot.club === selectedClub)),
+    () => (selectedClub === null ? profileShots : profileShots.filter((shot) => shotClubKey(shot) === selectedClub)),
     [profileShots, selectedClub]
   );
 
@@ -160,7 +171,7 @@ export function StatsPanel({ shots, activeClub, profileId, profileName, headerAc
             aria-pressed={selectedClub === club}
             onClick={() => setSelectedClub(club)}
           >
-            {club.toUpperCase()} ({clubCounts[club] ?? 0})
+            {(clubLabels[club] ?? club).toUpperCase()} ({clubCounts[club] ?? 0})
           </button>
         ))}
       </div>

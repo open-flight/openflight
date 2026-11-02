@@ -1,3 +1,5 @@
+import { bagClubCompactLabel, type BagClub } from '../data/bag';
+
 export type SpinQuality = 'high' | 'medium' | 'low' | 'experimental' | 'withheld';
 
 export interface CameraReplay {
@@ -18,6 +20,8 @@ export interface Shot {
   estimated_carry_yards: number;
   carry_range: [number, number];
   club: string;
+  /** The specific bag club that hit the shot, snapshotted when it was recorded. */
+  bag_club?: BagClub | null;
   profile_id?: string;
   profile_name?: string;
   timestamp: string;
@@ -87,6 +91,7 @@ export interface SessionState {
   stats: SessionStats;
   shots: Shot[];
   club?: string;
+  bag_club_id?: string;
 }
 
 export interface TriggerDiagnostic {
@@ -264,9 +269,20 @@ export function computeStats(shots: Shot[]): SessionStats {
 }
 
 /**
- * Get unique clubs from shots array.
+ * Grouping key for per-club stats: each bag club on its own (two 56° wedges
+ * stay apart), otherwise the built-in club type.
  */
-export function getUniqueClubs(shots: Shot[]): string[] {
-  const clubs = new Set(shots.map((s) => s.club));
-  return Array.from(clubs);
+export function shotClubKey(shot: Pick<Shot, 'club' | 'bag_club'>): string {
+  return shot.bag_club ? `bag:${shot.bag_club.id}` : shot.club;
+}
+
+/** The selection's stats key, matching `shotClubKey` for the shots it records. */
+export function clubSelectionKey(club: string, bagClubId: string): string {
+  return bagClubId ? `bag:${bagClubId}` : club;
+}
+
+/** Row/chip label: "SW 56° Spinner" for a bag club, the club id otherwise. */
+export function shotClubLabel(shot: Pick<Shot, 'club' | 'bag_club' | 'training_implement_label'>): string {
+  if (shot.training_implement_label) return shot.training_implement_label;
+  return shot.bag_club ? bagClubCompactLabel(shot.bag_club) : shot.club;
 }
