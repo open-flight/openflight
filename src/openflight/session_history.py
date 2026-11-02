@@ -12,6 +12,27 @@ SESSION_FILENAME = re.compile(
 )
 
 
+def session_camera_root(
+    session_id: str,
+    log_dir: Path | None = None,
+) -> Path | None:
+    """Return the camera directory a session's captures are filed under.
+
+    Captures are written to ``<log_dir>/<session location>/camera``, and the
+    location is the filename's suffix. Returns None for an invalid ID or a
+    location that would resolve outside the log directory.
+    """
+    root = Path(log_dir or SessionLogger.DEFAULT_LOG_DIR).resolve()
+    match = SESSION_FILENAME.fullmatch(f"{session_id}.jsonl")
+    if not match:
+        return None
+
+    camera_root = (root / match.group(2) / "camera").resolve()
+    if not camera_root.is_relative_to(root):
+        return None
+    return camera_root
+
+
 def list_sessions(
     log_dir: Path | None = None,
     *,
@@ -123,6 +144,7 @@ def get_session_details(
         return None
 
     output = []
+    camera_root = session_camera_root(session_id, root)
 
     for shot in shots:
         number = shot.get("shot_number")
@@ -147,11 +169,10 @@ def get_session_details(
         camera_available = False
         if capture and not capture.get("capture_error"):
             capture_path = capture.get("capture_path")
-            if isinstance(capture_path, str):
+            if isinstance(capture_path, str) and camera_root is not None:
                 folder = Path(capture_path).resolve()
-                camera_root = root / "range" / "camera"
                 if (
-                    folder.is_relative_to(camera_root.resolve())
+                    folder.is_relative_to(camera_root)
                     and (folder / "frames.npz").is_file()
                     and (folder / "frames.npz").stat().st_size > 0
                 ):
@@ -240,6 +261,12 @@ def find_shot_capture(
     if not isinstance(capture.get("capture_path"), str):
         return None
     if not isinstance(capture.get("metadata"), dict):
+        return None
+
+    camera_root = session_camera_root(session_id, root)
+    if camera_root is None:
+        return None
+    if not Path(capture["capture_path"]).resolve().is_relative_to(camera_root):
         return None
 
     return capture
