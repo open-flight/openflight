@@ -5,6 +5,7 @@
 import type { SessionStats, Shot, TriggerStatus } from '../src/types/shot.js';
 import type { RadarConfig } from '../src/types/socket.js';
 import type { Profile } from '../src/types/profile.js';
+import { findBagClub, profileBag, type BagClub } from '../src/data/bag.js';
 import { generateShot } from './shotGenerator.js';
 
 function mean(values: number[]): number {
@@ -55,9 +56,9 @@ export function computeSessionStats(shots: Shot[]): SessionStats {
 export class MockSession {
   shots: Shot[] = [];
   club = 'driver';
-  profiles: Profile[] = [
-    { id: 'mock-profile-1', name: 'Profile 1', created_at: '2026-01-01T00:00:00Z', settings: {} },
-  ];
+  /** The selected bag club, or "" (mirrors the server's active_bag_club_id). */
+  bagClubId = '';
+  profiles: Profile[] = [{ id: 'mock-profile-1', name: 'Profile 1', created_at: '2026-01-01T00:00:00Z', settings: {} }];
   activeProfileId = 'mock-profile-1';
   private nextProfileNumber = 2;
   trainingImplement = 'driver';
@@ -85,7 +86,9 @@ export class MockSession {
   }
 
   addProfile(rawName: unknown): void {
-    const name = String(rawName ?? '').trim().slice(0, 40);
+    const name = String(rawName ?? '')
+      .trim()
+      .slice(0, 40);
     if (!name || this.profiles.length >= 12) return;
     const profile: Profile = {
       id: `mock-profile-${this.nextProfileNumber++}`,
@@ -98,7 +101,9 @@ export class MockSession {
   }
 
   renameProfile(profileId: unknown, rawName: unknown): void {
-    const name = String(rawName ?? '').trim().slice(0, 40);
+    const name = String(rawName ?? '')
+      .trim()
+      .slice(0, 40);
     const profile = this.profiles.find((entry) => entry.id === profileId);
     if (!name || !profile) return;
     profile.name = name;
@@ -127,6 +132,7 @@ export class MockSession {
       stats: this.getStats(),
       shots: this.shots,
       club: this.club,
+      bag_club_id: this.bagClubId,
     };
     if (!includeMeta) {
       return base;
@@ -150,9 +156,41 @@ export class MockSession {
     };
   }
 
-  setClub(club: string): string {
-    this.club = club || 'driver';
-    return this.club;
+  get activeBag(): BagClub[] {
+    return profileBag(this.activeProfile);
+  }
+
+  /**
+   * Same rules as the server's apply_club_selection, minus validation: a bag
+   * club id implies its type; a type-only selection keeps the selected bag
+   * club of that type, else lands on the sole one.
+   */
+  setClub(club: string, bagClubId = ''): { club: string; bag_club_id: string } {
+    const bag = this.activeBag;
+    const explicit = findBagClub(bag, bagClubId);
+    this.club = explicit?.club || club || 'driver';
+    const current = findBagClub(bag, this.bagClubId);
+    const sameType = bag.filter((entry) => entry.club === this.club);
+    const resolved = explicit ?? (current?.club === this.club ? current : sameType.length === 1 ? sameType[0] : null);
+    this.bagClubId = resolved?.id ?? '';
+    return { club: this.club, bag_club_id: this.bagClubId };
+  }
+
+  /** Replace a profile's bag. Empty removes it, as on the server. */
+  setProfileBag(profileId: unknown, bag: unknown): void {
+    const profile = this.profiles.find((entry) => entry.id === profileId) ?? this.activeProfile;
+    const clubs = Array.isArray(bag) ? (bag as BagClub[]) : [];
+    const settings = { ...profile.settings };
+    if (clubs.length) settings.bag = clubs;
+    else delete settings.bag;
+    profile.settings = settings;
+  }
+
+  /** Drop a selection that is no longer in the active bag. True when it changed. */
+  reconcileBagClub(): boolean {
+    const before = this.bagClubId;
+    this.setClub(this.club);
+    return before !== this.bagClubId;
   }
 
   setTrainingImplement(implement: string): string {
@@ -166,6 +204,7 @@ export class MockSession {
       profileId: this.activeProfile.id,
       profileName: this.activeProfile.name,
     });
+    shot.bag_club = findBagClub(this.activeBag, this.bagClubId);
     this.shots.push(shot);
     this.triggersTotal += 1;
     this.triggersAccepted += 1;

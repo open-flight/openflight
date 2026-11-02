@@ -62,9 +62,16 @@ export function registerHandlers(io: Server, session: MockSession): void {
       }, 1400);
     });
 
-    socket.on('set_club', (data: { club?: string }) => {
-      const club = session.setClub(data?.club ?? 'driver');
-      io.emit('club_changed', { club });
+    socket.on('set_club', (data: { club?: string; bag_club_id?: string }) => {
+      io.emit('club_changed', session.setClub(data?.club ?? 'driver', data?.bag_club_id ?? ''));
+    });
+
+    socket.on('set_profile_bag', (data: { profile_id?: string; bag?: unknown }) => {
+      session.setProfileBag(data?.profile_id, data?.bag);
+      io.emit('profiles', session.snapshot());
+      if (session.reconcileBagClub()) {
+        io.emit('club_changed', { club: session.club, bag_club_id: session.bagClubId });
+      }
     });
 
     socket.on('set_training_implement', (data: { implement?: string }) => {
@@ -82,6 +89,9 @@ export function registerHandlers(io: Server, session: MockSession): void {
     socket.on('set_active_profile', (data: { profile_id?: string }) => {
       session.setActiveProfile(data?.profile_id);
       emitProfiles();
+      if (session.reconcileBagClub()) {
+        io.emit('club_changed', { club: session.club, bag_club_id: session.bagClubId });
+      }
     });
 
     socket.on('add_profile', (data: { name?: string }) => {
