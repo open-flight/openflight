@@ -1729,11 +1729,30 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 12px 20px 30px;
+  /* Own the gesture: global * { touch-action: manipulation } plus row
+     buttons otherwise swallow finger-drags on the kiosk touchscreen. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.history-content button,
+.history-content summary,
+.history-toggle,
+.history-toggle input {
+  touch-action: none;
+}
+/* Buttons do not inherit font by default; without this they render at the
+   browser's ~13px instead of the kiosk's rem scale. */
+.history-content button {
+  font: inherit;
 }
 .history-session-row {
   display: block;
   width: 100%;
+  min-height: 66px;
   margin: 0;
   padding: 16px 4px;
   border: 0;
@@ -1742,6 +1761,27 @@
   background: transparent;
   color: var(--color-text);
   text-align: left;
+  cursor: pointer;
+}
+.history-session-top strong {
+  font-size: 1rem;
+}
+.history-session-top span,
+.history-session-stats {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.history-session-top > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.history-session-stats {
+  margin-top: 6px;
+}
+.history-chevron {
+  font-size: 1.5rem;
+  color: var(--color-text-faint);
 }
 .history-session-top,
 .history-toolbar,
@@ -1799,7 +1839,7 @@
 }
 .history-replay {
   padding: 9px 14px;
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--color-accent);
   border-radius: var(--radius);
   background: transparent;
@@ -1812,10 +1852,12 @@
   color: var(--color-text-muted);
 }
 .history-back {
+  min-height: 44px;
   background: transparent;
   border: 0;
   color: var(--color-accent);
-  padding: 12px 0;
+  padding: 0 12px 0 0;
+  font-weight: 600;
   cursor: pointer;
 }
 @media (max-width: 720px) {
@@ -1874,7 +1916,8 @@
   color: var(--color-accent);
   font-weight: 700;
   font-size: 0.85rem;
-  min-height: 36px;
+  min-height: 44px;
+  padding: 12px 0;
   list-style-position: inside;
 }
 .history-golf-data {
@@ -1915,6 +1958,8 @@
 }
 .history-visibility {
   flex-shrink: 0;
+  min-width: 72px;
+  min-height: 44px;
   padding: 9px 12px;
   margin-left: 8px;
   border: 1px solid var(--color-border);
@@ -1925,8 +1970,25 @@
 }
 .history-toolbar {
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
 }
 .history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   white-space: nowrap;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.history-toggle input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--color-accent);
 }
