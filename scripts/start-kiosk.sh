@@ -89,6 +89,12 @@ while [ "$#" -gt 0 ]; do
             SERVER_ARGS+=(--session-location "$2")
             shift 2
             ;;
+
+            --gc2)
+            SERVER_ARGS+=(--gc2)
+            shift
+            ;;
+            
         *)
             SERVER_ARGS+=("$1")
             shift
@@ -382,6 +388,12 @@ if has_camera_arg; then
     fi
     UV_SYNC_ARGS+=(--extra camera)
 fi
+
+if has_server_arg --gc2; then
+    export UV_PYTHON=/usr/bin/python3
+    uv venv --clear --system-site-packages --python /usr/bin/python3
+fi
+
 if has_server_arg --ble; then
     UV_SYNC_ARGS+=(--extra ble)
 fi
@@ -389,6 +401,9 @@ uv sync "${UV_SYNC_ARGS[@]}" || show_startup_failure \
     "server" \
     "OpenFlight preparation failed" \
     "Dependency preparation failed. Check the terminal log, then relaunch OpenFlight."
+
+uv run python -c "import sys,socket; print(sys.executable); print(hasattr(socket,'AF_BLUETOOTH'))"
+
 
 configure_kld7_latency
 
