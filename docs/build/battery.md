@@ -120,9 +120,10 @@ data.
 
 The setup script installs the ARM64 package in
 `scripts/battery/packages/`. It is built from Raspberry Pi's
-[`pplug-batt`](https://github.com/raspberrypi-ui/pplug-batt) source at commit
-`f4c18fbca9e1b752e35b6ea8a854676b4777de3b`, with the checked-in patch under
-`scripts/battery/patches/`. The patch adds support for the standard
+[`pplug-batt`](https://github.com/raspberrypi-ui/pplug-batt) 1.11 source at commit
+`c622de2e95bf8ee5d4a0e28f3fdd5e3191bbdbbd`, with the checked-in patch under
+`scripts/battery/patches/`, and versioned `1.11+openflight1` so it installs as an
+upgrade over Raspberry Pi's `1.11`. The patch adds support for the standard
 `/sys/class/power_supply/.../capacity` property, uses the charger's `online`
 property to distinguish plugged-in and unplugged states, and clamps full-charge
 overshoot to 100%. This avoids a false charging icon when the MAX17040 battery
@@ -135,6 +136,24 @@ standard 64-bit Raspberry Pi desktop:
 ```bash
 sudo scripts/battery/geekworm/setup.sh --no-panel
 ```
+
+#### Rebuild The Panel Package
+
+The plugin must match the installed `wf-panel-pi`, so a newer upstream
+`wfplug-batt` needs a rebuild rather than a downgrade. On an arm64 Raspberry Pi
+OS Trixie Pi, bump `UPSTREAM_COMMIT` and `UPSTREAM_VERSION` in the build script
+if upstream moved, then run:
+
+```bash
+scripts/battery/build_wfplug_batt.sh --install-deps
+```
+
+The script fetches the pinned upstream commit, applies the patch, builds
+`wfplug-batt_<version>+openflight<n>_arm64.deb` into `scripts/battery/packages/`,
+and prints the version and SHA-256 to copy into `PANEL_PACKAGE`,
+`PANEL_PACKAGE_VERSION` and `PANEL_PACKAGE_SHA256` in
+`scripts/battery/geekworm/setup.sh`. `--install-deps` installs the Debian build
+dependencies with `apt-get`.
 
 ### Optional Pi USB Current Setting
 
@@ -311,8 +330,11 @@ dpkg -V wfplug-batt
 sudo scripts/battery/geekworm/setup.sh
 ```
 
-An OS update may replace the panel plugin with an upstream version. Rerunning
-the setup script restores the patched package when needed.
+An OS update may replace the panel plugin with an upstream version. If that
+version is not newer than the bundled build, rerunning the setup script
+restores the patched package. If it is newer, the setup script warns that a
+rebuild is needed instead of downgrading; follow
+[Rebuild The Panel Package](#rebuild-the-panel-package).
 
 ### LEDs And Percentage Disagree
 

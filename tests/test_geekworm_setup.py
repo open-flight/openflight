@@ -1,14 +1,18 @@
 """Tests for the Raspberry Pi Geekworm provisioning script."""
 
 import hashlib
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SETUP_SCRIPT = PROJECT_ROOT / "scripts" / "battery" / "geekworm" / "setup.sh"
 PANEL_PACKAGE = (
-    PROJECT_ROOT / "scripts" / "battery" / "packages" / "wfplug-batt_1.3+openflight4_arm64.deb"
+    PROJECT_ROOT / "scripts" / "battery" / "packages" / "wfplug-batt_1.11+openflight1_arm64.deb"
 )
+PANEL_BUILD_SCRIPT = PROJECT_ROOT / "scripts" / "battery" / "build_wfplug_batt.sh"
 PANEL_PATCH = (
     PROJECT_ROOT / "scripts" / "battery" / "patches" / "wfplug-batt-capacity-and-power.patch"
 )
@@ -105,7 +109,36 @@ def test_eeprom_configuration_replaces_and_deduplicates_power_settings(tmp_path)
 def test_bundled_panel_package_matches_setup_checksum():
     digest = hashlib.sha256(PANEL_PACKAGE.read_bytes()).hexdigest()
 
-    assert digest == "55db8a460f99758f2dac9d509b29907e0e268ee88bbff4edb6adcee312046d5c"
+    assert digest == "950e985dcc83c669b6abbc8a4769fc410a5842785c1488a12e7ed8f2829fbda1"
+    setup = SETUP_SCRIPT.read_text(encoding="utf-8")
+    assert f'PANEL_PACKAGE_SHA256="{digest}"' in setup
+    assert f"/packages/{PANEL_PACKAGE.name}" in setup
+
+
+def test_panel_build_script_has_valid_bash_syntax_and_matches_bundled_version():
+    subprocess.run(["bash", "-n", PANEL_BUILD_SCRIPT], check=True)
+    build = PANEL_BUILD_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'UPSTREAM_VERSION="1.11"' in build
+    assert 'OPENFLIGHT_REVISION="1"' in build
+    assert PANEL_PATCH.name in build
+
+
+@pytest.mark.skipif(shutil.which("dpkg") is None, reason="needs dpkg --compare-versions")
+@pytest.mark.parametrize(
+    ("installed_version", "newer"),
+    [
+        ("1.12", True),
+        ("1.11", False),
+        ("1.11+openflight1", False),
+        ("1.12+openflight1", False),
+        ("", False),
+    ],
+)
+def test_panel_upstream_is_newer_only_for_newer_upstream_builds(installed_version, newer):
+    result = _run_function("panel_upstream_is_newer", installed_version)
+
+    assert (result.returncode == 0) is newer, result.stderr
 
 
 def test_panel_patch_uses_external_power_for_charge_icon():

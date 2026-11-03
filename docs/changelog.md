@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **The Raspberry Pi taskbar shows the X1202/X1206 battery level again.**
+  After Raspberry Pi OS updated `wfplug-batt` to 1.11, the taskbar showed an
+  empty battery and the Geekworm setup failed trying to downgrade to the
+  bundled `1.3+openflight4`, which also no longer loads in current
+  `wf-panel-pi`. The bundled plugin is now rebuilt from pplug-batt 1.11 as
+  `1.11+openflight1` by the new `scripts/battery/build_wfplug_batt.sh`, and
+  setup warns that a rebuild is needed when upstream is newer instead of
+  downgrading.
 - **Simulator output tags estimated launch angles as estimated.** When the
   server fills in a launch angle before the sim fan-out, the resolver tagged
   it, and the carry built on it, as measured. It now reads the angle's source,
