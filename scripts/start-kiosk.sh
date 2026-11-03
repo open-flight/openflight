@@ -391,7 +391,12 @@ fi
 
 if has_server_arg --gc2; then
     export UV_PYTHON=/usr/bin/python3
-    uv venv --clear --system-site-packages --python /usr/bin/python3
+    if [ ! -x .venv/bin/python ] || ! .venv/bin/python -c 'import socket; assert hasattr(socket, "AF_BLUETOOTH") and hasattr(socket, "BTPROTO_RFCOMM")' >/dev/null 2>&1; then
+         uv venv --clear --system-site-packages --python /usr/bin/python3 || show_startup_failure \
+             "server" \
+             "OpenFlight preparation failed" \
+             "GC2 environment preparation failed. Check the terminal log, then relaunch OpenFlight."
+    fi
 fi
 
 if has_server_arg --ble; then
