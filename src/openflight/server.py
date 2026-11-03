@@ -36,14 +36,13 @@ from .ble.protocol import (
     encode_shot_event,
     stable_shot_event_id,
 )
-
-from .gc2 import GC2_DEFAULT_MAC, GC2Monitor
 from .clubs import ClubType
 from .clubs.physics import (
     SHOT_SIMULATION_DEFAULTS,
     get_club_physics,
     get_club_simulation_profile,
 )
+from .gc2 import GC2_DEFAULT_MAC, GC2Monitor
 from .launch_monitor import SPIN_CONFIDENCE_HIGH, SPIN_CONFIDENCE_RELIABLE, Shot, summarize_shots
 from .ops243 import (
     UART_BAUD_COMMANDS,
@@ -4407,7 +4406,7 @@ def start_monitor(
                 else ("mock" if mock else ("gc2" if gc2 else "rolling-buffer"))
             ),
             trigger_type=None if swing_speed_mode or mock or gc2 else trigger_type,
-           
+
         )
         if not mock and not gc2 and radar_info:
             session_logger.log_connection(
@@ -4996,7 +4995,7 @@ def main():
         default=GC2_DEFAULT_MAC,
         help=f"Bluetooth MAC address of the GC2 (default {GC2_DEFAULT_MAC})",
     )
-    
+
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     parser.add_argument(
         "--web-port", type=int, default=8080, help="Web server port (default: 8080)"

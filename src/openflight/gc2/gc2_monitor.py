@@ -161,7 +161,7 @@ class GC2Monitor:
             parser.poll()
 
     def _sleep(self, seconds):
-        """Sleep for the specified number of seconds, but wake early if the monitor 
+        """Sleep for the specified number of seconds, but wake early if the monitor
         stops running."""
         deadline = time.monotonic() + seconds
         while self._running and time.monotonic() < deadline:

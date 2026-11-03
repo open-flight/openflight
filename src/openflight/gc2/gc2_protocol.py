@@ -122,8 +122,8 @@ def decode_weco(line: str) -> Optional[dict]:
 
 def _spin_axis(side_spin: float, total_spin: float) -> float:
     """Compute the spin axis angle from side spin and total spin.
-    This calculation requires checked. The GC2 provides back spin and side spin 
-    separately. The spin axis is currently computed as the arcsine of the ratio 
+    This calculation requires checked. The GC2 provides back spin and side spin
+    separately. The spin axis is currently computed as the arcsine of the ratio
     of side spin to total spin.
     """
     if not total_spin:
