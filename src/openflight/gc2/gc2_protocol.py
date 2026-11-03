@@ -145,14 +145,15 @@ class GC2StreamParser:
         self,
         on_shot: Callable[[GC2ShotData], None],
         merge_window: float = SHOT_MERGE_WINDOW_SECONDS,
+        last_shot_tms: frozenset = frozenset(),
     ):
         """Initialize the GC2 stream parser with a callback and merge window."""
         self._on_shot = on_shot
         self._merge_window = merge_window
         self._line_buffer = ""
         self._last_data_time = time.monotonic()
-        self._previous_tm = -1
-        self._detected_first_shot = True # first shot will be passed after connection.
+        self._last_shot_tms = set(last_shot_tms)
+        self._detected_first_shot = True
         self._pending: Optional[GC2ShotData] = None
         self._pending_deadline = 0.0
 
@@ -162,6 +163,16 @@ class GC2StreamParser:
         self._last_data_time = time.monotonic()
         self._line_buffer += data.decode("latin-1", errors="replace")
         self._process_line_buffer()
+
+    @property
+    def last_shot_tms(self) -> frozenset:
+        """Message timestamps of the latest shot; pass to a new parser after reconnecting."""
+        return frozenset(self._last_shot_tms)
+
+    def flush(self) -> None:
+        """Emit any shot still waiting for follow-up messages."""
+        if self._pending is not None:
+            self._emit_pending()
 
     def poll(self) -> None:
         """Handle idle time: flush an unterminated message and expired shots."""
@@ -212,9 +223,9 @@ class GC2StreamParser:
 
     def _process_message(self, message: str) -> None:
         current_tm = extract_tm(message)
-        if current_tm == -1 or current_tm == self._previous_tm:
+        if current_tm == -1 or current_tm in self._last_shot_tms:
             return
-        self._previous_tm = current_tm
+        self._last_shot_tms.add(current_tm)
 
         shot_number = int(message_value(message, "ID") or 0)
         values = {
@@ -229,7 +240,7 @@ class GC2StreamParser:
         }
         speed = values["speed"] or 0.0
 
-        if speed == 0 and self._pending is None:
+        if speed == 0 or (values["speed"] is None and self._pending is None):
             logger.debug("GC2 speed zero, ignoring misread")
             return
         if not self._detected_first_shot:
@@ -250,6 +261,7 @@ class GC2StreamParser:
             if speed == 0:
                 return
 
+        self._last_shot_tms = {current_tm}
         shot = GC2ShotData(shot_number=shot_number)
         self._merge(shot, shot_number, values)
         self._pending = shot

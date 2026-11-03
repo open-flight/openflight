@@ -41,8 +41,10 @@ class GC2Monitor:
         self._thread = None
         self._running = False
         self._connected = False
+        self._last_shot_tms = frozenset()
 
         self._shot_callback = None
+        self._connection_callback = None
         self._shots: List[Shot] = []
         self._current_club = ClubType.DRIVER
 
@@ -67,9 +69,11 @@ class GC2Monitor:
         live_callback=None,  # pylint: disable=unused-argument
         diagnostic_callback=None,  # pylint: disable=unused-argument
         processing_callback=None,  # pylint: disable=unused-argument
+        connection_callback=None,
     ):
         """Start the monitor and begin reading shots."""
         self._shot_callback = shot_callback
+        self._connection_callback = connection_callback
         self._running = True
 
         self._thread = threading.Thread(target=self._run, name="gc2-monitor", daemon=True)
@@ -135,30 +139,44 @@ class GC2Monitor:
                 continue
 
             retry_delay = GC2_RETRY_DELAY_MIN_SECONDS
-            self._connected = True
+            self._set_connected(True)
             logger.info("Connected to GC2")
             try:
                 self._read_loop(sock)
             except OSError as exc:
                 logger.warning("GC2 connection lost: %s", exc)
             finally:
-                self._connected = False
+                self._set_connected(False)
                 sock.close()
             self._sleep(GC2_RETRY_DELAY_MIN_SECONDS)
 
     def _read_loop(self, sock):
         """Read data from the GC2 device and feed it to the parser."""
-        # A fresh parser per connection drops the stale last-shot report the
-        # GC2 sends on connect.
-        parser = GC2StreamParser(self._handle_shot_data)
-        while self._running:
-            readable, _, _ = select.select([sock], [], [], GC2_READ_TIMEOUT_SECONDS)
-            if readable:
-                data = sock.recv(1024)
-                if not data:
-                    raise OSError("Bluetooth connection closed")
-                parser.feed(data)
-            parser.poll()
+        # The GC2 replays its last shot on connect; carrying the shot's message timestamps
+        # across reconnects lets the parser recognise and drop that replay.
+        parser = GC2StreamParser(self._handle_shot_data, last_shot_tms=self._last_shot_tms)
+        try:
+            while self._running:
+                readable, _, _ = select.select([sock], [], [], GC2_READ_TIMEOUT_SECONDS)
+                if readable:
+                    data = sock.recv(1024)
+                    if not data:
+                        raise OSError("Bluetooth connection closed")
+                    parser.feed(data)
+                parser.poll()
+        finally:
+            parser.flush()
+            self._last_shot_tms = parser.last_shot_tms
+
+    def _set_connected(self, connected):
+        """Record link state and notify the listener when it changes."""
+        changed = self._connected != connected
+        self._connected = connected
+        if changed and self._connection_callback:
+            try:
+                self._connection_callback(connected)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.exception("GC2 connection callback failed")
 
     def _sleep(self, seconds):
         """Sleep for the specified number of seconds, but wake early if the monitor

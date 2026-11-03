@@ -118,3 +118,38 @@ def test_handle_shot_data_invokes_callback_and_records():
     monitor._handle_shot_data(shots[0])  # pylint: disable=protected-access
     assert len(received) == 1 and received[0].ball_speed_mph == 150.0
     assert monitor.get_session_stats()["shot_count"] == 1
+
+
+def test_replayed_shot_after_reconnect_is_suppressed_but_new_shot_accepted():
+    parser, shots = make_parser(window=60)
+    parser.feed(FIRST + UPDATE)
+    parser.flush()
+    assert len(shots) == 1
+
+    shots2 = []
+    reconnected = GC2StreamParser(shots2.append, merge_window=60, last_shot_tms=parser.last_shot_tms)
+    reconnected.feed(FIRST)
+    reconnected.feed(UPDATE)
+    reconnected.feed(NEXT_SHOT)
+    reconnected.flush()
+    assert [s.speed for s in shots2] == [120.0]
+
+
+def test_flush_emits_pending_shot():
+    parser, shots = make_parser(window=60)
+    parser.feed(FIRST)
+    parser.flush()
+    assert len(shots) == 1
+
+
+def test_connection_callback_fires_only_on_state_change():
+    monitor = GC2Monitor()
+    states = []
+    monitor._connection_callback = states.append  # pylint: disable=protected-access
+
+    monitor._set_connected(False)  # pylint: disable=protected-access
+    monitor._set_connected(True)  # pylint: disable=protected-access
+    monitor._set_connected(True)  # pylint: disable=protected-access
+    monitor._set_connected(False)  # pylint: disable=protected-access
+
+    assert states == [True, False]

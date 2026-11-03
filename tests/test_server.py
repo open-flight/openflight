@@ -14,6 +14,7 @@ import pytest
 from openflight import server as server_module
 from openflight.camera.replay import ReplayNotFoundError, ReplayPreparationError
 from openflight.clubs import ClubType
+from openflight.gc2 import GC2Monitor
 from openflight.iwr6843 import Calibration
 from openflight.kld7.types import KLD7Angle
 from openflight.launch_monitor import Shot
@@ -4448,6 +4449,19 @@ class TestOnShotDetected:
 
         assert shot.spin_axis_deg is None
 
+    def test_measured_spin_axis_preserved_for_hmt_style_shot(self, monkeypatch):
+        """GC2 HMT shots carry a measured axis and club path; the derived
+        face-minus-path fallback must not overwrite the measurement."""
+        shot = self._spin_axis_shot(horizontal_confidence=1.0)
+        shot.spin_axis_deg = 7.5
+        shot.spin_source = "measured"
+        shot.spin_rpm = 2500.0
+
+        self._run_with_no_radar_hardware(monkeypatch, shot)
+
+        assert shot.spin_axis_deg == pytest.approx(7.5)
+        assert shot.club_path_deg == pytest.approx(-1.5)
+
 
 class TestBallisticsConfiguration:
     """The physics model is preferred unless an operator explicitly opts out."""
@@ -4771,6 +4785,52 @@ class TestOpsBaudValidation:
         a stricter check would reject a legitimate fallback to 115200, which the
         flag's own help text tells operators to use."""
         assert good in UART_BAUD_COMMANDS
+
+
+class TestGc2TriggerStatus:
+    """GC2 status reflects the Bluetooth link, not the mere existence of a monitor."""
+
+    @pytest.mark.parametrize("connected", [True, False])
+    def test_reports_gc2_mode_and_actual_connectivity(self, monkeypatch, connected):
+        gc2_monitor = GC2Monitor()
+        gc2_monitor._connected = connected  # pylint: disable=protected-access
+        monkeypatch.setattr(server_module, "monitor", gc2_monitor)
+        monkeypatch.setattr(server_module, "mock_mode", False)
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+
+        status = server_module._get_trigger_status()  # pylint: disable=protected-access
+
+        assert status["mode"] == "gc2"
+        assert status["radar_connected"] is connected
+        assert status["trigger_type"] is None
+        assert status["radar_port"] is None
+
+    def test_link_change_emits_trigger_status(self, monkeypatch):
+        emitted = []
+        monkeypatch.setattr(server_module, "monitor", None)
+        monkeypatch.setattr(server_module, "mock_mode", False)
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(
+            server_module.socketio, "emit", lambda *args, **kwargs: emitted.append(args)
+        )
+        monkeypatch.setattr(GC2Monitor, "connect", lambda self: True)
+        monkeypatch.setattr(GC2Monitor, "start", lambda self, **kwargs: kwargs["connection_callback"](True))
+
+        server_module.start_monitor(gc2=True)
+
+        assert any(name == "trigger_status" for name, _ in emitted)
+
+    def test_radar_config_rejected_for_gc2(self, monkeypatch):
+        emitted = []
+        monkeypatch.setattr(server_module, "monitor", GC2Monitor())
+        monkeypatch.setattr(server_module, "mock_mode", False)
+        monkeypatch.setattr(
+            server_module.socketio, "emit", lambda *args, **kwargs: emitted.append(args[0])
+        )
+
+        server_module.handle_set_radar_config({"min_speed": 10})
+
+        assert emitted == ["radar_config_error"]
 
 
 class TestHardwareTriggerPlumbing:

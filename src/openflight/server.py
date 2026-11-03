@@ -1988,6 +1988,7 @@ def _get_trigger_status() -> dict:
 
     is_rolling_buffer = isinstance(monitor, RollingBufferMonitor)
     is_swing_speed = isinstance(monitor, (SwingSpeedMonitor, MockSwingSpeedMonitor))
+    is_gc2 = isinstance(monitor, GC2Monitor)
     session_logger = get_session_logger()
     stats = session_logger.stats if session_logger else {}
 
@@ -1995,6 +1996,8 @@ def _get_trigger_status() -> dict:
         mode = "swing-speed"
     elif mock_mode:
         mode = "mock"
+    elif is_gc2:
+        mode = "gc2"
     else:
         mode = "rolling-buffer"
     trigger_type = None
@@ -2006,10 +2009,15 @@ def _get_trigger_status() -> dict:
         if hasattr(monitor, "radar") and hasattr(monitor.radar, "port"):
             radar_port = monitor.radar.port
 
+    if is_gc2:
+        radar_connected = bool(monitor.get_radar_info().get("Connected"))
+    else:
+        radar_connected = monitor is not None and not mock_mode
+
     return {
         "mode": mode,
         "trigger_type": trigger_type,
-        "radar_connected": monitor is not None and not mock_mode,
+        "radar_connected": radar_connected,
         "radar_port": radar_port,
         "triggers_total": stats.get("triggers_total", 0),
         "triggers_accepted": stats.get("triggers_accepted", 0),
@@ -2467,7 +2475,7 @@ def handle_set_radar_config(data):
     """Update radar configuration."""
     global radar_config  # pylint: disable=global-statement
 
-    if not monitor or (mock_mode and not mock_swing_speed_mode):
+    if not monitor or isinstance(monitor, GC2Monitor) or (mock_mode and not mock_swing_speed_mode):
         log_session_error(
             "Radar config update rejected: radar not connected",
             component="server",
@@ -3553,8 +3561,12 @@ def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
             # club_path_deg can come from IWR6843 (_process_iwr6843_angle,
             # above) rather than K-LD7, so a failure here is not necessarily
             # a K-LD7 failure -- see the except block below.
+            has_measured_spin_axis = (
+                shot.spin_axis_deg is not None and shot.spin_source == "measured"
+            )
             if (
-                shot.launch_angle_horizontal is not None
+                not has_measured_spin_axis
+                and shot.launch_angle_horizontal is not None
                 and shot.club_path_deg is not None
                 and (shot.launch_angle_horizontal_confidence or 0.0) >= SPIN_AXIS_MIN_CONFIDENCE
             ):
@@ -4468,6 +4480,17 @@ def start_monitor(
         )
         if iwr6843_runtime is not None:
             iwr6843_runtime.capture_monitor.arm()
+    elif gc2:
+
+        def on_gc2_connection_changed(_connected: bool):
+            socketio.emit("trigger_status", _get_trigger_status())
+
+        monitor.start(
+            shot_callback=on_shot_detected,
+            live_callback=on_live_reading,
+            processing_callback=on_shot_processing,
+            connection_callback=on_gc2_connection_changed,
+        )
     else:
         monitor.start(  # pylint: disable=unexpected-keyword-arg
             shot_callback=on_shot_detected,
