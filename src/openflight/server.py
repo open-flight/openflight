@@ -4710,9 +4710,6 @@ class MockLaunchMonitor:
             defaults.min_launch_deg,
             random.gauss(physics.optimal_launch_deg, profile.launch_std_dev_deg),
         )
-        #check this.
-        launch_h = random.gauss(0, defaults.horizontal_launch_std_dev_deg)
-        
         launch_confidence = round(
             random.uniform(defaults.confidence_min, defaults.confidence_max), 2
         )
@@ -4739,29 +4736,11 @@ class MockLaunchMonitor:
             spin_rpm=spin_rpm,
             spin_confidence=random.choice(defaults.spin_confidence_choices),
             launch_angle_vertical=round(launch_v, 1),
-            launch_angle_horizontal=round(launch_h, 1),
             launch_angle_confidence=launch_confidence,
             launch_angle_vertical_confidence=launch_confidence,
-            launch_angle_horizontal_confidence=launch_confidence,
             launch_angle_vertical_source="mock",
-            launch_angle_horizontal_source="mock",
             angle_source="mock",
             club_angle_deg=club_aoa,
-            club_path_deg=round(
-                random.uniform(
-                    -defaults.club_path_max_abs_deg,
-                    defaults.club_path_max_abs_deg,
-                ),
-                1,
-            ),
-            spin_axis_deg=round(
-                launch_h
-                - random.uniform(
-                    -defaults.spin_axis_error_max_abs_deg,
-                    defaults.spin_axis_error_max_abs_deg,
-                ),
-                1,
-            ),
             mode="mock",
             **direction,
         )
