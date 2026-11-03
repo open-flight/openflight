@@ -5,6 +5,7 @@ export const fr: Messages = {
   'nav.profiles': 'Profils',
   'nav.stats': 'Stats',
   'nav.shots': 'Coups',
+  'nav.history': 'Historique',
   'nav.camera': 'Caméra',
   'nav.debug': 'Debug',
   'nav.panels': 'Panneaux',
