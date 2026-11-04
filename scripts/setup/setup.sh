@@ -7,6 +7,7 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - Optional OV9281 camera overlay (connector found automatically)
 #   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
@@ -267,6 +268,36 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         info "    ./scripts/battery/geekworm/setup.sh --verify"
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- OV9281 camera ---
+    # The firmware cannot auto-detect a third-party OV9281, so the script loads
+    # its overlay on every connector not driving a DSI display; the kernel then
+    # finds the camera on whichever CAM/DISP connector it is plugged into.
+    echo ""
+    if confirm "Do you have an InnoMaker OV9281 camera to set up?" "N"; then
+        if "$SCRIPT_DIR/configure_ov9281_camera.sh"; then
+            # The high-speed modes OpenFlight captures with need a patched
+            # ov9282 module; one reboot covers both the overlay and the driver.
+            log "Building the OV9281 high-speed driver for kernel $(uname -r)..."
+            if "$SCRIPT_DIR/install_ov9281_high_speed_driver.sh"; then
+                log "OV9281 high-speed driver installed ✓"
+            else
+                warn "High-speed driver install failed; the camera still works in its stock modes."
+                warn "Retry later with: ./scripts/setup/install_ov9281_high_speed_driver.sh"
+            fi
+            info "Reboot before verifying the camera with:"
+            info "    ./scripts/setup/configure_ov9281_camera.sh --verify"
+            info "After a kernel upgrade, rerun the driver installer to restore the high-speed modes."
+            warn "Manual step: the camera lens must be focused by hand. After rebooting, run"
+            warn "    ./scripts/hardware-test/preview_camera_alignment.sh"
+            warn "and turn the lens until a ball at the hitting position is sharp, then tighten"
+            warn "its locking ring if it has one. Setup cannot focus the camera for you."
+        else
+            warn "Camera configuration failed. See docs/camera/README.md."
+        fi
+    else
+        info "Skipped. Run later with: ./scripts/setup/configure_ov9281_camera.sh"
     fi
 
     # --- Bluetooth (BLE phone app) ---
