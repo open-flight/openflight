@@ -288,8 +288,18 @@ class RollingBufferMonitor:
         release the serial port via radar.disconnect(), and the next
         start-kiosk.sh starts cleanly because no mode transition is
         required.
+
+        It does send "PI" (idle), a power state rather than a mode: the
+        radar stops sampling and powers its RF down while OpenFlight is not
+        running, and stays in rolling-buffer mode for the next start's
+        PI → GC → PA sequence. Idling is best effort; the port is released
+        either way.
         """
         self.stop()
+        try:
+            self.radar.idle()
+        except Exception as error:  # noqa: BLE001 - shutdown must still release the port
+            logger.warning("[MONITOR] Could not idle the radar: %s", error)
         self.radar.disconnect()
 
     def get_radar_info(self) -> dict:

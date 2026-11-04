@@ -1340,6 +1340,17 @@ class OPS243Radar:
         time.sleep(0.1)
         logger.info("[OPS] Rolling buffer mode disabled (returned to CW mode)")
 
+    def idle(self):
+        """Stop sampling and power down the RF front end (``PI``).
+
+        A power state, not a mode change: the radar stays in rolling-buffer
+        mode, so the HOST_INT runtime-transition bug does not apply, and the
+        PI → GC → PA sequence in enter_rolling_buffer_mode() wakes it. The
+        OPS243 datasheet gives about 0.6 W idle against 1.5 W active.
+        """
+        logger.info("[OPS] Idling radar (PI)")
+        self._send_command("PI")
+
     def persist_rolling_buffer_mode(
         self, pre_trigger_segments: int = 16, sample_rate_ksps: int = 30
     ):

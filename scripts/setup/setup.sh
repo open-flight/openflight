@@ -7,6 +7,7 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - Optional OPS243-A idle at boot (until OpenFlight starts)
 #   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
@@ -267,6 +268,23 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         info "    ./scripts/battery/geekworm/setup.sh --verify"
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- Idle the OPS243-A at boot ---
+    echo ""
+    if confirm "Idle the OPS243-A radar at boot until OpenFlight starts? (saves ~0.9 W; matters most on battery)" "N"; then
+        read -r -p "$(echo -e "${BLUE}[OpenFlight]${NC} Radar port (e.g. /dev/ttyAMA0 for the GPIO UART; Enter for USB auto-detect): ")" ops_port
+        # A port never contains whitespace; dropping it keeps a stray space or CR out of the unit.
+        ops_port="${ops_port//[[:space:]]/}"
+        ops_idle_args=()
+        [ -n "$ops_port" ] && ops_idle_args=(--port "$ops_port")
+        if "$SCRIPT_DIR/install_ops_idle_service.sh" "${ops_idle_args[@]}"; then
+            log "OPS243-A boot idle service installed ✓"
+        else
+            warn "The idle service did not install. See docs/setup/rolling-buffer.md → Idle While OpenFlight Is Not Running."
+        fi
+    else
+        info "Skipped. Run later with: ./scripts/setup/install_ops_idle_service.sh [--port PORT]"
     fi
 
     # --- Bluetooth (BLE phone app) ---
