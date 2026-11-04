@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="430" viewBox="0 0 680 430" role="img">
+<title>IWR6843LEVM S1 boot switch: flashing vs functional mode</title>
+<desc>The six-position CTS DIP switch S1 on the IWR6843LEVM as seen on the mounted board, with its markings drawn as they appear from this side, upside down: the lever numbers 6 to 1 run left to right along the top, so S1.1 is at the right end, and the bottom edge, next to the solder legs, reads CTS, 15 and ON, with ON under lever 1. The board silkscreen S1 sits beside the solder legs at the right. A lever pushed down, toward the ON print, is on. Flashing: S1.1 on, S1.2 off, S1.3 on, S1.4 on, S1.5 off. Functional: S1.1 off, S1.2 off, S1.3 on, S1.4 on, S1.5 off. Only S1.1 changes between the two. S1.6 is not used. RESET is the S2 push button.</desc>
+<style>
+  .ts { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; fill: #5F5E5A; }
+  .th { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; fill: #3d3d3a; }
+  .sw { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 13px; fill: #E2D7B5; }
+  .swb { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; fill: #F1E6C2; }
+  .silk { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; fill: #A32D2D; }
+</style>
+<rect x="0" y="0" width="680" height="430" fill="#FFFFFF"/>
+<text class="ts" x="410" y="26" text-anchor="middle" dominant-baseline="central">S1 as seen on the mounted board · markings upside down, as printed · down = ON</text>
+<rect x="40" y="77" width="160" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text class="th" x="120" y="95" text-anchor="middle" dominant-baseline="central" style="fill:#712B13">Flashing</text>
+<text class="ts" x="120" y="115" text-anchor="middle" dominant-baseline="central" style="fill:#993C1D">S1.1 ON</text>
+<rect x="230" y="50" width="360" height="110" rx="6" fill="#3B3936"/>
+<rect x="260" y="160" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="317" y="160" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="374" y="160" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="431" y="160" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="488" y="160" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="545" y="160" width="6" height="12" rx="1" fill="#C9A227"/>
+<text class="sw" x="263" y="62" text-anchor="middle" dominant-baseline="central" transform="rotate(180 263 62)">6</text>
+<rect x="245" y="74" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="247" y="76" width="32" height="26" rx="3" fill="#F4F3EE" opacity="0.45"/>
+<text class="sw" x="320" y="62" text-anchor="middle" dominant-baseline="central" transform="rotate(180 320 62)">5</text>
+<rect x="302" y="74" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="304" y="76" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="sw" x="377" y="62" text-anchor="middle" dominant-baseline="central" transform="rotate(180 377 62)">4</text>
+<rect x="359" y="74" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="361" y="106" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="sw" x="434" y="62" text-anchor="middle" dominant-baseline="central" transform="rotate(180 434 62)">3</text>
+<rect x="416" y="74" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="418" y="106" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="sw" x="491" y="62" text-anchor="middle" dominant-baseline="central" transform="rotate(180 491 62)">2</text>
+<rect x="473" y="74" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="475" y="76" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="swb" x="548" y="62" text-anchor="middle" dominant-baseline="central" transform="rotate(180 548 62)">1</text>
+<rect x="530" y="74" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="532" y="106" width="32" height="26" rx="3" fill="#F4F3EE" stroke="#993C1D" stroke-width="2.5"/>
+<text class="sw" x="292" y="147" text-anchor="middle" dominant-baseline="central" transform="rotate(180 292 147)">CTS</text>
+<text class="sw" x="434" y="147" text-anchor="middle" dominant-baseline="central" transform="rotate(180 434 147)">15</text>
+<text class="swb" x="552" y="147" text-anchor="middle" dominant-baseline="central" transform="rotate(180 552 147)">ON</text>
+<text class="silk" x="612" y="166" text-anchor="middle" dominant-baseline="central" transform="rotate(180 612 166)">S1</text>
+<rect x="40" y="247" width="160" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text class="th" x="120" y="265" text-anchor="middle" dominant-baseline="central" style="fill:#085041">Functional</text>
+<text class="ts" x="120" y="285" text-anchor="middle" dominant-baseline="central" style="fill:#0F6E56">S1.1 OFF</text>
+<rect x="230" y="220" width="360" height="110" rx="6" fill="#3B3936"/>
+<rect x="260" y="330" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="317" y="330" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="374" y="330" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="431" y="330" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="488" y="330" width="6" height="12" rx="1" fill="#C9A227"/>
+<rect x="545" y="330" width="6" height="12" rx="1" fill="#C9A227"/>
+<text class="sw" x="263" y="232" text-anchor="middle" dominant-baseline="central" transform="rotate(180 263 232)">6</text>
+<rect x="245" y="244" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="247" y="246" width="32" height="26" rx="3" fill="#F4F3EE" opacity="0.45"/>
+<text class="sw" x="320" y="232" text-anchor="middle" dominant-baseline="central" transform="rotate(180 320 232)">5</text>
+<rect x="302" y="244" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="304" y="246" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="sw" x="377" y="232" text-anchor="middle" dominant-baseline="central" transform="rotate(180 377 232)">4</text>
+<rect x="359" y="244" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="361" y="276" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="sw" x="434" y="232" text-anchor="middle" dominant-baseline="central" transform="rotate(180 434 232)">3</text>
+<rect x="416" y="244" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="418" y="276" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="sw" x="491" y="232" text-anchor="middle" dominant-baseline="central" transform="rotate(180 491 232)">2</text>
+<rect x="473" y="244" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="475" y="246" width="32" height="26" rx="3" fill="#F4F3EE"/>
+<text class="swb" x="548" y="232" text-anchor="middle" dominant-baseline="central" transform="rotate(180 548 232)">1</text>
+<rect x="530" y="244" width="36" height="60" rx="3" fill="#1F1E1C"/>
+<rect x="532" y="246" width="32" height="26" rx="3" fill="#F4F3EE" stroke="#0F6E56" stroke-width="2.5"/>
+<text class="sw" x="292" y="317" text-anchor="middle" dominant-baseline="central" transform="rotate(180 292 317)">CTS</text>
+<text class="sw" x="434" y="317" text-anchor="middle" dominant-baseline="central" transform="rotate(180 434 317)">15</text>
+<text class="swb" x="552" y="317" text-anchor="middle" dominant-baseline="central" transform="rotate(180 552 317)">ON</text>
+<text class="silk" x="612" y="336" text-anchor="middle" dominant-baseline="central" transform="rotate(180 612 336)">S1</text>
+<text class="ts" x="410" y="368" text-anchor="middle" dominant-baseline="central">Printed on the switch body: ON · 15 · CTS along one edge, 1–6 along the other.</text>
+<text class="ts" x="410" y="388" text-anchor="middle" dominant-baseline="central">Only S1.1 (under ON, right end) changes. S1.6 is not used.</text>
+<text class="ts" x="410" y="408" text-anchor="middle" dominant-baseline="central">After changing S1.1, press RESET (the S2 push button).</text>
+</svg>
