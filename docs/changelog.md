@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Radar LED switch.** Debug > Tuning has a Radar LEDs Off/On switch, and
+  `set_radar_config` accepts `{"leds": false}`, which sends the OPS243's `Ol`
+  command (AN-010-AF p16). The choice is saved to
+  `~/.config/openflight/radar-leds.json` and re-applied at startup, since the
+  radar powers up with its LEDs on.
 - **Optional low-battery shutdown for UPS builds.**
   `scripts/battery/install_battery_guard.sh` installs a systemd service that,
   when external power is offline and the battery is at or below 10% or 3.40 V

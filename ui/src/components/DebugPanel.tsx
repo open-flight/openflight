@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import type { DebugReading, RadarConfig, DebugShotLog } from '../types/socket';
 import type { TriggerDiagnostic, TriggerStatus } from '../types/shot';
+import { SegmentedControl } from './ui/SegmentedControl';
 import './DebugPanel.css';
 
 interface DebugPanelProps {
@@ -299,6 +300,34 @@ function LastTriggerCard({ diag }: { diag: TriggerDiagnostic | null }) {
   );
 }
 
+export function RadarLedsControl({
+  leds,
+  disabled,
+  onUpdateConfig,
+}: {
+  leds?: boolean;
+  disabled: boolean;
+  onUpdateConfig: (config: Partial<RadarConfig>) => void;
+}) {
+  if (leds === undefined) return null;
+  return (
+    <div className={`slider-control ${disabled ? 'slider-control--disabled' : ''}`}>
+      <span className="slider-control__label">Radar LEDs</span>
+      <SegmentedControl
+        ariaLabel="Radar LEDs"
+        value={leds ? 'on' : 'off'}
+        options={[
+          { id: 'off', label: 'Off' },
+          { id: 'on', label: 'On' },
+        ]}
+        onChange={(id) => {
+          if ((id === 'on') !== leds) onUpdateConfig({ leds: !leds });
+        }}
+      />
+    </div>
+  );
+}
+
 type DebugTab = 'status' | 'history' | 'tuning';
 
 export function DebugPanel({
@@ -415,6 +444,7 @@ export function DebugPanel({
               <p className="debug-panel__mock-warning">Mock swing speed sliders shape simulated reps only</p>
             )}
             <div className="debug-panel__controls">
+              <RadarLedsControl leds={radarConfig.leds} disabled={tuningDisabled} onUpdateConfig={onUpdateConfig} />
               {isSwingSpeed ? (
                 <>
                   <SliderControl

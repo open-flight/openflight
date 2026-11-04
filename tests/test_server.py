@@ -5091,3 +5091,68 @@ class TestBallisticCarryPrecedence:
         resolved = server_module.resolve_shot(forwarded[0], server_module.SimPlayerState())
         assert resolved.carry_yards == pytest.approx(shot.carry_spin_adjusted)
         assert resolved.carry_yards > 135.0
+
+
+class TestRadarLeds:
+    """The LED switch reaches the radar and survives a server restart."""
+
+    @pytest.fixture(name="led_radar")
+    def _led_radar(self, monkeypatch, tmp_path):
+        calls = []
+
+        class StubRadar:
+            def set_leds(self, enabled):
+                calls.append(enabled)
+
+        class StubMonitor:
+            radar = StubRadar()
+
+        emitted = []
+        monkeypatch.setattr(server_module, "RADAR_LEDS_PATH", tmp_path / "radar-leds.json")
+        monkeypatch.setattr(server_module, "monitor", StubMonitor())
+        monkeypatch.setattr(server_module, "mock_mode", False)
+        monkeypatch.setattr(server_module, "mock_swing_speed_mode", False)
+        monkeypatch.setattr(server_module, "radar_config", {"min_speed": 10, "leds": True})
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(
+            server_module.socketio, "emit", lambda event, payload: emitted.append((event, payload))
+        )
+        monkeypatch.setattr(server_module, "log_session_error", lambda *_a, **_kw: None)
+        return SimpleNamespace(calls=calls, emitted=emitted, path=tmp_path / "radar-leds.json")
+
+    def test_set_radar_config_turns_leds_off_and_saves_it(self, led_radar):
+        server_module.handle_set_radar_config({"leds": False})
+
+        assert led_radar.calls == [False]
+        assert led_radar.emitted[-1] == ("radar_config", {"min_speed": 10, "leds": False})
+        assert json.loads(led_radar.path.read_text(encoding="utf-8")) == {"leds": False}
+
+    def test_set_radar_config_rejects_a_non_boolean_leds(self, led_radar):
+        server_module.handle_set_radar_config({"leds": "off"})
+
+        assert not led_radar.calls
+        assert led_radar.emitted[-1][0] == "radar_config_error"
+        assert server_module.radar_config["leds"] is True
+        assert not led_radar.path.exists()
+
+    def test_saved_leds_off_is_applied_when_the_radar_starts(self, led_radar):
+        led_radar.path.write_text('{"leds": false}\n', encoding="utf-8")
+
+        server_module._apply_saved_radar_leds(mock=False)  # pylint: disable=protected-access
+
+        assert led_radar.calls == [False]
+        assert server_module.radar_config["leds"] is False
+
+    def test_no_saved_choice_leaves_the_radar_default(self, led_radar):
+        server_module._apply_saved_radar_leds(mock=False)  # pylint: disable=protected-access
+
+        assert not led_radar.calls
+        assert server_module.radar_config["leds"] is True
+
+    def test_unreadable_saved_choice_is_ignored(self, led_radar):
+        led_radar.path.write_text("not json", encoding="utf-8")
+
+        server_module._apply_saved_radar_leds(mock=False)  # pylint: disable=protected-access
+
+        assert not led_radar.calls
+        assert server_module.radar_config["leds"] is True

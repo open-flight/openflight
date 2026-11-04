@@ -2423,7 +2423,54 @@ radar_config = {
     "max_speed": 220,
     "min_magnitude": 0,
     "transmit_power": 0,
+    "leds": True,
 }
+
+RADAR_LEDS_PATH = Path.home() / ".config" / "openflight" / "radar-leds.json"
+
+
+def _load_radar_leds() -> bool | None:
+    """The saved LED choice, or ``None`` when none was saved or it is unreadable."""
+    try:
+        leds = json.loads(RADAR_LEDS_PATH.read_text(encoding="utf-8"))["leds"]
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, KeyError, TypeError):
+        logger.warning("[SERVER] Ignoring unreadable %s", RADAR_LEDS_PATH, exc_info=True)
+        return None
+    return leds if isinstance(leds, bool) else None
+
+
+def _save_radar_leds(leds: bool) -> None:
+    try:
+        RADAR_LEDS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RADAR_LEDS_PATH.write_text(json.dumps({"leds": leds}) + "\n", encoding="utf-8")
+    except OSError:
+        logger.warning("[SERVER] Could not save the radar LED setting", exc_info=True)
+
+
+def _set_radar_leds(radar, leds) -> None:
+    if not isinstance(leds, bool):
+        raise ValueError("leds must be true or false")
+    radar.set_leds(leds)
+    radar_config["leds"] = leds
+    _save_radar_leds(leds)
+    print(f"Set radar LEDs: {'on' if leds else 'off'}")
+
+
+def _apply_saved_radar_leds(mock: bool) -> None:
+    """Re-apply a saved LED choice: the radar powers up with its LEDs on."""
+    leds = _load_radar_leds()
+    if leds is None:
+        return
+    radar_config["leds"] = leds
+    radar = getattr(monitor, "radar", None)
+    if mock or radar is None:
+        return
+    try:
+        radar.set_leds(leds)
+    except Exception:  # pylint: disable=broad-except
+        logger.warning("[SERVER] Could not apply the saved radar LED setting", exc_info=True)
 
 
 # Prevent concurrent recovery requests from issuing overlapping serial commands.
@@ -2515,6 +2562,9 @@ def handle_set_radar_config(data):
                 monitor.radar.set_transmit_power(new_power)
                 radar_config["transmit_power"] = new_power
                 print(f"Set transmit power: {new_power}")
+
+        if "leds" in data:
+            _set_radar_leds(monitor.radar, data["leds"])
 
         # Log config change
         session_logger = get_session_logger()
@@ -4366,6 +4416,7 @@ def start_monitor(
 
     monitor.connect()
     _reset_shot_sequence()
+    _apply_saved_radar_leds(mock)
 
     if swing_speed_mode:
         swing_config = swing_speed_kwargs or {}
@@ -4772,6 +4823,9 @@ class _MockSwingRadar:
 
     def set_transmit_power(self, level):  # pylint: disable=unused-argument
         """Accept mock transmit power updates."""
+
+    def set_leds(self, enabled):  # pylint: disable=unused-argument
+        """Accept mock LED updates."""
 
 
 class MockSwingSpeedMonitor:
