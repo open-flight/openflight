@@ -109,6 +109,14 @@ describe('buildLiveMetrics', () => {
     expect(byId(metric, 'carry')).toMatchObject({ value: '196', unit: 'm' });
   });
 
+  it('keeps speeds in mph and shows carry in meters for the mph / m preset', () => {
+    const metrics = buildLiveMetrics(makeShot(), 'mphMeters', emptySwingStats);
+
+    expect(byId(metrics, 'ball_speed')).toMatchObject({ value: '92.0', unit: 'mph' });
+    expect(byId(metrics, 'club_speed').unit).toBe('mph');
+    expect(byId(metrics, 'carry')).toMatchObject({ value: '196', unit: 'm' });
+  });
+
   it('prefers the spin-adjusted carry and marks model carry as estimated', () => {
     const adjusted = byId(buildLiveMetrics(makeShot(), 'imperial', emptySwingStats), 'carry');
     expect(adjusted.value).toBe('214');

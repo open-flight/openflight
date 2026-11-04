@@ -4,6 +4,7 @@ import { useSystemStore } from '../../stores/useSystemStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useLocaleStore } from '../../stores/useLocaleStore';
 import { useUnitPreference } from '../../state/useUnitPreference';
+import { getUnitsLabel, UNIT_SYSTEM_IDS } from '../../utils/units';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SimStatus } from '../SimStatus';
 
@@ -36,10 +37,7 @@ export function MenuSheet({ onClose, onShutdown }: MenuSheetProps) {
           <SegmentedControl
             ariaLabel={t('menu.displayUnits')}
             value={unitSystem}
-            options={[
-              { id: 'imperial', label: 'MPH / YDS' },
-              { id: 'metric', label: 'KMH / M' },
-            ]}
+            options={UNIT_SYSTEM_IDS.map((id) => ({ id, label: getUnitsLabel(id).toUpperCase() }))}
             onChange={setUnitSystem}
           />
         </section>

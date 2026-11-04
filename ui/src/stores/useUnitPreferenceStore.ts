@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { UnitSystem } from '../utils/units';
+import { isUnitSystem, type UnitSystem } from '../utils/units';
 
 const STORAGE_KEY = 'openflight.unit-system';
 
@@ -9,7 +9,7 @@ function readStoredUnitSystem(): UnitSystem {
   }
 
   const storedValue = window.localStorage.getItem(STORAGE_KEY);
-  return storedValue === 'metric' ? 'metric' : 'imperial';
+  return isUnitSystem(storedValue) ? storedValue : 'imperial';
 }
 
 interface UnitPreferenceState {
