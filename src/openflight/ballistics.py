@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 from .clubs import ClubType
-from .clubs.physics import CLUB_PHYSICS
+from .clubs.physics import CLUB_PHYSICS, get_club_physics
 from .launch_monitor import SPIN_CONFIDENCE_HIGH, Shot
 
 MPH_TO_MPS = 0.44704
@@ -148,9 +148,7 @@ def resolve_launch(shot: Shot) -> Optional[LaunchConditions]:
         spin_rpm = float(shot.spin_rpm)
         source: Literal["measured", "club_typical"] = "measured"
     else:
-        spin_rpm = CLUB_TYPICAL_SPIN_RPM.get(
-            shot.club, CLUB_TYPICAL_SPIN_RPM[ClubType.UNKNOWN]
-        )
+        spin_rpm = get_club_physics(shot.club, shot.custom_loft_deg).typical_spin_rpm
         source = "club_typical"
 
     return LaunchConditions(

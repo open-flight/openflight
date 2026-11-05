@@ -1,3 +1,5 @@
+import { customClubCompactLabel, type CustomClub } from '../data/bag';
+
 export type SpinQuality = 'high' | 'medium' | 'low' | 'experimental' | 'withheld';
 
 export interface CameraReplay {
@@ -18,6 +20,9 @@ export interface Shot {
   estimated_carry_yards: number;
   carry_range: [number, number];
   club: string;
+  /** The custom club that hit the shot ("" when none), and its details when it was recorded. */
+  custom_club_id?: string;
+  custom_club?: CustomClub | null;
   profile_id?: string;
   profile_name?: string;
   timestamp: string;
@@ -87,6 +92,7 @@ export interface SessionState {
   stats: SessionStats;
   shots: Shot[];
   club?: string;
+  custom_club_id?: string;
 }
 
 export interface TriggerDiagnostic {
@@ -264,9 +270,20 @@ export function computeStats(shots: Shot[]): SessionStats {
 }
 
 /**
- * Get unique clubs from shots array.
+ * Grouping key for per-club stats: each custom club on its own (two 56° wedges
+ * stay apart), otherwise the built-in club type.
  */
-export function getUniqueClubs(shots: Shot[]): string[] {
-  const clubs = new Set(shots.map((s) => s.club));
-  return Array.from(clubs);
+export function shotClubKey(shot: Pick<Shot, 'club' | 'custom_club'>): string {
+  return shot.custom_club ? `custom:${shot.custom_club.id}` : shot.club;
+}
+
+/** The selection's stats key, matching `shotClubKey` for the shots it records. */
+export function clubSelectionKey(club: string, customClubId: string): string {
+  return customClubId ? `custom:${customClubId}` : club;
+}
+
+/** Row/chip label: "SW 56° Spinner" for a custom club, the club id otherwise. */
+export function shotClubLabel(shot: Pick<Shot, 'club' | 'custom_club' | 'training_implement_label'>): string {
+  if (shot.training_implement_label) return shot.training_implement_label;
+  return shot.custom_club ? customClubCompactLabel(shot.custom_club) : shot.club;
 }

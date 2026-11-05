@@ -14,7 +14,7 @@ class _ClubPublisher:
     def __init__(self):
         self.clubs = []
 
-    def publish_club(self, club):
+    def publish_club(self, club, custom_club_id=""):  # pylint: disable=unused-argument
         self.clubs.append(club)
         return True
 
@@ -44,7 +44,7 @@ def test_socket_set_club_without_monitor_still_broadcasts(no_monitor_transports)
     server_module.handle_set_club({"club": "7-iron"})
 
     assert server_module.active_club is ClubType.IRON_7
-    assert emitted == [("club_changed", {"club": "7-iron"})]
+    assert emitted == [("club_changed", {"club": "7-iron", "custom_club_id": ""})]
     assert stream.clubs == ["7-iron"]
     assert ble.clubs == ["7-iron"]
 
@@ -55,9 +55,9 @@ def test_network_club_post_without_monitor_applies_and_broadcasts(no_monitor_tra
     response = server_module.app.test_client().post("/api/club", json={"club": "pw"})
 
     assert response.status_code == 200
-    assert response.get_json() == {"status": "applied", "club": "pw"}
+    assert response.get_json() == {"status": "applied", "club": "pw", "custom_club_id": ""}
     assert server_module.active_club is ClubType.PW
-    assert emitted == [("club_changed", {"club": "pw"})]
+    assert emitted == [("club_changed", {"club": "pw", "custom_club_id": ""})]
     assert stream.clubs == ["pw"]
     assert ble.clubs == ["pw"]
 

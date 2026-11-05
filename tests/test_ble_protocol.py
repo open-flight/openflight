@@ -7,6 +7,7 @@ import pytest
 
 from openflight.ble.protocol import (
     ACCEPTED_REQUEST_SCHEMAS,
+    CLUBS_EVENT_MODEL_LENGTH,
     CONTROL_CHARACTERISTIC_UUID,
     FEATURES,
     FRAGMENT_PAYLOAD_SIZE,
@@ -16,6 +17,8 @@ from openflight.ble.protocol import (
     SERVICE_UUID,
     SHOT_CHARACTERISTIC_UUID,
     FragmentReassembler,
+    build_club_event,
+    build_clubs_event,
     build_event,
     build_hello_result,
     build_power_status_event,
@@ -29,6 +32,7 @@ from openflight.ble.protocol import (
     reassemble_fragments,
     stable_shot_event_id,
 )
+from openflight.clubs.store import MAX_CLUBS_PER_BAG
 from openflight.profiles import MAX_NAME_LENGTH, MAX_PROFILES
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -53,6 +57,7 @@ SHOT_KEYS = {
     "shot_number",
     "profile_id",
     "profile_name",
+    "custom_club_id",
     "carry_range",
     "spin_source",
     "launch_angle_confidence",
@@ -76,6 +81,7 @@ def _shot_data(**overrides):
         "shot_number": 7,
         "profile_id": "0f8e4b2a9c7d4e1f8a6b3c5d7e9f1a2b",
         "profile_name": "Zoë",
+        "custom_club_id": "3b1f0c7e9a5d4e2f8c6b0a1d3e5f7a9c",
         "carry_range": [144, 160],
         "spin_source": "measured",
         "launch_angle_confidence": 0.6,
@@ -122,7 +128,7 @@ def test_missing_measurements_are_explicit_nulls():
 
 
 def test_missing_session_fields_are_null_and_blanks_become_null():
-    data = _shot_data(profile_id="", profile_name="", spin_source="")
+    data = _shot_data(profile_id="", profile_name="", custom_club_id="", spin_source="")
     for field in ("shot_number", "carry_range", "launch_angle_confidence"):
         data.pop(field)
 
@@ -132,6 +138,7 @@ def test_missing_session_fields_are_null_and_blanks_become_null():
         "shot_number",
         "profile_id",
         "profile_name",
+        "custom_club_id",
         "carry_range",
         "spin_source",
         "launch_angle_confidence",
@@ -227,6 +234,55 @@ def test_profiles_event_keeps_ids_and_names_only():
     }
 
 
+def test_club_changed_carries_the_custom_club_id():
+    assert build_club_event("sw", "abc")["custom_club_id"] == "abc"
+    assert build_club_event("sw")["custom_club_id"] == ""
+
+
+@pytest.mark.parametrize("custom_club_id", [None, 7, ["abc"]])
+def test_club_changed_rejects_a_non_string_custom_club_id(custom_club_id):
+    with pytest.raises(ValueError):
+        build_club_event("sw", custom_club_id)
+
+
+def test_clubs_event_lists_only_the_given_bag_in_order():
+    clubs = [
+        {"id": "a", "bag": "p1", "club": "sw", "loft_deg": 56.0, "model": "Spinner", "brand": "X"},
+        {"id": "x", "bag": "p2", "club": "pw", "loft_deg": 46.0, "model": ""},
+        {"id": "b", "bag": "p1", "club": "sw", "loft_deg": 56.0, "model": "Digger"},
+    ]
+
+    event = build_clubs_event(clubs, "p1")
+
+    assert event == {
+        "schema_version": 2,
+        "type": "clubs",
+        "bag": "p1",
+        "clubs": [
+            {"id": "a", "club": "sw", "loft_deg": 56.0, "model": "Spinner"},
+            {"id": "b", "club": "sw", "loft_deg": 56.0, "model": "Digger"},
+        ],
+    }
+
+
+def test_clubs_event_cuts_the_model_and_handles_a_missing_one():
+    long_model = "Spinner Tour 2026"
+    event = build_clubs_event(
+        [
+            {"id": "a", "bag": "p1", "club": "sw", "loft_deg": 56.0, "model": long_model},
+            {"id": "b", "bag": "p1", "club": "sw", "loft_deg": 56.0},
+        ],
+        "p1",
+    )
+
+    models = [club["model"] for club in event["clubs"]]
+    assert models == [long_model[:CLUBS_EVENT_MODEL_LENGTH], ""]
+
+
+def test_clubs_event_for_an_empty_bag():
+    assert build_clubs_event([], "p1")["clubs"] == []
+
+
 # -- hello ------------------------------------------------------------------------------
 
 
@@ -246,6 +302,7 @@ def test_hello_features_are_read_and_select_only():
     features = build_hello_result(2)["features"]
 
     assert "shot_deleted" in features
+    assert "custom_clubs" in features
     assert "delete_shot" not in features
     assert "session_clear" not in features
 
@@ -285,6 +342,7 @@ def test_worst_case_shot_fits_in_one_ble_message():
         "shot_number": 2**63,
         "profile_id": "f" * 64,
         "profile_name": worst_name,
+        "custom_club_id": "f" * 64,
         "carry_range": [_worst_float(), _worst_float()],
         "spin_source": "calculated_from_launch_angle",
         "launch_angle_confidence": _worst_float(),
@@ -315,6 +373,27 @@ def test_twelve_worst_case_profiles_fit_in_one_ble_message(worst_char):
     }
 
     payload = encode_message(build_profiles_event(snapshot))
+
+    assert len(payload) <= MAX_MESSAGE_SIZE
+    fragment_payload(payload, sequence=0)
+
+
+@pytest.mark.parametrize("worst_char", ["\U0001f3cc", '"', "\\"])
+def test_a_full_worst_case_bag_fits_in_one_ble_message(worst_char):
+    # Club text is printable (control characters are dropped on save), so the
+    # widest character is four UTF-8 bytes or a two-byte JSON escape.
+    clubs = [
+        {
+            "id": f"{index:032x}",  # ClubStore ids are uuid4().hex
+            "bag": "p" * 32,
+            "club": "9-hybrid",
+            "loft_deg": 12.5,  # 0-80, rounded to 0.1: never more than four characters
+            "model": worst_char * 40,
+        }
+        for index in range(MAX_CLUBS_PER_BAG)
+    ]
+
+    payload = encode_message(build_clubs_event(clubs, "p" * 32))
 
     assert len(payload) <= MAX_MESSAGE_SIZE
     fragment_payload(payload, sequence=0)

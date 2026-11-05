@@ -71,7 +71,15 @@ export function PickerOverlay({ title, selectedId, sections, onSelect, onClose, 
               aria-pressed={option.id === selectedId}
               onClick={() => onSelect(option.id)}
             >
-              {option.label}
+              {option.detail || option.note ? (
+                <>
+                  <span className="picker-overlay__option-label">{option.label}</span>
+                  {option.detail ? <span className="picker-overlay__option-detail">{option.detail}</span> : null}
+                  {option.note ? <span className="picker-overlay__option-note">{option.note}</span> : null}
+                </>
+              ) : (
+                option.label
+              )}
             </button>
           ))}
         </div>

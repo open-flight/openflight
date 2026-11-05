@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from .clubs import ClubType
+from .clubs.club import CustomClub
 from .clubs.physics import get_club_physics
 from .ops243 import SpeedReading
 
@@ -131,6 +132,7 @@ def adjust_carry_for_launch_angle(
     launch_angle: float,
     club: ClubType = ClubType.DRIVER,
     confidence: float = 1.0,
+    loft_deg: Optional[float] = None,
 ) -> float:
     """
     Adjust carry distance based on launch angle deviation from optimal.
@@ -145,11 +147,12 @@ def adjust_carry_for_launch_angle(
         launch_angle: Measured vertical launch angle in degrees
         club: Club type (determines optimal launch angle)
         confidence: Confidence in the launch angle measurement (0-1)
+        loft_deg: A custom club's own loft, if any (see get_club_physics)
 
     Returns:
         Adjusted carry distance in yards
     """
-    optimal = get_club_physics(club).optimal_launch_deg
+    optimal = get_club_physics(club, loft_deg).optimal_launch_deg
     angle_delta = launch_angle - optimal
 
     if angle_delta < 0:
@@ -184,6 +187,7 @@ class Shot:
         peak_magnitude: Signal strength of strongest reading
         readings: All raw speed readings for this shot
         club: Club type for distance estimation
+        custom_club: The custom club that hit the shot, when one was selected
         launch_angle_vertical: Vertical launch angle in degrees (from camera)
         launch_angle_horizontal: Horizontal launch angle in degrees (from camera)
         launch_angle_confidence: Backward-compatible primary launch angle confidence (0-1)
@@ -260,6 +264,7 @@ class Shot:
     mode: str = "rolling-buffer"
     profile_id: str = ""
     profile_name: str = ""
+    custom_club: Optional[CustomClub] = None
     readings_data: Optional[list] = None
     camera_replay: Optional[dict] = None
     angle_source: Optional[str] = None  # "radar", "camera", "estimated", or None
@@ -342,8 +347,14 @@ class Shot:
                 self.launch_angle_vertical,
                 self.club,
                 self.launch_angle_confidence or 0.2,
+                loft_deg=self.custom_loft_deg,
             )
         return base
+
+    @property
+    def custom_loft_deg(self) -> Optional[float]:
+        """The custom club's loft, which the estimates follow; None for a built-in club."""
+        return self.custom_club.loft_deg if self.custom_club is not None else None
 
     @property
     def estimated_carry_range(self) -> tuple:
@@ -401,6 +412,8 @@ class Shot:
             "club": self.club.value,
             "profile_id": self.profile_id,
             "profile_name": self.profile_name,
+            "custom_club_id": self.custom_club.id if self.custom_club is not None else "",
+            "custom_club": self.custom_club.to_dict() if self.custom_club is not None else None,
             "timestamp": self.timestamp.isoformat(),
             "impact_timestamp": self.impact_timestamp,
             "peak_magnitude": self.peak_magnitude,

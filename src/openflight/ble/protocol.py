@@ -40,6 +40,7 @@ _OPTIONAL_SHOT_FIELDS = (
     "shot_number",
     "profile_id",
     "profile_name",
+    "custom_club_id",
     "carry_range",
     "spin_source",
     "launch_angle_confidence",
@@ -51,6 +52,7 @@ _BLANK_AS_NULL_FIELDS = frozenset(
         "shot_number",
         "profile_id",
         "profile_name",
+        "custom_club_id",
         "carry_range",
         "spin_source",
         "launch_angle_confidence",
@@ -69,6 +71,7 @@ FEATURES = (
     "club",
     "shot_catch_up",
     "deletion_catch_up",
+    "custom_clubs",
 )
 
 EVENT_TYPES = (
@@ -79,7 +82,14 @@ EVENT_TYPES = (
     "session_cleared",
     "shot_deleted",
     "club_changed",
+    "clubs",
 )
+
+# The ``clubs`` event lists the active bag only, and only what a phone needs to
+# tell clubs apart, so a full bag always fits in one message (see the
+# v2_event_clubs_worst_case golden). Socket.IO carries every recorded field.
+CLUBS_EVENT_FIELDS = ("id", "club", "loft_deg")
+CLUBS_EVENT_MODEL_LENGTH = 8
 
 ENRICHMENT_STATUSES = ("pending", "complete", "skipped")
 
@@ -186,11 +196,33 @@ def build_event(event_type: str, fields: Mapping | None = None) -> dict:
     return {"schema_version": SCHEMA_VERSION, "type": event_type, **fields}
 
 
-def build_club_event(club: str) -> dict:
-    """``club_changed``: the authoritative club, broadcast on every change."""
+def build_club_event(club: str, custom_club_id: str = "") -> dict:
+    """``club_changed``: the authoritative club, broadcast on every change.
+
+    ``custom_club_id`` names the selected club in the active bag; "" means no
+    specific club (only the type is selected).
+    """
     if not isinstance(club, str) or not club:
         raise ValueError("Club must be a non-empty string")
-    return build_event("club_changed", {"club": club})
+    if not isinstance(custom_club_id, str):
+        raise ValueError("Custom club id must be a string")
+    return build_event("club_changed", {"club": club, "custom_club_id": custom_club_id})
+
+
+def build_clubs_event(clubs: Iterable[Mapping], bag: str) -> dict:
+    """``clubs``: the custom clubs in ``bag`` (the active profile's), in bag order.
+
+    Each entry has ``id``, ``club``, ``loft_deg`` and the first
+    ``CLUBS_EVENT_MODEL_LENGTH`` characters of ``model``.
+    """
+    entries = []
+    for club in clubs:
+        if club.get("bag") != bag:
+            continue
+        entry = {field: club.get(field) for field in CLUBS_EVENT_FIELDS}
+        entry["model"] = str(club.get("model") or "")[:CLUBS_EVENT_MODEL_LENGTH]
+        entries.append(entry)
+    return build_event("clubs", {"bag": bag, "clubs": entries})
 
 
 def build_shot_processing_event(state: str) -> dict:

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { Shot } from '../../types/shot';
-import { filterShotsByProfile, getSwingSpeedMph, isSwingSpeedShot } from '../../types/shot';
+import { filterShotsByProfile, getSwingSpeedMph, isSwingSpeedShot, shotClubLabel } from '../../types/shot';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useUnitPreference } from '../../state/useUnitPreference';
 import { useSystemStore } from '../../stores/useSystemStore';
@@ -236,7 +236,7 @@ export function ShotsPanel({ shots, profileId, profileName, clubLabel, onDeleteS
                   <span className="shots-panel__index">{shotNumber}</span>
                   <span className="shots-panel__profile">
                     <span className="shots-panel__profile-name">{profileName}</span>
-                    <span className="shots-panel__profile-club">{shot.training_implement_label ?? shot.club}</span>
+                    <span className="shots-panel__profile-club">{shotClubLabel(shot)}</span>
                   </span>
                   <span className="shots-panel__num shots-panel__value">{ball}</span>
                   <span className="shots-panel__num shots-panel__value">{club}</span>

@@ -111,6 +111,10 @@ the change over the currently selected transport:
 The browser UI and simulator integrations use the same server operation, so a
 phone club change affects the same launch, spin, and carry processing state.
 
+To pick one specific club from the active profile's bag (two 56° wedges on
+test, say), add its id: `{"club":"sw","custom_club_id":"3b1f…"}`. See
+[Custom clubs](#custom-clubs).
+
 > The iOS Simulator can run the automated tests, but CoreBluetooth does not
 > provide a useful end-to-end BLE hardware test there. Use a physical iPhone
 > and Raspberry Pi for manual connection testing.
@@ -209,7 +213,7 @@ either `result` or `error`:
 
 ```json
 {"payload":{"club":"7-iron"},"request_id":"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d","schema_version":2,"type":"set_club"}
-{"ok":true,"request_id":"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d","result":{"club":"7-iron","status":"applied"},"schema_version":2}
+{"ok":true,"request_id":"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d","result":{"club":"7-iron","custom_club_id":"","status":"applied"},"schema_version":2}
 ```
 
 Responses and events share the control characteristic: messages with a `type`
@@ -222,18 +226,20 @@ the same broadcasts.
 | Command | Payload | Result | Also broadcasts |
 |---|---|---|---|
 | `hello` | `{"client_schema_max":2}`, optional `last_event_id` | see [Negotiation](#negotiation) | |
-| `get_club` | `{}` | `{"status":"current","club":"7-iron"}`: the Pi-owned club, unchanged | |
-| `set_club` | `{"club":"7-iron"}` | `{"status":"applied","club":"7-iron"}` | `club_changed` |
+| `get_club` | `{}` | `{"status":"current","club":"7-iron","custom_club_id":""}`: the Pi-owned club, unchanged | |
+| `set_club` | `{"club":"7-iron"}`, or `{"custom_club_id":…}` with an optional matching `club` | `{"status":"applied","club":"sw","custom_club_id":…}`; `ok:false` for a club id not in the active bag or a `club` that does not match it | `club_changed` |
+| `get_clubs` | `{}` | `{"status":"sent"}` | `clubs`: the active bag arrives as the event |
 | `iwr6843_orientation_calibration` | phone gravity measurement, see [Calibrate TI radar tilt](#calibrate-ti-radar-tilt-with-the-phone) | `status, persistent, measured_mount_tilt_deg, enclosure_pitch_deg, configured_iwr_tilt_deg, roll_deg, azimuth_offset_deg` | |
 | `get_profiles` | `{}` | `{"status":"sent"}` | `profiles`: the roster arrives as the event, not in the result |
 | `set_active_profile` | `{"profile_id":…}` | `{"status":"applied","active_profile_id":…}`, or `ok:false` `Unknown profile` | `profiles` (also when rejected) |
 | `get_power_status` | `{}` | the `power_status` payload, or `ok:false` `Battery monitoring is not enabled` / `No battery reading yet` | |
 
 Over BLE the phone is read-and-select only, plus TI tilt calibration (see
-[Security](#security-and-scope)). Adding, renaming and removing profiles, `clear_session` and `delete_shot` stay
-on Socket.IO and the kiosk; sent over BLE, they and any unknown command fail
-with `Unsupported phone command: <type>`. Phones still learn about those
-changes from the `profiles`, `session_cleared` and `shot_deleted` events. An
+[Security](#security-and-scope)). Adding, renaming and removing profiles, adding, editing
+and removing custom clubs, `clear_session` and `delete_shot` stay on Socket.IO
+and the kiosk; sent over BLE, they and any unknown command fail with
+`Unsupported phone command: <type>`. Phones still learn about those changes
+from the `profiles`, `clubs`, `session_cleared` and `shot_deleted` events. An
 event triggered by a command is normally notified before the command's
 response, but clients must accept either order. The Pi processes commands as
 they arrive and enforces no busy state or timeout of its own; clients own their
@@ -250,11 +256,12 @@ timeouts.
    ```
    The result names the schema, the features and the characteristics:
    ```json
-   {"ok":true,"request_id":"<uuid>","result":{"characteristics":{"control":"7BA96E63-12C2-4CE0-BB84-3513C7FD1474","shot":"ED365FE6-3ABF-4FC3-8E44-D9525A22DABD"},"features":["provisional_shots","shot_processing","profiles","power_status","shot_deleted","club","shot_catch_up","deletion_catch_up"],"schema_version":2},"schema_version":2}
+   {"ok":true,"request_id":"<uuid>","result":{"characteristics":{"control":"7BA96E63-12C2-4CE0-BB84-3513C7FD1474","shot":"ED365FE6-3ABF-4FC3-8E44-D9525A22DABD"},"features":["provisional_shots","shot_processing","profiles","power_status","shot_deleted","club","shot_catch_up","deletion_catch_up","custom_clubs"],"schema_version":2},"schema_version":2}
    ```
 3. Subscribe to the shot characteristic. The catch-up shots arrive. A client
    that skipped `hello` gets only the latest shot.
-4. Ask for state: `get_club`, `get_profiles` and, if wanted, `get_power_status`.
+4. Ask for state: `get_club`, `get_profiles`, `get_clubs` and, if wanted,
+   `get_power_status`.
 
 A `client_schema_max` below 2 fails with `ok:false`: the Pi speaks schema 2 only.
 
@@ -326,6 +333,7 @@ Sent on the shot characteristic, and as `event: shot` on the network stream:
 | `club_speed_mph`, `smash_factor`, `launch_angle_vertical`, `launch_angle_horizontal`, `spin_rpm`, `club_path_deg`, `spin_axis_deg` | number or null | `null` when the active hardware could not produce it |
 | `shot_number` | int or null | Per-monitor-run sequence; not reused after a delete |
 | `profile_id`, `profile_name` | string or null | Profile the shot was attributed to at detection |
+| `custom_club_id` | string or null | The [custom club](#custom-clubs) that hit the shot; `null` when only a club type was selected |
 | `carry_range` | `[low, high]` or null | Carry range in yards |
 | `spin_source` | string or null | Where `spin_rpm` came from |
 | `launch_angle_confidence` | number or null | 0–1 |
@@ -336,7 +344,7 @@ hardware configured is sent once, final. The contract fixture is
 `tests/fixtures/shot_v2.json`, built from a real mock shot:
 
 ```json
-{"ball_speed_mph":106.1,"carry_range":[144,160],"club":"7-iron","club_path_deg":2.5,"club_speed_mph":83.5,"enrichment":{"status":"complete"},"estimated_carry_yards":152,"event_id":"05dd37ec-49ed-596b-b1a4-953d54e4f239","final":true,"launch_angle_confidence":0.6,"launch_angle_horizontal":-0.7,"launch_angle_vertical":21.2,"profile_id":"0f8e4b2a9c7d4e1f8a6b3c5d7e9f1a2b","profile_name":"Zoë","schema_version":2,"shot_number":7,"smash_factor":1.27,"spin_axis_deg":-1.6,"spin_rpm":6482,"spin_source":null,"timestamp":"2026-09-25T14:03:07.412345","type":"shot"}
+{"ball_speed_mph":106.1,"carry_range":[144,160],"club":"7-iron","club_path_deg":2.5,"club_speed_mph":83.5,"custom_club_id":"3b1f0c7e9a5d4e2f8c6b0a1d3e5f7a9c","enrichment":{"status":"complete"},"estimated_carry_yards":152,"event_id":"05dd37ec-49ed-596b-b1a4-953d54e4f239","final":true,"launch_angle_confidence":0.6,"launch_angle_horizontal":-0.7,"launch_angle_vertical":21.2,"profile_id":"0f8e4b2a9c7d4e1f8a6b3c5d7e9f1a2b","profile_name":"Zoë","schema_version":2,"shot_number":7,"smash_factor":1.27,"spin_axis_deg":-1.6,"spin_rpm":6482,"spin_source":null,"timestamp":"2026-09-25T14:03:07.412345","type":"shot"}
 ```
 
 ### Events
@@ -346,7 +354,8 @@ stream. Each has `schema_version: 2` and a `type`, and never a `request_id`:
 
 | `type` | Fields | When |
 |---|---|---|
-| `club_changed` | `club` | Any club change (kiosk, phone, simulator) |
+| `club_changed` | `club`, `custom_club_id` (`""` when only a type is selected) | Any club change (kiosk, phone, simulator), and when a profile switch or a bag edit changes which custom club is selected |
+| `clubs` | `bag` (the active profile's id), `clubs: [{id, club, loft_deg, model}]` | After `get_clubs`, any custom club change, and every profile switch |
 | `profiles` | `profiles: [{id, name}]`, `active_profile_id` | After every profile request or mutation from any client, including rejected ones |
 | `session_cleared` | `profile_id` | After a profile's shots are cleared on the kiosk |
 | `shot_deleted` | `timestamp` (the shot's delete key) | After a shot is deleted on the kiosk |
@@ -354,7 +363,8 @@ stream. Each has `schema_version: 2` and a `type`, and never a `request_id`:
 | `power_status` | the Socket.IO `power_status` payload: `available, provider, state, battery_percent, battery_voltage_v, external_power, updated_at, error` | Every 5 s with `--battery` |
 
 ```json
-{"club":"7-iron","schema_version":2,"type":"club_changed"}
+{"club":"7-iron","custom_club_id":"","schema_version":2,"type":"club_changed"}
+{"bag":"0f8e…","clubs":[{"club":"sw","id":"3b1f…","loft_deg":56.0,"model":"Spinner"},{"club":"sw","id":"9d2e…","loft_deg":56.0,"model":"Digger 2"}],"schema_version":2,"type":"clubs"}
 {"active_profile_id":"0f8e…","profiles":[{"id":"0f8e…","name":"Zoë ⛳"},{"id":"7c1d…","name":"Sam"}],"schema_version":2,"type":"profiles"}
 {"profile_id":"0f8e…","schema_version":2,"type":"session_cleared"}
 {"schema_version":2,"timestamp":"2026-09-25T14:03:07.412345","type":"shot_deleted"}
@@ -366,12 +376,42 @@ Profiles carry only `id` and `name`. `created_at` and the open-ended `settings`
 stay on Socket.IO, because the phone only selects profiles here and an
 unbounded `settings` object could not be guaranteed to fit in one BLE message.
 
+### Custom clubs
+
+A profile's bag holds custom clubs: specific physical clubs, each of a built-in
+type, with the brand, model and specs the player recorded. Several clubs may
+share a type, so each has an `id`.
+
+- **Ids are stable and never reused.** The Pi issues them; an edit keeps the
+  id, and a removed club's id is never given to another club. It is safe to
+  file stored shots under `custom_club_id`.
+- **`""` means "no specific club".** `club_changed` and the `get_club` and
+  `set_club` results use `""` when only a club type is selected (no bag, or
+  a type the bag holds more than once). On shots the same case is `null`,
+  like the other session fields.
+- **Type-only selections still work.** `set_club` with just `club` keeps the
+  selected custom club when it is already that type, and otherwise picks the
+  bag's only club of that type, if it has exactly one.
+- **The `clubs` event lists the active bag only**, with `id`, `club`,
+  `loft_deg` (the club's own loft, or its type's nominal loft when none was
+  recorded) and the first 8 characters of `model`, so a full bag of 30 fits
+  in one BLE message. A profile switch sends the new bag.
+- **The bag is not part of the `profiles` event.** Clubs live in their own
+  store (`~/.config/openflight/clubs.json`), not in profile `settings`.
+  Socket.IO clients get every club, with all recorded fields, from its
+  `clubs` event: `{"version":1,"clubs":[{id, bag, club, name, label,
+  loft_deg, brand, model, bounce_deg, lie_deg, shaft, hand, notes}]}`.
+
+A custom club's loft moves the server's launch, spin and carry estimates along
+its club family; its other values are recorded and shown only. Phones get the
+already-estimated numbers on each shot and need not repeat the calculation.
+
 ### Network stream
 
 `GET /api/shots/stream` streams schema 2 as Server-Sent Events. `?schema=2` is
 accepted for clients that name it; any other `schema` value returns `400`. A
 stream opens with `: ping`, then the current state as `club_changed`,
-`profiles` and (with a battery monitor) `power_status`, then the
+`profiles`, `clubs` and (with a battery monitor) `power_status`, then the
 [catch-up](#catch-up-after-a-reconnect) deletions and shots (the whole session
 unless `Last-Event-ID` names a shot). The `OpenFlight-Features` response header
 lists the Pi's features, as `hello` does over BLE. Each `shot` frame carries `id: <event_id>`.
@@ -382,8 +422,9 @@ calibration route and Socket.IO.
 
 A BLE message is at most 255 fragments × 15 bytes = 3,825 bytes. Tests encode
 a worst-case shot (longest float representations everywhere, a 40-character
-profile name of six-byte escapes) and a `profiles` event with twelve such names
-(3,610 bytes) and require both to fit. The publisher refuses, and logs, any
+profile name of six-byte escapes), a `profiles` event with twelve such names
+(3,610 bytes) and a `clubs` event with a full 30-club bag of four-byte model
+characters (3,656 bytes), and require all three to fit. The publisher refuses, and logs, any
 message that would not fit instead of sending a truncated one.
 
 ## Delivery behavior

@@ -75,7 +75,7 @@ def resolve_shot(shot: Shot, player_state: PlayerState) -> ResolvedShot:
             "estimated" if shot.launch_angle_vertical_source == "estimated" else "measured"
         )
     else:
-        vla = get_club_physics(shot.club).optimal_launch_deg
+        vla = get_club_physics(shot.club, shot.custom_loft_deg).optimal_launch_deg
         provenance["vla"] = "estimated"
 
     if shot.launch_angle_horizontal is not None:

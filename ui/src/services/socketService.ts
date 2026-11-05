@@ -18,6 +18,8 @@ import { ingestSessionClub } from './sessionClubSync';
 import { remainingShotsAfterClear } from './sessionClear';
 import { useProfileStore } from '../stores/useProfileStore';
 import type { ProfilesSnapshot } from '../types/profile';
+import type { CustomClubPayload } from '../data/bag';
+import { useClubStore } from '../stores/useClubStore';
 
 const SOCKET_URL = getServerOrigin();
 
@@ -53,6 +55,7 @@ class SocketService {
       this.socket?.emit('get_radar_config');
       this.socket?.emit('get_camera_capture_settings');
       this.socket?.emit('get_profiles');
+      this.socket?.emit('get_clubs');
     });
 
     this.socket.on('disconnect', () => {
@@ -104,8 +107,16 @@ class SocketService {
       console.warn(`Sim shot dropped: ${data.reason}`);
     });
 
-    this.socket.on('club_changed', (data: { club: string }) => {
-      ingestSessionClub(data.club);
+    this.socket.on('club_changed', (data: { club: string; custom_club_id?: string }) => {
+      ingestSessionClub(data.club, data.custom_club_id);
+    });
+
+    this.socket.on('clubs', (data: unknown) => {
+      useClubStore.getState().applySnapshot(data);
+    });
+
+    this.socket.on('custom_club_error', (data: { error?: string }) => {
+      useClubStore.getState().setError(data?.error || 'Unknown error');
     });
 
     this.socket.on('profiles', (data: ProfilesSnapshot) => {
@@ -124,7 +135,7 @@ class SocketService {
       if (data.debug_mode !== undefined) {
         systemStore.setDebugMode(data.debug_mode);
       }
-      ingestSessionClub(data.club);
+      ingestSessionClub(data.club, data.custom_club_id);
     });
 
     this.socket.on('debug_toggled', (data: { enabled: boolean }) => {
@@ -219,8 +230,20 @@ class SocketService {
     this.socket?.emit('upload_cloud');
   }
 
-  setClub(club: string) {
-    this.socket?.emit('set_club', { club });
+  /** Select a club type, or one specific custom club from the active profile's bag. */
+  setClub(club: string, customClubId = '') {
+    this.socket?.emit('set_club', customClubId ? { club, custom_club_id: customClubId } : { club });
+  }
+
+  /** Add (no `id`) or update one custom club; the server answers with a `clubs` snapshot. */
+  saveCustomClub(club: CustomClubPayload) {
+    useClubStore.getState().setError(null);
+    this.socket?.emit('save_custom_club', club);
+  }
+
+  removeCustomClub(clubId: string) {
+    useClubStore.getState().setError(null);
+    this.socket?.emit('remove_custom_club', { id: clubId });
   }
 
   setTrainingImplement(implement: string) {

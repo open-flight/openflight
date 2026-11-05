@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A custom club's loft changes the estimates.** The launch angle estimate,
+  the radar launch sanity check, the fallback and optimal spin, the carry
+  estimate and the simulator launch fallback interpolate the club table by the
+  custom club's loft within its family (woods, hybrids, or irons and wedges):
+  a 56° sand wedge is estimated between the 54° SW and the 58° LW. Lofts past
+  either end of a family take that end's values, and a blank loft keeps the
+  club type's values. The radar's spin-measurement heuristics still use the
+  club type.
+- **Make your own custom clubs, several of the same type allowed.**
+  Each profile card on the Profiles view has a **Bag** button. Add the clubs
+  you carry and record each one's brand, model, loft, bounce, lie, shaft, hand
+  (right or left) and notes, all optional, so two 56° sand wedges on test stay
+  separate. A custom club inherits its built-in club's name, label and loft (a
+  blank loft takes the type's nominal loft). The **i** button on the bag page
+  explains which values change the numbers and which annotate your shots. Once a profile has clubs, the club
+  picker shows them with the loft under the label and the model below it;
+  built-in clubs the
+  bag lacks are on an **Other** tab. The header names the selected club, e.g.
+  `Sand Wedge · 56° · Spinner`, and Stats gives every custom club its own
+  filter chip. Each shot records the club that hit it (`custom_club_id` and
+  `custom_club` in the shot payload and session JSONL). Clubs live in
+  `~/.config/openflight/clubs.json` (override with `OPENFLIGHT_CLUBS_PATH`),
+  based on weawer's club store prototype.
+- **Custom clubs on the phone protocol.** `set_club` takes `custom_club_id` on
+  every transport; `club_changed`, the `get_club`/`set_club` results and BLE
+  and stream shots carry it; a new `clubs` event (and `get_clubs` command)
+  lists the active bag; `hello` advertises `custom_clubs`. Type-only
+  selections from simulators, phones and `/api/club` keep the selected custom
+  club when it is already that type. See
+  [Custom clubs](ios-ble.md#custom-clubs).
 - **Optional low-battery shutdown for UPS builds.**
   `scripts/battery/install_battery_guard.sh` installs a systemd service that,
   when external power is offline and the battery is at or below 10% or 3.40 V

@@ -4673,7 +4673,11 @@ class TestVerticalGateBypass:
 
     def _shot(self):
         return SimpleNamespace(
-            club=ClubType.IRON_7, ball_speed_mph=110.0, club_speed_mph=86.0, spin_rpm=None
+            club=ClubType.IRON_7,
+            ball_speed_mph=110.0,
+            club_speed_mph=86.0,
+            spin_rpm=None,
+            custom_loft_deg=None,
         )
 
     def test_default_marginal_accepts_out_of_lane_reading(self):
