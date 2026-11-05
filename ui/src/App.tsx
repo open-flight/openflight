@@ -6,6 +6,7 @@ import { useShotStore } from './stores/useShotStore';
 import { useCameraStore } from './stores/useCameraStore';
 import { useDebugStore } from './stores/useDebugStore';
 import { useProfileStore } from './stores/useProfileStore';
+import { useClubStore } from './stores/useClubStore';
 import { useHeroMetricStore } from './stores/useHeroMetricStore';
 import { useCameraReplayController } from './hooks/useCameraReplayController';
 import { socketService } from './services/socketService';
@@ -40,7 +41,7 @@ import {
 import { clubSelectionKey, filterShotsByProfile } from './types/shot';
 import type { Profile } from './types/profile';
 import { getClubName } from './data/clubs';
-import { bagClubDisplayName, findBagClub, profileBag } from './data/bag';
+import { bagClubs, customClubDisplayName, findCustomClub } from './data/bag';
 import { getTrainingImplementLabel } from './data/trainingImplements';
 import { unlockAudioCue } from './utils/audioCue';
 import { useLaunchDaddy, LaunchDaddyOverlay, LaunchDaddyBrand } from './components/LaunchDaddy';
@@ -75,17 +76,23 @@ function AppContent() {
       captureSettingsError: state.captureSettingsError,
     }))
   );
-  const { profiles, activeProfileId, profilesLoaded, bagError } = useProfileStore(
+  const { profiles, activeProfileId, profilesLoaded } = useProfileStore(
     useShallow((state) => ({
       profiles: state.profiles,
       activeProfileId: state.activeProfileId,
       profilesLoaded: state.loaded,
-      bagError: state.bagError,
     }))
   );
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) ?? null;
   const activeProfileName = activeProfile?.name ?? '';
-  const activeBag = profileBag(activeProfile);
+  const { customClubs, defaultLofts, clubError } = useClubStore(
+    useShallow((state) => ({ customClubs: state.clubs, defaultLofts: state.lofts, clubError: state.error }))
+  );
+  const activeBag = bagClubs(customClubs, activeProfileId);
+  const bagCounts: Record<string, number> = {};
+  for (const club of customClubs) {
+    bagCounts[club.bag] = (bagCounts[club.bag] ?? 0) + 1;
+  }
   const { heroMetricId, setHeroMetricId } = useHeroMetricStore(
     useShallow((state) => ({ heroMetricId: state.heroMetricId, setHeroMetricId: state.setHeroMetricId }))
   );
@@ -111,8 +118,8 @@ function AppContent() {
 
   const [currentView, setCurrentView] = useState<PanelView>('live');
   const [selectedClub, setSelectedClub] = useState('driver');
-  // The specific bag club the server selected, or "" for a plain club type.
-  const [selectedBagClubId, setSelectedBagClubId] = useState('');
+  // The custom club the server selected, or "" for a plain club type.
+  const [selectedCustomClubId, setSelectedCustomClubId] = useState('');
   const [bagEditorProfileId, setBagEditorProfileId] = useState<string | null>(null);
   const [selectedTrainingImplement, setSelectedTrainingImplement] = useState('driver');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -134,11 +141,11 @@ function AppContent() {
   if (serverClub && serverClub !== appliedServerClub) {
     setAppliedServerClub(serverClub);
     setSelectedClub(serverClub.club);
-    setSelectedBagClubId(serverClub.bagClubId);
+    setSelectedCustomClubId(serverClub.customClubId);
   }
   // Resolved against the active bag, so a club from another profile's bag or
   // one just removed is never shown as selected.
-  const selectedBagClub = findBagClub(activeBag, selectedBagClubId);
+  const selectedCustomClub = findCustomClub(activeBag, selectedCustomClubId);
   const bagMode = activeBag.length > 0;
 
   const { isLaunchDaddyMode, isExploding, triggerExplosion } = useLaunchDaddy();
@@ -146,8 +153,8 @@ function AppContent() {
   const isSwingSpeedMode = triggerStatus.mode === 'swing-speed';
   const activeImplementLabel = isSwingSpeedMode
     ? getTrainingImplementLabel(selectedTrainingImplement)
-    : selectedBagClub
-      ? bagClubDisplayName(selectedBagClub)
+    : selectedCustomClub
+      ? customClubDisplayName(selectedCustomClub)
       : getClubName(selectedClub);
 
   useEffect(() => {
@@ -221,11 +228,11 @@ function AppContent() {
       const selection = resolveBagPickerOption(activeBag, id);
       if (!selection) return;
       setSelectedClub(selection.club);
-      setSelectedBagClubId(selection.bagClubId);
-      socketService.setClub(selection.club, selection.bagClubId);
+      setSelectedCustomClubId(selection.customClubId);
+      socketService.setClub(selection.club, selection.customClubId);
     } else {
       setSelectedClub(id);
-      setSelectedBagClubId('');
+      setSelectedCustomClubId('');
       socketService.setClub(id);
     }
     setPickerOpen(false);
@@ -369,13 +376,14 @@ function AppContent() {
             onRenameProfile={openRenameProfile}
             onRemoveProfile={handleRemoveProfile}
             onOpenBag={(profile) => setBagEditorProfileId(profile.id)}
+            bagCounts={bagCounts}
             headerAction={addProfileAction}
           />
         )}
         {currentView === 'stats' && (
           <StatsPanel
             shots={shots}
-            activeClub={clubSelectionKey(selectedClub, selectedBagClub?.id ?? '')}
+            activeClub={clubSelectionKey(selectedClub, selectedCustomClub?.id ?? '')}
             profileId={activeProfileId}
             profileName={activeProfileName}
             headerAction={clearSessionAction}
@@ -459,9 +467,11 @@ function AppContent() {
       {bagEditorProfile ? (
         <BagEditor
           profileName={bagEditorProfile.name}
-          bag={profileBag(bagEditorProfile)}
-          error={bagError}
-          onSave={(bag) => socketService.setProfileBag(bagEditorProfile.id, bag)}
+          bag={bagClubs(customClubs, bagEditorProfile.id)}
+          defaultLofts={defaultLofts}
+          error={clubError}
+          onSave={(club) => socketService.saveCustomClub(club.id ? club : { ...club, bag: bagEditorProfile.id })}
+          onRemove={(clubId) => socketService.removeCustomClub(clubId)}
           onClose={() => setBagEditorProfileId(null)}
         />
       ) : null}
@@ -481,7 +491,7 @@ function AppContent() {
             isSwingSpeedMode
               ? selectedTrainingImplement
               : bagMode
-                ? bagPickerSelectedId(selectedClub, selectedBagClub?.id ?? '')
+                ? bagPickerSelectedId(selectedClub, selectedCustomClub?.id ?? '')
                 : selectedClub
           }
           sections={

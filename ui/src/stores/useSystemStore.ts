@@ -2,11 +2,11 @@ import { create } from 'zustand';
 import type { PowerStatus } from '../types/power';
 import type { SimShotInfo, SimStatus } from '../types/socket';
 
-/** The server's club selection: a built-in type, plus the bag club when one is chosen. */
+/** The server's club selection: a built-in type, plus the custom club when one is chosen. */
 export interface ClubSelection {
   club: string;
-  /** "" when no specific bag club is selected. */
-  bagClubId: string;
+  /** "" when no specific custom club is selected. */
+  customClubId: string;
 }
 
 interface SystemState {

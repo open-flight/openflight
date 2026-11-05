@@ -1,33 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import type { Profile } from '../types/profile';
 import {
-  bagClubCompactLabel,
-  bagClubDisplayName,
-  bagClubMakeModel,
-  bagClubSpecs,
+  bagClubs,
   clubShortLabel,
-  findBagClub,
+  customClubCompactLabel,
+  customClubDisplayName,
+  customClubMakeModel,
+  customClubSpecs,
+  findCustomClub,
   formatDegrees,
-  profileBag,
-  type BagClub,
+  parseClubsSnapshot,
+  type CustomClub,
 } from './bag';
 
-function profileWith(bag: unknown): Profile {
-  return { id: 'p', name: 'Home', created_at: '2026-11-01T00:00:00Z', settings: { bag } };
-}
-
-function bagClub(overrides: Partial<BagClub> = {}): BagClub {
+function customClub(overrides: Partial<CustomClub> = {}): CustomClub {
   return {
     id: 'sw-a',
+    bag: 'home',
     club: 'sw',
+    name: 'Sand Wedge',
+    label: 'SW',
+    loft_deg: 56,
     brand: 'Acme',
     model: 'Spinner',
-    loft_deg: 56,
     bounce_deg: 10,
     lie_deg: null,
     shaft: '',
-    notes: '',
     hand: null,
+    notes: '',
     ...overrides,
   };
 }
@@ -40,71 +39,80 @@ const SPEC_LABELS = {
   left: 'Left-handed',
 };
 
-describe('profileBag', () => {
-  it('is empty for a missing profile or a profile without a bag', () => {
-    expect(profileBag(null)).toEqual([]);
-    expect(profileBag(undefined)).toEqual([]);
-    expect(profileBag({ id: 'p', name: 'Home', created_at: '', settings: {} })).toEqual([]);
+describe('parseClubsSnapshot', () => {
+  it('reads clubs and the inherited lofts', () => {
+    const snapshot = parseClubsSnapshot({
+      version: 1,
+      clubs: [customClub(), customClub({ id: 'sw-b', model: 'Digger', bounce_deg: 14 })],
+      lofts: { sw: 54, driver: 10.5 },
+    });
+
+    expect(snapshot.clubs.map((club) => club.id)).toEqual(['sw-a', 'sw-b']);
+    expect(snapshot.clubs[1].bounce_deg).toBe(14);
+    expect(snapshot.lofts).toEqual({ sw: 54, driver: 10.5 });
   });
 
-  it('is empty when the bag is not a list', () => {
-    expect(profileBag(profileWith({ sw: true }))).toEqual([]);
-    expect(profileBag(profileWith('sw'))).toEqual([]);
+  it('is empty for anything that is not a snapshot', () => {
+    for (const raw of [null, undefined, 'clubs', [], { clubs: 'x', lofts: 'y' }]) {
+      expect(parseClubsSnapshot(raw)).toEqual({ clubs: [], lofts: {} });
+    }
   });
 
-  it('keeps two clubs of the same type in order', () => {
-    const bag = profileBag(profileWith([bagClub(), bagClub({ id: 'sw-b', model: 'Digger', bounce_deg: 14 })]));
+  it('skips clubs without an id, a bag, a known type or a loft', () => {
+    const { clubs } = parseClubsSnapshot({
+      clubs: [
+        customClub({ id: '' }),
+        customClub({ id: 'no-bag', bag: '' }),
+        customClub({ id: 'putter', club: 'putter' }),
+        { ...customClub({ id: 'no-loft' }), loft_deg: null },
+        null,
+        'sw',
+        customClub({ id: 'ok' }),
+      ],
+    });
 
-    expect(bag.map((club) => club.id)).toEqual(['sw-a', 'sw-b']);
-    expect(bag[1].bounce_deg).toBe(14);
+    expect(clubs.map((club) => club.id)).toEqual(['ok']);
   });
 
-  it('skips entries without an id or with an unknown club', () => {
-    const bag = profileBag(
-      profileWith([bagClub({ id: '' }), bagClub({ id: 'x', club: 'putter' }), null, 'sw', bagClub({ id: 'ok' })])
-    );
+  it('fills missing or mistyped fields, inheriting the name and label', () => {
+    const { clubs } = parseClubsSnapshot({
+      clubs: [{ id: 'a', bag: 'home', club: 'pw', loft_deg: 46, brand: 7, hand: 'both' }],
+    });
 
-    expect(bag.map((club) => club.id)).toEqual(['ok']);
-  });
-
-  it('fills missing or mistyped fields with blanks', () => {
-    const [club] = profileBag(profileWith([{ id: 'a', club: 'pw', loft_deg: '46', brand: 7 }]));
-
-    expect(club).toEqual({
+    expect(clubs[0]).toEqual({
       id: 'a',
+      bag: 'home',
       club: 'pw',
+      name: 'Pitching Wedge',
+      label: 'PW',
+      loft_deg: 46,
       brand: '',
       model: '',
-      loft_deg: null,
       bounce_deg: null,
       lie_deg: null,
       shaft: '',
-      notes: '',
       hand: null,
+      notes: '',
     });
   });
 
-  it('keeps a recorded hand and drops anything else', () => {
-    const bag = profileBag(
-      profileWith([
-        bagClub({ id: 'l', hand: 'left' }),
-        bagClub({ id: 'r', hand: 'right' }),
-        { ...bagClub({ id: 'x' }), hand: 'both' },
-        { ...bagClub({ id: 'old' }), hand: undefined },
-      ])
-    );
-
-    expect(bag.map((club) => club.hand)).toEqual(['left', 'right', null, null]);
+  it('keeps only lofts for known club types', () => {
+    expect(parseClubsSnapshot({ lofts: { sw: 54, putter: 3, lw: 'x' } }).lofts).toEqual({ sw: 54 });
   });
 });
 
-describe('findBagClub', () => {
-  it('finds by id and misses cleanly', () => {
-    const bag = [bagClub(), bagClub({ id: 'sw-b' })];
+describe('bagClubs and findCustomClub', () => {
+  const clubs = [customClub(), customClub({ id: 'other', bag: 'range' }), customClub({ id: 'sw-b' })];
 
-    expect(findBagClub(bag, 'sw-b')?.id).toBe('sw-b');
-    expect(findBagClub(bag, 'missing')).toBeNull();
-    expect(findBagClub(bag, '')).toBeNull();
+  it('picks one bag in order', () => {
+    expect(bagClubs(clubs, 'home').map((club) => club.id)).toEqual(['sw-a', 'sw-b']);
+    expect(bagClubs(clubs, '')).toEqual([]);
+  });
+
+  it('finds by id and misses cleanly', () => {
+    expect(findCustomClub(clubs, 'sw-b')?.id).toBe('sw-b');
+    expect(findCustomClub(clubs, 'missing')).toBeNull();
+    expect(findCustomClub(clubs, '')).toBeNull();
   });
 });
 
@@ -123,7 +131,7 @@ describe('formatDegrees', () => {
   });
 });
 
-describe('bag club labels', () => {
+describe('custom club labels', () => {
   it('uses the tile label for the club type', () => {
     expect(clubShortLabel('sw')).toBe('SW');
     expect(clubShortLabel('7-iron')).toBe('7i');
@@ -131,35 +139,25 @@ describe('bag club labels', () => {
   });
 
   it('joins brand and model', () => {
-    expect(bagClubMakeModel(bagClub())).toBe('Acme Spinner');
-    expect(bagClubMakeModel(bagClub({ brand: '' }))).toBe('Spinner');
-    expect(bagClubMakeModel(bagClub({ brand: '', model: '' }))).toBe('');
+    expect(customClubMakeModel(customClub())).toBe('Acme Spinner');
+    expect(customClubMakeModel(customClub({ brand: '' }))).toBe('Spinner');
+    expect(customClubMakeModel(customClub({ brand: '', model: '' }))).toBe('');
   });
 
   it('names the club with loft and model for the header', () => {
-    expect(bagClubDisplayName(bagClub())).toBe('Sand Wedge · 56° · Spinner');
-  });
-
-  it('falls back to the brand, and leaves out what is not recorded', () => {
-    expect(bagClubDisplayName(bagClub({ model: '' }))).toBe('Sand Wedge · 56° · Acme');
-    expect(bagClubDisplayName(bagClub({ model: '', brand: '', loft_deg: null }))).toBe('Sand Wedge');
+    expect(customClubDisplayName(customClub())).toBe('Sand Wedge · 56° · Spinner');
+    expect(customClubDisplayName(customClub({ model: '' }))).toBe('Sand Wedge · 56° · Acme');
+    expect(customClubDisplayName(customClub({ model: '', brand: '' }))).toBe('Sand Wedge · 56°');
   });
 
   it('builds a compact label that tells two 56° wedges apart', () => {
-    expect(bagClubCompactLabel(bagClub())).toBe('SW 56° Spinner');
-    expect(bagClubCompactLabel(bagClub({ id: 'b', model: 'Digger' }))).toBe('SW 56° Digger');
+    expect(customClubCompactLabel(customClub())).toBe('SW 56° Spinner');
+    expect(customClubCompactLabel(customClub({ id: 'b', model: 'Digger' }))).toBe('SW 56° Digger');
   });
 
-  it('lists recorded specs in loft, bounce, lie order', () => {
-    expect(bagClubSpecs(bagClub({ lie_deg: 64 }), SPEC_LABELS)).toBe('56° loft · 10° bounce · 64° lie');
-    expect(bagClubSpecs(bagClub({ loft_deg: null }), SPEC_LABELS)).toBe('10° bounce');
-    expect(bagClubSpecs(bagClub({ loft_deg: null, bounce_deg: null }), SPEC_LABELS)).toBe('');
-  });
-
-  it('ends the specs line with the hand when recorded', () => {
-    expect(bagClubSpecs(bagClub({ hand: 'left' }), SPEC_LABELS)).toBe('56° loft · 10° bounce · Left-handed');
-    expect(bagClubSpecs(bagClub({ loft_deg: null, bounce_deg: null, hand: 'right' }), SPEC_LABELS)).toBe(
-      'Right-handed'
-    );
+  it('lists recorded specs in loft, bounce, lie order, then the hand', () => {
+    expect(customClubSpecs(customClub({ lie_deg: 64 }), SPEC_LABELS)).toBe('56° loft · 10° bounce · 64° lie');
+    expect(customClubSpecs(customClub({ bounce_deg: null }), SPEC_LABELS)).toBe('56° loft');
+    expect(customClubSpecs(customClub({ hand: 'left' }), SPEC_LABELS)).toBe('56° loft · 10° bounce · Left-handed');
   });
 });

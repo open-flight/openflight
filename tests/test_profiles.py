@@ -5,9 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from openflight.clubs.bag import parse_bag
 from openflight.profiles import (
-    BAG_SETTINGS_KEY,
     DEFAULT_PROFILE_NAME,
     DEFAULT_PROFILES_PATH,
     MAX_PROFILES,
@@ -305,103 +303,6 @@ class TestSettings:
         snapshot["profiles"][-1]["settings"]["altitude_m"] = 999
 
         assert store.list()[-1].settings == {"altitude_m": 120}
-
-
-class TestBag:
-    """Each profile carries its own validated bag under settings["bag"]."""
-
-    @staticmethod
-    def _two_wedges():
-        return parse_bag(
-            [
-                {"id": "a", "club": "sw", "brand": "Acme", "loft_deg": 56, "bounce_deg": 10},
-                {"id": "b", "club": "sw", "brand": "Other", "loft_deg": 56, "bounce_deg": 14},
-            ]
-        )
-
-    def test_new_profile_has_an_empty_bag(self, store_path):
-        store = ProfileStore(store_path)
-
-        assert store.get_bag(store.get_active().id) == []
-
-    def test_unknown_profile_has_an_empty_bag(self, store_path):
-        assert ProfileStore(store_path).get_bag("nope") == []
-
-    def test_set_bag_persists_across_reload(self, store_path):
-        store = ProfileStore(store_path)
-        profile_id = store.get_active().id
-
-        assert store.set_bag(profile_id, self._two_wedges()) is True
-
-        reloaded = ProfileStore(store_path).get_bag(profile_id)
-        assert [(club.id, club.brand, club.bounce_deg) for club in reloaded] == [
-            ("a", "Acme", 10.0),
-            ("b", "Other", 14.0),
-        ]
-
-    def test_set_bag_stores_under_the_bag_key(self, store_path):
-        store = ProfileStore(store_path)
-        profile_id = store.get_active().id
-        store.set_bag(profile_id, self._two_wedges())
-
-        stored = json.loads(store_path.read_text(encoding="utf-8"))["profiles"][0]["settings"]
-        assert [entry["id"] for entry in stored[BAG_SETTINGS_KEY]] == ["a", "b"]
-
-    def test_set_bag_is_per_profile(self, store_path):
-        store = ProfileStore(store_path)
-        first = store.get_active().id
-        second = store.add("Range").id
-
-        store.set_bag(first, self._two_wedges())
-
-        assert len(store.get_bag(first)) == 2
-        assert store.get_bag(second) == []
-
-    def test_set_bag_keeps_other_settings(self, store_path):
-        store = ProfileStore(store_path)
-        profile = store.get_active()
-        profile.settings["altitude_m"] = 120
-
-        store.set_bag(profile.id, self._two_wedges())
-        store.set_bag(profile.id, [])
-
-        assert ProfileStore(store_path).get_active().settings == {"altitude_m": 120}
-
-    def test_empty_bag_removes_the_key(self, store_path):
-        store = ProfileStore(store_path)
-        profile_id = store.get_active().id
-        store.set_bag(profile_id, self._two_wedges())
-
-        store.set_bag(profile_id, [])
-
-        assert BAG_SETTINGS_KEY not in store.get_active().settings
-        assert store.get_bag(profile_id) == []
-
-    def test_set_bag_refuses_unknown_profile(self, store_path):
-        store = ProfileStore(store_path)
-
-        assert store.set_bag("nope", self._two_wedges()) is False
-
-    def test_hand_edited_bad_entries_are_skipped_on_read(self, store_path):
-        store = ProfileStore(store_path)
-        profile_id = store.get_active().id
-        store.get_active().settings[BAG_SETTINGS_KEY] = [
-            {"id": "ok", "club": "pw"},
-            {"id": "bad", "club": "pw", "loft_deg": 900},
-        ]
-        store.save()
-
-        assert [club.id for club in ProfileStore(store_path).get_bag(profile_id)] == ["ok"]
-
-    def test_snapshot_bag_cannot_mutate_store_state(self, store_path):
-        store = ProfileStore(store_path)
-        profile_id = store.get_active().id
-        store.set_bag(profile_id, self._two_wedges())
-
-        snapshot = store.snapshot()
-        snapshot["profiles"][0]["settings"][BAG_SETTINGS_KEY].clear()
-
-        assert len(store.get_bag(profile_id)) == 2
 
 
 class TestSnapshot:

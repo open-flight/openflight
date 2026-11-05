@@ -1,4 +1,4 @@
-import { bagClubCompactLabel, type BagClub } from '../data/bag';
+import { customClubCompactLabel, type CustomClub } from '../data/bag';
 
 export type SpinQuality = 'high' | 'medium' | 'low' | 'experimental' | 'withheld';
 
@@ -20,8 +20,9 @@ export interface Shot {
   estimated_carry_yards: number;
   carry_range: [number, number];
   club: string;
-  /** The specific bag club that hit the shot, snapshotted when it was recorded. */
-  bag_club?: BagClub | null;
+  /** The custom club that hit the shot ("" when none), and its details when it was recorded. */
+  custom_club_id?: string;
+  custom_club?: CustomClub | null;
   profile_id?: string;
   profile_name?: string;
   timestamp: string;
@@ -91,7 +92,7 @@ export interface SessionState {
   stats: SessionStats;
   shots: Shot[];
   club?: string;
-  bag_club_id?: string;
+  custom_club_id?: string;
 }
 
 export interface TriggerDiagnostic {
@@ -269,20 +270,20 @@ export function computeStats(shots: Shot[]): SessionStats {
 }
 
 /**
- * Grouping key for per-club stats: each bag club on its own (two 56° wedges
+ * Grouping key for per-club stats: each custom club on its own (two 56° wedges
  * stay apart), otherwise the built-in club type.
  */
-export function shotClubKey(shot: Pick<Shot, 'club' | 'bag_club'>): string {
-  return shot.bag_club ? `bag:${shot.bag_club.id}` : shot.club;
+export function shotClubKey(shot: Pick<Shot, 'club' | 'custom_club'>): string {
+  return shot.custom_club ? `custom:${shot.custom_club.id}` : shot.club;
 }
 
 /** The selection's stats key, matching `shotClubKey` for the shots it records. */
-export function clubSelectionKey(club: string, bagClubId: string): string {
-  return bagClubId ? `bag:${bagClubId}` : club;
+export function clubSelectionKey(club: string, customClubId: string): string {
+  return customClubId ? `custom:${customClubId}` : club;
 }
 
-/** Row/chip label: "SW 56° Spinner" for a bag club, the club id otherwise. */
-export function shotClubLabel(shot: Pick<Shot, 'club' | 'bag_club' | 'training_implement_label'>): string {
+/** Row/chip label: "SW 56° Spinner" for a custom club, the club id otherwise. */
+export function shotClubLabel(shot: Pick<Shot, 'club' | 'custom_club' | 'training_implement_label'>): string {
   if (shot.training_implement_label) return shot.training_implement_label;
-  return shot.bag_club ? bagClubCompactLabel(shot.bag_club) : shot.club;
+  return shot.custom_club ? customClubCompactLabel(shot.custom_club) : shot.club;
 }

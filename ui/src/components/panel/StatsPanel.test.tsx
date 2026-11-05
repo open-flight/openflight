@@ -155,13 +155,22 @@ describe('StatsPanel', () => {
   });
 
   it('gives each bag club its own chip so two 56° wedges can be compared', () => {
-    const spinner = { id: 'a', club: 'sw', brand: 'Acme', model: 'Spinner', loft_deg: 56 };
+    const spinner = { id: 'a', bag: 'james', club: 'sw', brand: 'Acme', model: 'Spinner', loft_deg: 56 };
     const digger = { ...spinner, id: 'b', model: 'Digger' };
     const bagShot = (bagClub: typeof spinner, timestamp: string) =>
       makeShot({
         club: 'sw',
         timestamp,
-        bag_club: { bounce_deg: null, lie_deg: null, shaft: '', notes: '', hand: null, ...bagClub },
+        custom_club: {
+          name: 'Sand Wedge',
+          label: 'SW',
+          bounce_deg: null,
+          lie_deg: null,
+          shaft: '',
+          notes: '',
+          hand: null,
+          ...bagClub,
+        },
       });
     const shots = [
       bagShot(spinner, 'a'),
@@ -170,7 +179,7 @@ describe('StatsPanel', () => {
       makeShot({ club: 'sw', timestamp: 'd' }),
     ];
 
-    const html = render(shots, 'bag:b');
+    const html = render(shots, 'custom:b');
     const activeChip = html.match(/<button[^>]*panel-chip--active[^>]*>([^<]*)</)?.[1];
 
     expect(html).toContain('SW 56° SPINNER (2)');

@@ -3,18 +3,20 @@ import {
   BAG_NOTES_MAX,
   BAG_TEXT_MAX,
   type BagAngleField,
-  type BagClub,
   type BagHand,
   type BagTextField,
+  type CustomClub,
+  type CustomClubPayload,
 } from '../../data/bag';
 
-/** Every editable field of a bag club, in form order. */
+/** Every editable field of a custom club, in form order. */
 export const BAG_FORM_FIELDS = ['brand', 'model', 'loft_deg', 'bounce_deg', 'lie_deg', 'shaft', 'notes'] as const;
 export type BagFormField = (typeof BAG_FORM_FIELDS)[number];
 
 /**
  * The form's working copy: angles stay as typed text until saved. Club type
  * and hand are picked with buttons, not typed; '' hand is "not recorded".
+ * '' id is a club not yet saved: the server issues its id.
  */
 export type BagClubDraft = { id: string; club: string; hand: BagHand | '' } & Record<BagFormField, string>;
 
@@ -28,16 +30,6 @@ export function isAngleField(field: BagFormField): field is BagAngleField {
 export function fieldMaxLength(field: BagFormField): number {
   if (isAngleField(field)) return 6;
   return field === 'notes' ? BAG_NOTES_MAX : BAG_TEXT_MAX;
-}
-
-/** A fresh id that survives the server round trip, so quick edits never collide. */
-export function newBagClubId(): string {
-  const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
-  // randomUUID needs a secure context; a kiosk opened over LAN http is not one.
-  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
-    return cryptoApi.randomUUID().replace(/-/g, '');
-  }
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
 }
 
 export function newBagClubDraft(club: string): BagClubDraft {
@@ -55,7 +47,7 @@ export function newBagClubDraft(club: string): BagClubDraft {
   };
 }
 
-export function draftFromBagClub(club: BagClub): BagClubDraft {
+export function draftFromCustomClub(club: CustomClub): BagClubDraft {
   const angleText = (value: number | null) => (value === null ? '' : String(value));
   return {
     id: club.id,
@@ -71,7 +63,10 @@ export function draftFromBagClub(club: BagClub): BagClubDraft {
   };
 }
 
-/** Blank is "not recorded"; anything else must be a number inside the field's range. */
+/**
+ * Blank is "not recorded" (for loft: inherit the type's nominal loft);
+ * anything else must be a number inside the field's range.
+ */
 export function parseAngle(raw: string, field: BagAngleField): { value: number | null } | { error: AngleError } {
   const trimmed = raw.trim();
   if (!trimmed) return { value: null };
@@ -96,14 +91,14 @@ function cleanText(value: string, field: BagTextField): string {
   return value.split(/\s+/).filter(Boolean).join(' ').slice(0, fieldMaxLength(field));
 }
 
-/** The validated club, or null while any angle is invalid. New drafts get an id here. */
-export function bagClubFromDraft(draft: BagClubDraft): BagClub | null {
+/** What to send to `save_custom_club`, or null while any angle is invalid. */
+export function payloadFromDraft(draft: BagClubDraft): CustomClubPayload | null {
   const loft = parseAngle(draft.loft_deg, 'loft_deg');
   const bounce = parseAngle(draft.bounce_deg, 'bounce_deg');
   const lie = parseAngle(draft.lie_deg, 'lie_deg');
   if ('error' in loft || 'error' in bounce || 'error' in lie) return null;
   return {
-    id: draft.id || newBagClubId(),
+    ...(draft.id ? { id: draft.id } : {}),
     club: draft.club,
     brand: cleanText(draft.brand, 'brand'),
     model: cleanText(draft.model, 'model'),
@@ -114,15 +109,4 @@ export function bagClubFromDraft(draft: BagClubDraft): BagClub | null {
     notes: cleanText(draft.notes, 'notes'),
     hand: draft.hand || null,
   };
-}
-
-/** Replace the club with the same id in place, or append a new one. */
-export function upsertBagClub(bag: ReadonlyArray<BagClub>, club: BagClub): BagClub[] {
-  const index = bag.findIndex((entry) => entry.id === club.id);
-  if (index === -1) return [...bag, club];
-  return bag.map((entry, position) => (position === index ? club : entry));
-}
-
-export function removeBagClub(bag: ReadonlyArray<BagClub>, id: string): BagClub[] {
-  return bag.filter((club) => club.id !== id);
 }

@@ -110,6 +110,8 @@ def mock_sim():
 
 @pytest.fixture(autouse=True)
 def _isolate_profile_store(tmp_path_factory, monkeypatch):
-    """Keep ProfileStore() off ~/.config/openflight/profiles.json during tests."""
+    """Keep ProfileStore() and ClubStore() off ~/.config/openflight during tests."""
     roster = tmp_path_factory.mktemp("profiles") / "profiles.json"
     monkeypatch.setenv("OPENFLIGHT_PROFILES_PATH", str(roster))
+    clubs = tmp_path_factory.mktemp("clubs") / "clubs.json"
+    monkeypatch.setenv("OPENFLIGHT_CLUBS_PATH", str(clubs))

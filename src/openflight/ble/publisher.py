@@ -161,10 +161,10 @@ class BleShotPublisher:
             loop.call_soon_threadsafe(self._enqueue_payload, payload)
         return True
 
-    def publish_club(self, club: str) -> bool:
+    def publish_club(self, club: str, custom_club_id: str = "") -> bool:
         """Notify connected centrals that the authoritative club changed."""
         try:
-            event = build_club_event(club)
+            event = build_club_event(club, custom_club_id)
         except (TypeError, ValueError):
             logger.warning("[BLE] Failed to encode club payload", exc_info=True)
             return False

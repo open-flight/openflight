@@ -1,6 +1,6 @@
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { MAX_BAG_CLUBS, type BagClub } from '../../data/bag';
+import { MAX_BAG_CLUBS, type CustomClub } from '../../data/bag';
 import { BagEditor } from './BagEditor';
 
 /** React SSR splits interpolated text with comment markers; drop them. */
@@ -8,10 +8,13 @@ function text(html: string): string {
   return html.replace(/<!-- -->/g, '');
 }
 
-function wedge(id: string, overrides: Partial<BagClub> = {}): BagClub {
+function wedge(id: string, overrides: Partial<CustomClub> = {}): CustomClub {
   return {
     id,
+    bag: 'home',
     club: 'sw',
+    name: 'Sand Wedge',
+    label: 'SW',
     brand: 'Acme',
     model: 'Spinner',
     loft_deg: 56,
@@ -27,7 +30,16 @@ function wedge(id: string, overrides: Partial<BagClub> = {}): BagClub {
 function render(overrides: Partial<Parameters<typeof BagEditor>[0]> = {}) {
   return text(
     renderToString(
-      <BagEditor profileName="Home" bag={[]} error={null} onSave={() => {}} onClose={() => {}} {...overrides} />
+      <BagEditor
+        profileName="Home"
+        bag={[]}
+        defaultLofts={{ sw: 54 }}
+        error={null}
+        onSave={() => {}}
+        onRemove={() => {}}
+        onClose={() => {}}
+        {...overrides}
+      />
     )
   );
 }
@@ -71,11 +83,11 @@ describe('BagEditor', () => {
     expect(html).toContain('aria-label="Remove Acme Spinner"');
   });
 
-  it('falls back to the club name when no brand or model is recorded', () => {
-    const html = render({ bag: [wedge('a', { brand: '', model: '', loft_deg: null, bounce_deg: null })] });
+  it('falls back to the club name, and shows the inherited loft, when nothing else is recorded', () => {
+    const html = render({ bag: [wedge('a', { brand: '', model: '', loft_deg: 54, bounce_deg: null })] });
 
     expect(html).toContain('bag-editor__name">Sand Wedge<');
-    expect(html).not.toContain('bag-editor__specs');
+    expect(html).toContain('bag-editor__specs">54° loft<');
   });
 
   it('shows a server rejection', () => {

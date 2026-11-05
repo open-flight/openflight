@@ -62,16 +62,27 @@ export function registerHandlers(io: Server, session: MockSession): void {
       }, 1400);
     });
 
-    socket.on('set_club', (data: { club?: string; bag_club_id?: string }) => {
-      io.emit('club_changed', session.setClub(data?.club ?? 'driver', data?.bag_club_id ?? ''));
+    socket.on('set_club', (data: { club?: string; custom_club_id?: string }) => {
+      io.emit('club_changed', session.setClub(data?.club ?? 'driver', data?.custom_club_id ?? ''));
     });
 
-    socket.on('set_profile_bag', (data: { profile_id?: string; bag?: unknown }) => {
-      session.setProfileBag(data?.profile_id, data?.bag);
-      io.emit('profiles', session.snapshot());
-      if (session.reconcileBagClub()) {
-        io.emit('club_changed', { club: session.club, bag_club_id: session.bagClubId });
+    const emitClubsAndReconcile = () => {
+      io.emit('clubs', session.clubsPayload());
+      if (session.reconcileCustomClub()) {
+        io.emit('club_changed', { club: session.club, custom_club_id: session.customClubId });
       }
+    };
+
+    socket.on('get_clubs', () => socket.emit('clubs', session.clubsPayload()));
+
+    socket.on('save_custom_club', (data: Parameters<typeof session.saveCustomClub>[0]) => {
+      session.saveCustomClub(data ?? {});
+      emitClubsAndReconcile();
+    });
+
+    socket.on('remove_custom_club', (data: { id?: string }) => {
+      session.removeCustomClub(data?.id);
+      emitClubsAndReconcile();
     });
 
     socket.on('set_training_implement', (data: { implement?: string }) => {
@@ -89,8 +100,8 @@ export function registerHandlers(io: Server, session: MockSession): void {
     socket.on('set_active_profile', (data: { profile_id?: string }) => {
       session.setActiveProfile(data?.profile_id);
       emitProfiles();
-      if (session.reconcileBagClub()) {
-        io.emit('club_changed', { club: session.club, bag_club_id: session.bagClubId });
+      if (session.reconcileCustomClub()) {
+        io.emit('club_changed', { club: session.club, custom_club_id: session.customClubId });
       }
     });
 

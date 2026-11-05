@@ -1570,6 +1570,11 @@
   font-size: 0.9375rem;
 }
 
+.bag-editor__field-value--placeholder {
+  font-weight: 500;
+  color: var(--color-text-faint);
+}
+
 .bag-editor__field-error {
   font-size: 0.625rem;
   font-weight: 600;

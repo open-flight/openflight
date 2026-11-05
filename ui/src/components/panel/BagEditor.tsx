@@ -4,13 +4,14 @@ import {
   BAG_ANGLE_RANGES,
   BAG_HANDS,
   MAX_BAG_CLUBS,
-  bagClubMakeModel,
-  bagClubSpecs,
   clubShortLabel,
+  customClubMakeModel,
+  customClubSpecs,
   formatDegrees,
-  type BagClub,
   type BagHand,
   type BagSpecLabels,
+  type CustomClub,
+  type CustomClubPayload,
 } from '../../data/bag';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import type { MessageKey } from '../../i18n';
@@ -21,14 +22,12 @@ import { PickerOverlay } from './PickerOverlay';
 import { clubSections } from './pickerSections';
 import {
   BAG_FORM_FIELDS,
-  bagClubFromDraft,
   draftErrors,
-  draftFromBagClub,
+  draftFromCustomClub,
   fieldMaxLength,
   isAngleField,
   newBagClubDraft,
-  removeBagClub,
-  upsertBagClub,
+  payloadFromDraft,
   type BagClubDraft,
   type BagFormField,
 } from './bagDraft';
@@ -53,11 +52,15 @@ const DEFAULT_NEW_CLUB = 'sw';
 
 interface BagEditorProps {
   profileName: string;
-  bag: BagClub[];
-  /** The server's reason for rejecting the last save, if any. */
+  /** This profile's clubs. */
+  bag: CustomClub[];
+  /** Each club type's nominal loft: what a blank loft inherits. */
+  defaultLofts: Record<string, number>;
+  /** The server's reason for rejecting the last save or removal, if any. */
   error: string | null;
-  /** Persist the whole bag. The server broadcasts the result back as `bag`. */
-  onSave: (bag: BagClub[]) => void;
+  /** Add (no `id`) or update one club. The server broadcasts the result as `clubs`. */
+  onSave: (club: CustomClubPayload) => void;
+  onRemove: (clubId: string) => void;
   onClose: () => void;
 }
 
@@ -66,7 +69,7 @@ interface BagEditorProps {
  * its own brand, model and specs. Every add, edit and removal saves at once,
  * so there is never an unsaved bag to lose.
  */
-export function BagEditor({ profileName, bag, error, onSave, onClose }: BagEditorProps) {
+export function BagEditor({ profileName, bag, defaultLofts, error, onSave, onRemove, onClose }: BagEditorProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<BagClubDraft | null>(null);
 
@@ -74,11 +77,11 @@ export function BagEditor({ profileName, bag, error, onSave, onClose }: BagEdito
     return (
       <BagClubForm
         draft={draft}
-        isNew={!bag.some((club) => club.id === draft.id)}
+        defaultLoft={defaultLofts[draft.club] ?? null}
         onChange={setDraft}
         onCancel={() => setDraft(null)}
         onSave={(club) => {
-          onSave(upsertBagClub(bag, club));
+          onSave(club);
           setDraft(null);
         }}
       />
@@ -108,8 +111,8 @@ export function BagEditor({ profileName, bag, error, onSave, onClose }: BagEdito
       ) : null}
       <BagClubList
         bag={bag}
-        onEdit={(club) => setDraft(draftFromBagClub(club))}
-        onRemove={(club) => onSave(removeBagClub(bag, club.id))}
+        onEdit={(club) => setDraft(draftFromCustomClub(club))}
+        onRemove={(club) => onRemove(club.id)}
       />
       <div className="profile-name-modal__actions">
         <PanelAction disabled={full} onClick={() => setDraft(newBagClubDraft(DEFAULT_NEW_CLUB))}>
@@ -124,9 +127,9 @@ export function BagEditor({ profileName, bag, error, onSave, onClose }: BagEdito
 }
 
 interface BagClubListProps {
-  bag: BagClub[];
-  onEdit: (club: BagClub) => void;
-  onRemove: (club: BagClub) => void;
+  bag: CustomClub[];
+  onEdit: (club: CustomClub) => void;
+  onRemove: (club: CustomClub) => void;
 }
 
 function BagClubList({ bag, onEdit, onRemove }: BagClubListProps) {
@@ -163,8 +166,8 @@ function BagClubList({ bag, onEdit, onRemove }: BagClubListProps) {
     >
       {bag.map((club) => {
         const name = getClubName(club.club);
-        const makeModel = bagClubMakeModel(club);
-        const specs = bagClubSpecs(club, specLabels);
+        const makeModel = customClubMakeModel(club);
+        const specs = customClubSpecs(club, specLabels);
         return (
           <div className="bag-editor__row" role="listitem" key={club.id}>
             <button
@@ -198,19 +201,24 @@ function BagClubList({ bag, onEdit, onRemove }: BagClubListProps) {
 
 interface BagClubFormProps {
   draft: BagClubDraft;
-  isNew: boolean;
+  /** The club type's nominal loft, shown while the loft field is blank. */
+  defaultLoft: number | null;
   onChange: (draft: BagClubDraft) => void;
-  onSave: (club: BagClub) => void;
+  onSave: (club: CustomClubPayload) => void;
   onCancel: () => void;
 }
 
-function BagClubForm({ draft, isNew, onChange, onSave, onCancel }: BagClubFormProps) {
+function BagClubForm({ draft, defaultLoft, onChange, onSave, onCancel }: BagClubFormProps) {
   const { t } = useI18n();
   const [focused, setFocused] = useState<BagFormField>('brand');
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const errors = draftErrors(draft);
   const valid = Object.keys(errors).length === 0;
-  const title = isNew ? t('bag.add') : t('bag.edit');
+  const title = draft.id ? t('bag.edit') : t('bag.add');
+
+  // A blank loft inherits the type's; say what it will be rather than show nothing.
+  const placeholder = (field: BagFormField): string =>
+    field === 'loft_deg' && defaultLoft !== null ? t('bag.defaultLoft', { loft: formatDegrees(defaultLoft) }) : '';
 
   const errorText = (field: BagFormField): string => {
     if (!isAngleField(field) || !errors[field]) return '';
@@ -279,7 +287,13 @@ function BagClubForm({ draft, isNew, onChange, onSave, onCancel }: BagClubFormPr
                 {t(FIELD_LABEL_KEYS[field])}
                 {isAngleField(field) ? ' (°)' : ''}
               </span>
-              <span className="bag-editor__field-value">{draft[field] || ' '}</span>
+              {draft[field] ? (
+                <span className="bag-editor__field-value">{draft[field]}</span>
+              ) : (
+                <span className="bag-editor__field-value bag-editor__field-value--placeholder">
+                  {placeholder(field) || ' '}
+                </span>
+              )}
               {error ? <span className="bag-editor__field-error">{error}</span> : null}
             </button>
           );
@@ -296,7 +310,7 @@ function BagClubForm({ draft, isNew, onChange, onSave, onCancel }: BagClubFormPr
         <PanelAction
           disabled={!valid}
           onClick={() => {
-            const club = bagClubFromDraft(draft);
+            const club = payloadFromDraft(draft);
             if (club) onSave(club);
           }}
         >

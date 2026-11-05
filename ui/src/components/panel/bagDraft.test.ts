@@ -1,29 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { BAG_NOTES_MAX, BAG_TEXT_MAX, type BagClub } from '../../data/bag';
+import { BAG_NOTES_MAX, BAG_TEXT_MAX, type CustomClub } from '../../data/bag';
 import {
-  bagClubFromDraft,
   draftErrors,
-  draftFromBagClub,
+  draftFromCustomClub,
   fieldMaxLength,
   isAngleField,
   newBagClubDraft,
-  newBagClubId,
   parseAngle,
-  removeBagClub,
-  upsertBagClub,
+  payloadFromDraft,
 } from './bagDraft';
 
-const WEDGE: BagClub = {
+const WEDGE: CustomClub = {
   id: 'sw-a',
+  bag: 'home',
   club: 'sw',
+  name: 'Sand Wedge',
+  label: 'SW',
+  loft_deg: 56,
   brand: 'Acme',
   model: 'Spinner',
-  loft_deg: 56,
   bounce_deg: 10,
   lie_deg: null,
   shaft: 'Stiff',
-  notes: '',
   hand: 'left',
+  notes: '',
 };
 
 describe('parseAngle', () => {
@@ -70,7 +70,7 @@ describe('parseAngle', () => {
 });
 
 describe('drafts', () => {
-  it('starts a new club blank, with no id yet', () => {
+  it('starts a new club blank, with no id', () => {
     expect(newBagClubDraft('sw')).toEqual({
       id: '',
       club: 'sw',
@@ -85,50 +85,62 @@ describe('drafts', () => {
     });
   });
 
-  it('round-trips an existing club through a draft unchanged', () => {
-    const draft = draftFromBagClub(WEDGE);
+  it('round-trips an existing club, keeping its id', () => {
+    const draft = draftFromCustomClub(WEDGE);
 
     expect(draft.loft_deg).toBe('56');
     expect(draft.lie_deg).toBe('');
-    expect(bagClubFromDraft(draft)).toEqual(WEDGE);
+    expect(draft.hand).toBe('left');
+    expect(payloadFromDraft(draft)).toEqual({
+      id: 'sw-a',
+      club: 'sw',
+      brand: 'Acme',
+      model: 'Spinner',
+      loft_deg: 56,
+      bounce_deg: 10,
+      lie_deg: null,
+      shaft: 'Stiff',
+      notes: '',
+      hand: 'left',
+    });
   });
 
-  it('carries the hand through a draft, and saves a blank hand as not recorded', () => {
-    expect(draftFromBagClub(WEDGE).hand).toBe('left');
-    expect(draftFromBagClub({ ...WEDGE, hand: null }).hand).toBe('');
-    expect(bagClubFromDraft({ ...newBagClubDraft('sw'), hand: 'right' })?.hand).toBe('right');
-    expect(bagClubFromDraft(newBagClubDraft('sw'))?.hand).toBeNull();
+  it('sends no id for a new club: the server issues it', () => {
+    expect(payloadFromDraft(newBagClubDraft('lw'))).not.toHaveProperty('id');
   });
 
-  it('reports each invalid angle', () => {
+  it('sends a blank loft as null so the club inherits its type loft', () => {
+    expect(payloadFromDraft(newBagClubDraft('lw'))?.loft_deg).toBeNull();
+  });
+
+  it('saves a blank hand as not recorded', () => {
+    expect(draftFromCustomClub({ ...WEDGE, hand: null }).hand).toBe('');
+    expect(payloadFromDraft(newBagClubDraft('sw'))?.hand).toBeNull();
+    expect(payloadFromDraft({ ...newBagClubDraft('sw'), hand: 'right' })?.hand).toBe('right');
+  });
+
+  it('reports each invalid angle and refuses to build a payload', () => {
     const draft = { ...newBagClubDraft('sw'), loft_deg: '560', bounce_deg: 'x' };
 
     expect(draftErrors(draft)).toEqual({ loft_deg: 'range', bounce_deg: 'number' });
-    expect(bagClubFromDraft(draft)).toBeNull();
+    expect(payloadFromDraft(draft)).toBeNull();
   });
 
   it('has no errors for a blank draft', () => {
     expect(draftErrors(newBagClubDraft('pw'))).toEqual({});
   });
 
-  it('gives a new club an id and tidies its text', () => {
-    const club = bagClubFromDraft({ ...newBagClubDraft('lw'), brand: '  Acme   Golf ', loft_deg: '60' });
-
-    expect(club?.id).toMatch(/^[0-9a-z]{8,}$/);
-    expect(club?.brand).toBe('Acme Golf');
-    expect(club?.loft_deg).toBe(60);
-    expect(club?.bounce_deg).toBeNull();
-  });
-
-  it('caps text at the server limits', () => {
-    const club = bagClubFromDraft({
+  it('tidies and caps text at the server limits', () => {
+    const payload = payloadFromDraft({
       ...newBagClubDraft('lw'),
+      brand: '  Acme   Golf ',
       model: 'M'.repeat(BAG_TEXT_MAX + 5),
       notes: 'n'.repeat(BAG_NOTES_MAX + 5),
     });
 
-    expect(club?.model).toHaveLength(BAG_TEXT_MAX);
-    expect(club?.notes).toHaveLength(BAG_NOTES_MAX);
+    expect(payload?.brand).toBe('Acme Golf');
+    expect(payload?.model).toHaveLength(BAG_TEXT_MAX);
+    expect(payload?.notes).toHaveLength(BAG_NOTES_MAX);
   });
 });
 
@@ -145,44 +157,5 @@ describe('field metadata', () => {
     expect(fieldMaxLength('brand')).toBe(BAG_TEXT_MAX);
     expect(fieldMaxLength('notes')).toBe(BAG_NOTES_MAX);
     expect(fieldMaxLength('loft_deg')).toBe(6);
-  });
-});
-
-describe('newBagClubId', () => {
-  it('is unique across quick successive calls', () => {
-    const ids = new Set(Array.from({ length: 200 }, () => newBagClubId()));
-
-    expect(ids.size).toBe(200);
-  });
-});
-
-describe('bag list edits', () => {
-  const other: BagClub = { ...WEDGE, id: 'sw-b', model: 'Digger' };
-
-  it('appends a new club', () => {
-    expect(upsertBagClub([WEDGE], other).map((club) => club.id)).toEqual(['sw-a', 'sw-b']);
-  });
-
-  it('replaces an edited club in place', () => {
-    const edited = { ...WEDGE, bounce_deg: 12 };
-
-    const bag = upsertBagClub([WEDGE, other], edited);
-
-    expect(bag.map((club) => club.id)).toEqual(['sw-a', 'sw-b']);
-    expect(bag[0].bounce_deg).toBe(12);
-  });
-
-  it('removes only the named club', () => {
-    expect(removeBagClub([WEDGE, other], 'sw-a')).toEqual([other]);
-    expect(removeBagClub([WEDGE], 'missing')).toEqual([WEDGE]);
-  });
-
-  it('never mutates the input bag', () => {
-    const bag = [WEDGE];
-
-    upsertBagClub(bag, other);
-    removeBagClub(bag, 'sw-a');
-
-    expect(bag).toEqual([WEDGE]);
   });
 });

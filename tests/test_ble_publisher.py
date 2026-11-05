@@ -359,6 +359,7 @@ def test_publish_club_notifies_connected_clients_as_unsolicited_state():
             "schema_version": 2,
             "type": "club_changed",
             "club": "3-wood",
+            "custom_club_id": "",
         }
 
     asyncio.run(run())

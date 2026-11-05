@@ -1,5 +1,5 @@
 import { ALL_CLUBS, CLUBS_BY_TYPE } from '../../data/clubs';
-import { clubShortLabel, formatDegrees, type BagClub } from '../../data/bag';
+import { clubShortLabel, formatDegrees, type CustomClub } from '../../data/bag';
 import { getTrainingImplementsByGroup } from '../../data/trainingImplements';
 
 export interface PickerOption {
@@ -33,7 +33,7 @@ export const OTHER_CLUBS_SECTION = 'Other';
  * Built-in clubs the bag lacks go in a trailing "Other" tab, so a bag set up
  * only to compare two wedges never locks the player out of the driver.
  */
-export function bagClubSections(bag: ReadonlyArray<BagClub>): PickerSection[] {
+export function bagClubSections(bag: ReadonlyArray<CustomClub>): PickerSection[] {
   const carried = new Set(bag.map((club) => club.club));
   const families = Object.entries(CLUBS_BY_TYPE)
     .map(([name, clubs]) => ({
@@ -58,8 +58,8 @@ export function bagClubSections(bag: ReadonlyArray<BagClub>): PickerSection[] {
 }
 
 /** The bag picker's id for the current selection. */
-export function bagPickerSelectedId(club: string, bagClubId: string): string {
-  return bagClubId || `${OTHER_CLUB_PREFIX}${club}`;
+export function bagPickerSelectedId(club: string, customClubId: string): string {
+  return customClubId || `${OTHER_CLUB_PREFIX}${club}`;
 }
 
 /**
@@ -67,15 +67,15 @@ export function bagPickerSelectedId(club: string, bagClubId: string): string {
  * built-in club from the Other tab. Null for an id the bag no longer has.
  */
 export function resolveBagPickerOption(
-  bag: ReadonlyArray<BagClub>,
+  bag: ReadonlyArray<CustomClub>,
   id: string
-): { club: string; bagClubId: string } | null {
+): { club: string; customClubId: string } | null {
   if (id.startsWith(OTHER_CLUB_PREFIX)) {
     const club = id.slice(OTHER_CLUB_PREFIX.length);
-    return ALL_CLUBS.some((entry) => entry.id === club) ? { club, bagClubId: '' } : null;
+    return ALL_CLUBS.some((entry) => entry.id === club) ? { club, customClubId: '' } : null;
   }
-  const bagClub = bag.find((club) => club.id === id);
-  return bagClub ? { club: bagClub.club, bagClubId: bagClub.id } : null;
+  const customClub = bag.find((club) => club.id === id);
+  return customClub ? { club: customClub.club, customClubId: customClub.id } : null;
 }
 
 /** Training-implement sections, used in place of clubs during swing-speed mode. */

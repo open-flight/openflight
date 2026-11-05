@@ -3,9 +3,7 @@
 A profile is deliberately untyped. It may denote a person ("Cormac") or a
 place ("Home Range"), because both are things you want shots recorded
 against. Later features attach data via the open ``settings`` dict, which
-this module round-trips untouched. The one key it owns is ``bag``
-(``BAG_SETTINGS_KEY``): the profile's clubs, written through ``set_bag`` and
-read through ``get_bag`` so it is always validated.
+this module round-trips untouched and never interprets.
 
 The store is the single source of truth for both the roster and which
 profile is active; the UI mirrors it and holds no copy of its own.
@@ -13,7 +11,6 @@ profile is active; the UI mirrors it and holds no copy of its own.
 
 from __future__ import annotations
 
-import copy
 import json
 import logging
 import os
@@ -24,8 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from .clubs.bag import BagClub, load_bag
-
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILES_PATH = Path.home() / ".config" / "openflight" / "profiles.json"
@@ -33,7 +28,6 @@ PROFILES_PATH_ENV = "OPENFLIGHT_PROFILES_PATH"
 DEFAULT_PROFILE_NAME = "Profile 1"
 MAX_PROFILES = 12
 MAX_NAME_LENGTH = 40
-BAG_SETTINGS_KEY = "bag"
 
 
 def resolve_profiles_path(path: Union[str, Path, None] = None) -> Path:
@@ -73,15 +67,14 @@ class Profile:
     def to_dict(self) -> dict:
         """Wire/disk representation.
 
-        ``settings`` is deep-copied so external callers can't mutate store-owned
-        state (and bypass the store's lock / persistence path), including
-        nested values such as the ``bag`` list.
+        ``settings`` is shallow-copied so external callers can't mutate store-owned
+        state (and bypass the store's lock / persistence path).
         """
         return {
             "id": self.id,
             "name": self.name,
             "created_at": self.created_at,
-            "settings": copy.deepcopy(self.settings),
+            "settings": dict(self.settings),
         }
 
     @classmethod
@@ -131,16 +124,6 @@ class ProfileStore:
                 return profile
         return self._profiles[0]
 
-    def get_bag(self, profile_id: Any) -> List[BagClub]:
-        """The profile's clubs, in the order the player arranged them.
-
-        Empty for an unknown profile or one that never set up a bag.
-        """
-        with self._lock:
-            profile = self._find(profile_id)
-            raw = profile.settings.get(BAG_SETTINGS_KEY) if profile is not None else None
-        return load_bag(raw)
-
     def snapshot(self) -> dict:
         """The authoritative payload broadcast on the socket."""
         with self._lock:
@@ -182,23 +165,6 @@ class ProfileStore:
             if profile is None or profile.id == self._active_id or len(self._profiles) <= 1:
                 return False
             self._profiles.remove(profile)
-        self.save()
-        return True
-
-    def set_bag(self, profile_id: Any, clubs: List[BagClub]) -> bool:
-        """Replace a profile's whole bag. Refused for an unknown id.
-
-        ``clubs`` must already be validated (``clubs.bag.parse_bag``). An
-        empty list removes the key, restoring the full built-in club list.
-        """
-        with self._lock:
-            profile = self._find(profile_id)
-            if profile is None:
-                return False
-            if clubs:
-                profile.settings[BAG_SETTINGS_KEY] = [club.to_dict() for club in clubs]
-            else:
-                profile.settings.pop(BAG_SETTINGS_KEY, None)
         self.save()
         return True
 

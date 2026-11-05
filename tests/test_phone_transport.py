@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 
 from openflight import server as server_module
+from openflight.ble.protocol import build_club_event
 from openflight.launch_monitor import ClubType, Shot
 from openflight.power import PowerStatus
 from openflight.power.models import PowerState
@@ -52,7 +53,7 @@ class _PhoneTransport:
         self.events.append(event)
         return True
 
-    def publish_club(self, club):
+    def publish_club(self, club, custom_club_id=""):  # pylint: disable=unused-argument
         self.clubs.append(club)
         return True
 
@@ -93,14 +94,14 @@ def test_every_subscriber_gets_shots_events_and_club_changes():
         events = _drain(subscriber)
         assert [name for name, _ in events] == ["shot", "shot_processing", "club_changed"]
         assert events[0][1]["final"] is False
-        assert events[2][1] == {"schema_version": 2, "type": "club_changed", "club": "pw"}
+        assert events[2][1] == build_club_event("pw")
 
 
 def test_subscriber_is_seeded_with_state_then_latest_shot():
     broker = ShotStreamBroker()
     broker.publish_shot(_shot_data(140.0), final=True)
     broker.publish_shot(_shot_data(151.0), final=True)
-    seed = [{"schema_version": 2, "type": "club_changed", "club": "7-iron"}]
+    seed = [build_club_event("7-iron")]
 
     subscriber = broker.subscribe(initial_events=seed)
 
@@ -142,8 +143,8 @@ def test_stream_route_seeds_current_state_then_session_shots(monkeypatch, tmp_pa
     finally:
         response.close()
 
-    assert [name for name, _ in events] == ["club_changed", "profiles", "shot"]
-    assert events[0][1] == {"schema_version": 2, "type": "club_changed", "club": "7-iron"}
+    assert [name for name, _ in events] == ["club_changed", "profiles", "clubs", "shot"]
+    assert events[0][1] == build_club_event("7-iron")
     assert events[1][1]["profiles"][0]["name"] == "Profile 1"
     assert events[2][1]["schema_version"] == 2 and events[2][1]["final"] is True
     assert broker.subscriber_count == 0
@@ -195,7 +196,7 @@ def test_club_changes_reach_every_transport(phones):
     server_module.apply_club_selection({"club": "pw"})
 
     assert stream.clubs == ble.clubs == ["pw"]
-    assert ("club_changed", {"club": "pw", "bag_club_id": ""}) in emitted
+    assert ("club_changed", {"club": "pw", "custom_club_id": ""}) in emitted
 
 
 # -- command routing -------------------------------------------------------------------

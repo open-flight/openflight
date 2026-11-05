@@ -184,6 +184,7 @@ export const en = {
   'bag.loft': 'Loft',
   'bag.bounce': 'Bounce',
   'bag.lie': 'Lie',
+  'bag.defaultLoft': 'Default {loft}',
   'bag.shaft': 'Shaft',
   'bag.notes': 'Notes',
   'bag.hand': 'Hand',

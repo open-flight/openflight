@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CLUBS } from '../../data/clubs';
-import type { BagClub } from '../../data/bag';
+import type { CustomClub } from '../../data/bag';
 import {
   OTHER_CLUBS_SECTION,
   OTHER_CLUB_PREFIX,
@@ -44,13 +44,16 @@ describe('pickerGridRows', () => {
   });
 });
 
-function bagEntry(id: string, type: string, extra: Partial<BagClub> = {}): BagClub {
+function bagEntry(id: string, type: string, extra: Partial<CustomClub> = {}): CustomClub {
   return {
     id,
+    bag: 'home',
     club: type,
+    name: type,
+    label: type,
     brand: '',
     model: '',
-    loft_deg: null,
+    loft_deg: 50,
     bounce_deg: null,
     lie_deg: null,
     shaft: '',
@@ -108,11 +111,11 @@ describe('bagClubSections', () => {
     expect(sections.map((section) => section.name)).not.toContain(OTHER_CLUBS_SECTION);
   });
 
-  it('leaves detail and note blank when nothing is recorded', () => {
-    expect(bagClubSections([bagEntry('pw', 'pw')])[0].options[0]).toEqual({
+  it('always shows the loft, inherited or own, and leaves the note blank without a model', () => {
+    expect(bagClubSections([bagEntry('pw', 'pw', { loft_deg: 46 })])[0].options[0]).toEqual({
       id: 'pw',
       label: 'PW',
-      detail: '',
+      detail: '46°',
       note: '',
     });
   });
@@ -122,11 +125,11 @@ describe('bag picker selection', () => {
   const bag = [bagEntry('sw-a', 'sw', { loft_deg: 56 })];
 
   it('resolves a bag tile to its club and id', () => {
-    expect(resolveBagPickerOption(bag, 'sw-a')).toEqual({ club: 'sw', bagClubId: 'sw-a' });
+    expect(resolveBagPickerOption(bag, 'sw-a')).toEqual({ club: 'sw', customClubId: 'sw-a' });
   });
 
   it('resolves an Other tile to a plain club type', () => {
-    expect(resolveBagPickerOption(bag, `${OTHER_CLUB_PREFIX}driver`)).toEqual({ club: 'driver', bagClubId: '' });
+    expect(resolveBagPickerOption(bag, `${OTHER_CLUB_PREFIX}driver`)).toEqual({ club: 'driver', customClubId: '' });
   });
 
   it('rejects ids the bag no longer has, and unknown types', () => {

@@ -18,7 +18,7 @@ class _ClubPublisher:
     def __init__(self):
         self.clubs = []
 
-    def publish_club(self, club):
+    def publish_club(self, club, custom_club_id=""):  # pylint: disable=unused-argument
         self.clubs.append(club)
         return True
 
@@ -52,9 +52,9 @@ def test_apply_club_selection_updates_monitor_and_broadcasts(monkeypatch):
     response, status = server_module.apply_club_selection({"club": "7-iron"})
 
     assert status == 200
-    assert response == {"status": "applied", "club": "7-iron"}
+    assert response == {"status": "applied", "club": "7-iron", "custom_club_id": ""}
     assert monitor.clubs == [ClubType.IRON_7]
-    assert emitted == [("club_changed", {"club": "7-iron", "bag_club_id": ""})]
+    assert emitted == [("club_changed", {"club": "7-iron", "custom_club_id": ""})]
     assert server_module.active_club is ClubType.IRON_7
     assert stream.clubs == ["7-iron"]
     assert ble.clubs == ["7-iron"]
@@ -81,7 +81,7 @@ def test_network_club_endpoint_uses_shared_selection_logic(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert response.get_json() == {"status": "applied", "club": "pw"}
+    assert response.get_json() == {"status": "applied", "club": "pw", "custom_club_id": ""}
     assert monitor.clubs == [ClubType.PW]
 
 
@@ -91,7 +91,7 @@ def test_network_club_endpoint_returns_authoritative_selection(monkeypatch):
     response = server_module.app.test_client().get("/api/club")
 
     assert response.status_code == 200
-    assert response.get_json() == {"status": "current", "club": "3-wood"}
+    assert response.get_json() == {"status": "current", "club": "3-wood", "custom_club_id": ""}
 
 
 def test_control_dispatch_routes_club_command(monkeypatch):
@@ -111,4 +111,4 @@ def test_control_dispatch_returns_authoritative_club(monkeypatch):
     response, status = server_module.dispatch_phone_control_command("get_club", {})
 
     assert status == 200
-    assert response == {"status": "current", "club": "5-wood"}
+    assert response == {"status": "current", "club": "5-wood", "custom_club_id": ""}

@@ -187,6 +187,7 @@ export const fr: Messages = {
   'bag.loft': 'Loft',
   'bag.bounce': 'Bounce',
   'bag.lie': 'Lie',
+  'bag.defaultLoft': 'Par défaut {loft}',
   'bag.shaft': 'Manche',
   'bag.notes': 'Notes',
   'bag.hand': 'Main',
