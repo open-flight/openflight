@@ -136,7 +136,7 @@ def test_stream_route_seeds_current_state_then_session_shots(monkeypatch, tmp_pa
         frames = response.response
         assert next(frames).decode("utf-8") == HEARTBEAT_FRAME
         events = []
-        for _ in range(3):
+        for _ in range(4):
             frame = next(frames).decode("utf-8")
             name = frame.split("\n", 1)[0].removeprefix("event: ")
             events.append((name, json.loads(frame.split("data: ", 1)[1])))
@@ -146,7 +146,8 @@ def test_stream_route_seeds_current_state_then_session_shots(monkeypatch, tmp_pa
     assert [name for name, _ in events] == ["club_changed", "profiles", "clubs", "shot"]
     assert events[0][1] == build_club_event("7-iron")
     assert events[1][1]["profiles"][0]["name"] == "Profile 1"
-    assert events[2][1]["schema_version"] == 2 and events[2][1]["final"] is True
+    assert events[2][1]["type"] == "clubs" and events[2][1]["clubs"] == []
+    assert events[3][1]["schema_version"] == 2 and events[3][1]["final"] is True
     assert broker.subscriber_count == 0
 
 
@@ -211,15 +212,19 @@ def test_dispatch_uses_the_socketio_operations(phones):
     response, status = server_module.dispatch_phone_control_command(
         "set_active_profile", {"profile_id": first.id}
     )
-    via_ble = emitted[-1]
+    via_ble = list(emitted)
+    emitted.clear()
     server_module.handle_set_active_profile({"profile_id": first.id})
-    via_socket = emitted[-1]
+    via_socket = list(emitted)
 
     assert (status, response) == (200, {"status": "applied", "active_profile_id": first.id})
     assert via_ble == via_socket
-    assert via_ble[0] == "profiles"
-    assert stream.events[-1]["active_profile_id"] == first.id
-    assert second.id in {item["id"] for item in stream.events[-1]["profiles"]}
+    # The roster, then the new active profile's bag.
+    assert [name for name, _ in via_ble[-2:]] == ["profiles", "clubs"]
+    profiles_event = next(event for event in stream.events if event["type"] == "profiles")
+    assert profiles_event["active_profile_id"] == first.id
+    assert second.id in {item["id"] for item in profiles_event["profiles"]}
+    assert stream.events[-1] == {"schema_version": 2, "type": "clubs", "bag": first.id, "clubs": []}
 
 
 def test_socket_clear_session_also_notifies_phones(phones):

@@ -1199,11 +1199,7 @@ def apply_club_selection(payload):
 
     with club_selection_lock:
         if custom_club is None:
-            current = find_custom_club(bag, active_custom_club_id)
-            if current is not None and current.club_type is club:
-                custom_club = current
-            else:
-                custom_club = sole_custom_club_of_type(bag, club)
+            custom_club = _custom_club_for_type(bag, club)
         # Without a monitor (startup, or tests) the selection is still recorded
         # and broadcast, as the Socket.IO handler always did; the monitor picks
         # up later changes once it exists.
@@ -1219,6 +1215,19 @@ def apply_club_selection(payload):
         _broadcast_club_selection()
     logger.info("[SERVER] Club changed to %s (custom club %r)", club.value, active_custom_club_id)
     return response, 200
+
+
+def _custom_club_for_type(bag: list[CustomClub], club: ClubType) -> Optional[CustomClub]:
+    """The custom club a type-only selection lands on. Caller holds ``club_selection_lock``.
+
+    The selected custom club stays when it is already that type, since
+    simulators echo the club back after every change; otherwise the bag's
+    only club of that type, or none.
+    """
+    current = find_custom_club(bag, active_custom_club_id)
+    if current is not None and current.club_type is club:
+        return current
+    return sole_custom_club_of_type(bag, club)
 
 
 def current_club_selection(_payload=None):
@@ -2890,7 +2899,7 @@ def _sim_on_status(target: str, event) -> None:
 
 def _sim_on_inbound(target: str, event) -> None:
     """Apply an inbound simulator event (player/club update, error, ack)."""
-    global active_club  # pylint: disable=global-statement
+    global active_club, active_custom_club_id  # pylint: disable=global-statement
     if isinstance(event, PlayerUpdate):
         sim_player_state.apply(event)
         club_value = sim_player_state.club.value
@@ -2904,6 +2913,7 @@ def _sim_on_inbound(target: str, event) -> None:
             sl.log_sim_player(target=target, handed=sim_player_state.handed, club=club_value)
         # The monitor owns current-club state for shot tagging and carry/spin
         # model selection; keep it in sync with the sim's canonical club.
+        bag = _active_bag()
         with club_selection_lock:
             monitor_updated = True
             if monitor is not None:
@@ -2913,8 +2923,10 @@ def _sim_on_inbound(target: str, event) -> None:
                     logger.exception("[sim] monitor.set_club failed")
                     monitor_updated = False
             if monitor_updated:
+                custom_club = _custom_club_for_type(bag, sim_player_state.club)
                 active_club = sim_player_state.club
-                _broadcast_club_selection(active_club)
+                active_custom_club_id = custom_club.id if custom_club is not None else ""
+                _broadcast_club_selection()
     elif isinstance(event, SimError):
         logger.warning("[sim] ← %s error: %s", target, event.message)
         socketio.emit("sim_status", {"target": target, "state": "error", "message": event.message})

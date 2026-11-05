@@ -10,6 +10,7 @@ from openflight.clubs.store import ClubStore
 from openflight.launch_monitor import Shot
 from openflight.profiles import ProfileStore
 from openflight.server import MockLaunchMonitor, on_shot_detected
+from openflight.sim.types import PlayerUpdate
 
 SPINNER = {"club": "sw", "brand": "Acme", "model": "Spinner", "loft_deg": 56, "bounce_deg": 10}
 DIGGER = {"club": "sw", "brand": "Other", "model": "Digger", "loft_deg": 56, "bounce_deg": 14}
@@ -212,6 +213,51 @@ class TestSelectByTypeOnly:
             200,
         )
         assert _club_events(emitted) == [{"club": "7-iron", "custom_club_id": ""}]
+
+
+class TestSimulatorUpdates:
+    """A simulator's club change follows the same custom club rules."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_sim_state(self, monkeypatch):
+        monkeypatch.setattr(server_module, "sim_player_state", server_module.SimPlayerState())
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+
+    def test_a_type_change_drops_the_custom_club(self, emitted, phones):
+        digger = _add(DIGGER)
+        server_module.apply_club_selection({"custom_club_id": digger})
+        emitted.clear()
+
+        server_module._sim_on_inbound(  # pylint: disable=protected-access
+            "gspro", PlayerUpdate(handed="RH", club=ClubType.DRIVER)
+        )
+
+        assert server_module.active_club is ClubType.DRIVER
+        assert server_module.active_custom_club_id == ""
+        assert _club_events(emitted) == [{"club": "driver", "custom_club_id": ""}]
+        assert phones.clubs[-1] == ("driver", "")
+
+    def test_a_same_type_echo_keeps_the_custom_club(self, emitted):
+        _add(SPINNER)
+        digger = _add(DIGGER)
+        server_module.apply_club_selection({"custom_club_id": digger})
+        emitted.clear()
+
+        server_module._sim_on_inbound(  # pylint: disable=protected-access
+            "gspro", PlayerUpdate(handed="RH", club=ClubType.SW)
+        )
+
+        assert server_module.active_custom_club_id == digger
+        assert _club_events(emitted) == [{"club": "sw", "custom_club_id": digger}]
+
+    def test_lands_on_the_bags_only_club_of_the_new_type(self):
+        pitching = _add(PW)
+
+        server_module._sim_on_inbound(  # pylint: disable=protected-access
+            "gspro", PlayerUpdate(handed="RH", club=ClubType.PW)
+        )
+
+        assert server_module.active_custom_club_id == pitching
 
 
 class TestReconcile:
