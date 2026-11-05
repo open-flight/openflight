@@ -547,6 +547,7 @@ def estimate_launch_angle(
     ball_speed_mph: float,
     club_speed_mph: Optional[float] = None,
     spin_rpm: Optional[float] = None,
+    loft_deg: Optional[float] = None,
 ) -> tuple:
     """
     Estimate launch angle from club type, ball speed, and optional smash/spin data.
@@ -556,9 +557,12 @@ def estimate_launch_angle(
     - Smash factor deviation from optimal (if club_speed provided)
     - Spin rate deviation from optimal (if spin_rpm provided)
 
+    ``loft_deg`` is a custom club's own loft, which moves the baseline along
+    the club's family (see get_club_physics).
+
     Returns (vertical_angle, confidence).
     """
-    physics = get_club_physics(club)
+    physics = get_club_physics(club, loft_deg)
 
     # Slower than average → higher launch, faster → lower launch
     speed_delta = ball_speed_mph - physics.average_ball_speed_mph
@@ -581,7 +585,7 @@ def estimate_launch_angle(
 
     # Spin rate adjustment: compare actual spin to optimal for this club/speed
     if spin_rpm is not None and spin_rpm > 0:
-        optimal_spin = get_optimal_spin_for_ball_speed(ball_speed_mph, club)
+        optimal_spin = get_optimal_spin_for_ball_speed(ball_speed_mph, club, loft_deg)
         spin_delta = spin_rpm - optimal_spin
         spin_adj = (spin_delta / 500.0) * _SPIN_DEG_PER_500RPM
         spin_adj = max(-_MAX_SPIN_ADJ, min(_MAX_SPIN_ADJ, spin_adj))
@@ -612,6 +616,7 @@ def radar_launch_is_plausible(
     ball_speed_mph: float,
     club_speed_mph: Optional[float] = None,
     spin_rpm: Optional[float] = None,
+    loft_deg: Optional[float] = None,
 ) -> tuple[bool, dict]:
     """Check whether a radar launch angle is plausible for the shot profile.
 
@@ -631,6 +636,7 @@ def radar_launch_is_plausible(
         ball_speed_mph,
         club_speed_mph=club_speed_mph,
         spin_rpm=spin_rpm,
+        loft_deg=loft_deg,
     )
     allowed_delta_deg = (
         _radar_launch_base_delta_deg(club)
@@ -705,6 +711,7 @@ def _select_vertical_radar_launch(kld7_angle, shot: Shot) -> tuple[bool, dict]:
         ball_speed_mph=shot.ball_speed_mph,
         club_speed_mph=shot.club_speed_mph,
         spin_rpm=shot.spin_rpm,
+        loft_deg=shot.custom_loft_deg,
     )
     details.update(guard_details)
     if not plausible:
@@ -835,6 +842,7 @@ def _ensure_user_facing_launch_angles(shot: Shot) -> None:
             shot.ball_speed_mph,
             club_speed_mph=shot.club_speed_mph,
             spin_rpm=shot.spin_rpm,
+            loft_deg=shot.custom_loft_deg,
         )
         shot.launch_angle_vertical = estimated[0]
         shot.launch_angle_confidence = estimated[1]
@@ -862,6 +870,7 @@ def _ensure_user_facing_launch_angles(shot: Shot) -> None:
                     shot.ball_speed_mph,
                     club_speed_mph=shot.club_speed_mph,
                     spin_rpm=shot.spin_rpm,
+                    loft_deg=shot.custom_loft_deg,
                 )
             shot.launch_angle_horizontal_confidence = estimated[1]
         shot.launch_angle_horizontal_source = "estimated"
@@ -3946,13 +3955,16 @@ def _finalize_shot_detected(
             spin_for_carry = (
                 shot.spin_rpm
                 if has_reliable_spin
-                else get_optimal_spin_for_ball_speed(shot.ball_speed_mph, shot.club)
+                else get_optimal_spin_for_ball_speed(
+                    shot.ball_speed_mph, shot.club, shot.custom_loft_deg
+                )
             )
             shot.carry_spin_adjusted = estimate_carry_with_spin(
                 shot.ball_speed_mph,
                 spin_for_carry,
                 shot.club,
                 club_speed_mph=shot.club_speed_mph,
+                loft_deg=shot.custom_loft_deg,
             )
             reason = "ballistics disabled" if not ballistics_enabled else "no launch angle"
             logger.info(

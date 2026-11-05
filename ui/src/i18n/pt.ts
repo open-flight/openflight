@@ -189,12 +189,13 @@ export const pt: Messages = {
   'bag.lie': 'Lie',
   'bag.defaultLoft': 'Padrão {loft}',
   'bag.info': 'O que cada valor faz',
-  'bag.infoNumbersTitle': 'Taco: muda os números',
-  'bag.infoNumbers': 'O tipo de taco ajusta as estimativas de saída, spin e carry.',
+  'bag.infoNumbersTitle': 'Taco e loft: mudam os números',
+  'bag.infoNumbers':
+    'O tipo de taco e o seu loft ajustam as estimativas de saída, spin e carry. Um sand wedge de 56° é estimado entre o SW de 54° e o LW de 58°.',
   'bag.infoSortTitle': 'Cada taco da bolsa: separa as suas tacadas',
   'bag.infoSort':
     'Cada tacada é guardada com o taco que escolheu, por isso Tacadas e Estatísticas mostram dois sand wedges separados.',
-  'bag.infoAnnotateTitle': 'Loft, marca, modelo, bounce, lie, haste, mão e notas: anotam as suas tacadas',
+  'bag.infoAnnotateTitle': 'Marca, modelo, bounce, lie, haste, mão e notas: anotam as suas tacadas',
   'bag.infoAnnotate':
     'Registam com que taco real deu cada tacada e aparecem no seletor e nas suas tacadas. Não mudam os números.',
   'bag.shaft': 'Haste',

@@ -65,9 +65,13 @@ class TestInheritance:
     def test_own_loft_overrides_the_inherited_one(self):
         assert _club(loft_deg=58).loft_deg == 58.0
 
-    def test_physics_ignore_the_own_loft(self):
-        # Issue #280: custom values are recorded only until reference values settle.
-        assert _club(loft_deg=58).physics == get_club_physics(ClubType.SW)
+    def test_physics_follow_the_own_loft(self):
+        assert _club(loft_deg=58).physics == get_club_physics(ClubType.SW, 58.0)
+        lob_wedge = get_club_physics(ClubType.LW)
+        assert _club(loft_deg=58).physics.optimal_launch_deg == lob_wedge.optimal_launch_deg
+
+    def test_blank_loft_keeps_the_types_physics(self):
+        assert _club(loft_deg=None).physics == get_club_physics(ClubType.SW)
 
 
 class TestFromDict:

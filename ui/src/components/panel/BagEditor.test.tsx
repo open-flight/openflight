@@ -108,10 +108,11 @@ describe('BagEditor', () => {
   it('explains what changes the numbers, what keeps shots apart and what annotates them', () => {
     const html = text(renderToString(<BagInfo />));
 
-    expect(html).toContain('Club: changes the numbers');
+    expect(html).toContain('Club and loft: change the numbers');
+    expect(html).toContain('between the 54° SW and the 58° LW');
     expect(html).toContain('Each club in the bag: keeps your shots apart');
     expect(html).toContain('two sand wedges separately');
-    expect(html).toContain('Loft, brand, model, bounce, lie, shaft, hand and notes: annotate your shots');
+    expect(html).toContain('Brand, model, bounce, lie, shaft, hand and notes: annotate your shots');
     expect(html).toContain('They don&#x27;t change the numbers.');
   });
 

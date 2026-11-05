@@ -402,8 +402,9 @@ share a type, so each has an `id`.
   `clubs` event: `{"version":1,"clubs":[{id, bag, club, name, label,
   loft_deg, brand, model, bounce_deg, lie_deg, shaft, hand, notes}]}`.
 
-Physics still come from the built-in type; a custom club's own values are
-recorded and shown only.
+A custom club's loft moves the server's launch, spin and carry estimates along
+its club family; its other values are recorded and shown only. Phones get the
+already-estimated numbers on each shot and need not repeat the calculation.
 
 ### Network stream
 

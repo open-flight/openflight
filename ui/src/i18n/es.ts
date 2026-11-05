@@ -189,12 +189,13 @@ export const es: Messages = {
   'bag.lie': 'Lie',
   'bag.defaultLoft': 'Por defecto {loft}',
   'bag.info': 'Qué hace cada valor',
-  'bag.infoNumbersTitle': 'Palo: cambia los números',
-  'bag.infoNumbers': 'El tipo de palo ajusta las estimaciones de salida, spin y carry.',
+  'bag.infoNumbersTitle': 'Palo y loft: cambian los números',
+  'bag.infoNumbers':
+    'El tipo de palo y su loft ajustan las estimaciones de salida, spin y carry. Un sand wedge de 56° se estima entre el SW de 54° y el LW de 58°.',
   'bag.infoSortTitle': 'Cada palo de la bolsa: separa tus golpes',
   'bag.infoSort':
     'Cada golpe se guarda con el palo que elegiste, así Golpes y Estadísticas muestran dos sand wedges por separado.',
-  'bag.infoAnnotateTitle': 'Loft, marca, modelo, bounce, lie, varilla, mano y notas: anotan tus golpes',
+  'bag.infoAnnotateTitle': 'Marca, modelo, bounce, lie, varilla, mano y notas: anotan tus golpes',
   'bag.infoAnnotate':
     'Registran con qué palo real diste cada golpe y aparecen en el selector y en tus golpes. No cambian los números.',
   'bag.shaft': 'Varilla',

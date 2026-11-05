@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from types import MappingProxyType
-from typing import Mapping
+from typing import Mapping, Optional
 
 from .types import ClubType
 
@@ -130,9 +130,63 @@ CLUB_SIMULATION_PROFILES: Mapping[ClubType, ClubSimulationProfile] = MappingProx
 SHOT_SIMULATION_DEFAULTS = ShotSimulationDefaults()
 
 
-def get_club_physics(club_type: ClubType) -> ClubPhysics:
-    """Return canonical defaults, falling back to the unknown category."""
-    return CLUB_PHYSICS.get(club_type, CLUB_PHYSICS[ClubType.UNKNOWN])
+# Clubs whose defaults lie on one loft curve, ordered by nominal loft. A loft
+# between two neighbours interpolates between their rows.
+LOFT_FAMILIES: tuple[tuple[ClubType, ...], ...] = (
+    (ClubType.DRIVER, ClubType.WOOD_3, ClubType.WOOD_5, ClubType.WOOD_7),
+    (ClubType.HYBRID_3, ClubType.HYBRID_5, ClubType.HYBRID_7, ClubType.HYBRID_9),
+    (
+        ClubType.IRON_2,
+        ClubType.IRON_3,
+        ClubType.IRON_4,
+        ClubType.IRON_5,
+        ClubType.IRON_6,
+        ClubType.IRON_7,
+        ClubType.IRON_8,
+        ClubType.IRON_9,
+        ClubType.PW,
+        ClubType.GW,
+        ClubType.SW,
+        ClubType.LW,
+    ),
+)
+
+
+def get_club_physics(club_type: ClubType, loft_deg: Optional[float] = None) -> ClubPhysics:
+    """Return canonical defaults, falling back to the unknown category.
+
+    With ``loft_deg`` (a custom club's own loft), the defaults are interpolated
+    along the club's family by loft: a 56° sand wedge gets values between the
+    54° SW and the 58° LW. Lofts past either end of the family take that end's
+    values. No loft, the nominal loft, or a club outside every family (UNKNOWN)
+    returns the table row unchanged. ``nominal_loft_deg`` is the given loft.
+    """
+    base = CLUB_PHYSICS.get(club_type, CLUB_PHYSICS[ClubType.UNKNOWN])
+    if loft_deg is None or loft_deg == base.nominal_loft_deg:
+        return base
+    family = next((family for family in LOFT_FAMILIES if club_type in family), None)
+    if family is None:
+        return base
+    return replace(_interpolate_by_loft(family, loft_deg), nominal_loft_deg=loft_deg)
+
+
+def _interpolate_by_loft(family: tuple[ClubType, ...], loft_deg: float) -> ClubPhysics:
+    """Linear interpolation of every field between the family's two rows around ``loft_deg``."""
+    rows = [CLUB_PHYSICS[club] for club in family]
+    if loft_deg <= rows[0].nominal_loft_deg:
+        return rows[0]
+    if loft_deg >= rows[-1].nominal_loft_deg:
+        return rows[-1]
+    upper_index = next(i for i, row in enumerate(rows) if row.nominal_loft_deg >= loft_deg)
+    lower, upper = rows[upper_index - 1], rows[upper_index]
+    weight = (loft_deg - lower.nominal_loft_deg) / (upper.nominal_loft_deg - lower.nominal_loft_deg)
+    return ClubPhysics(
+        **{
+            field.name: getattr(lower, field.name)
+            + weight * (getattr(upper, field.name) - getattr(lower, field.name))
+            for field in fields(ClubPhysics)
+        }
+    )
 
 
 def get_club_simulation_profile(club_type: ClubType) -> ClubSimulationProfile:

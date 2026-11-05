@@ -7,8 +7,9 @@ wedges on test), so each has a stable ``id`` that shots record. ``bag`` names
 the bag the club belongs to; today each profile has one bag whose id is the
 profile id.
 
-Physics always comes from the built-in type, even where a custom club
-overrides the loft, until issue #280 settles which reference values to use.
+Physics defaults follow the club's loft: a custom club with its own loft gets
+values interpolated along its type's family (see ``get_club_physics``), and a
+blank loft keeps the type's own row.
 """
 
 from __future__ import annotations
@@ -82,8 +83,8 @@ class Club:
 
     @property
     def physics(self) -> ClubPhysics:
-        """Physics defaults; always those of the built-in type (see issue #280)."""
-        return get_club_physics(self.club_type)
+        """Physics defaults for this loft: the type's own row at its nominal loft."""
+        return get_club_physics(self.club_type, self.loft_deg)
 
 
 @dataclass(frozen=True, kw_only=True)

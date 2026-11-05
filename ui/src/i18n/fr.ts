@@ -189,12 +189,13 @@ export const fr: Messages = {
   'bag.lie': 'Lie',
   'bag.defaultLoft': 'Par défaut {loft}',
   'bag.info': 'À quoi servent ces valeurs',
-  'bag.infoNumbersTitle': 'Club : change les chiffres',
-  'bag.infoNumbers': 'Le type de club ajuste les estimations de lancement, de spin et de carry.',
+  'bag.infoNumbersTitle': 'Club et loft : changent les chiffres',
+  'bag.infoNumbers':
+    'Le type de club et son loft ajustent les estimations de lancement, de spin et de carry. Un sand wedge de 56° est estimé entre le SW de 54° et le LW de 58°.',
   'bag.infoSortTitle': 'Chaque club du sac : sépare vos coups',
   'bag.infoSort':
     'Chaque coup est enregistré avec le club choisi, donc Coups et Stats affichent deux sand wedges séparément.',
-  'bag.infoAnnotateTitle': 'Loft, marque, modèle, bounce, lie, manche, main et notes : annotent vos coups',
+  'bag.infoAnnotateTitle': 'Marque, modèle, bounce, lie, manche, main et notes : annotent vos coups',
   'bag.infoAnnotate':
     "Ils indiquent avec quel club réel vous avez joué chaque coup et s'affichent dans le sélecteur et vos coups. Ils ne changent pas les chiffres.",
   'bag.shaft': 'Manche',

@@ -24,7 +24,9 @@ logger = logging.getLogger("openflight.rolling_buffer.monitor")
 
 
 def get_optimal_spin_for_ball_speed(
-    ball_speed_mph: float, club: ClubType = ClubType.DRIVER
+    ball_speed_mph: float,
+    club: ClubType = ClubType.DRIVER,
+    loft_deg: Optional[float] = None,
 ) -> float:
     """
     Get optimal spin rate for a given ball speed.
@@ -42,6 +44,7 @@ def get_optimal_spin_for_ball_speed(
     Args:
         ball_speed_mph: Ball speed in mph
         club: Club type (affects optimal spin)
+        loft_deg: A custom club's own loft, if any (see get_club_physics)
 
     Returns:
         Optimal spin rate in RPM
@@ -63,7 +66,7 @@ def get_optimal_spin_for_ball_speed(
             optimal = base_rpm + (upper - ball_speed_mph) * rpm_per_mph
             break
 
-    multiplier = get_club_physics(club).optimal_spin_multiplier
+    multiplier = get_club_physics(club, loft_deg).optimal_spin_multiplier
     return optimal * multiplier
 
 
@@ -72,6 +75,7 @@ def estimate_carry_with_spin(
     spin_rpm: float,
     club: ClubType = ClubType.DRIVER,
     club_speed_mph: Optional[float] = None,
+    loft_deg: Optional[float] = None,
 ) -> float:
     """
     Estimate carry distance using ball speed, spin rate, and optional club speed.
@@ -98,6 +102,7 @@ def estimate_carry_with_spin(
         spin_rpm: Spin rate in RPM
         club: Club type for distance calculation
         club_speed_mph: Optional club head speed for smash factor validation
+        loft_deg: A custom club's own loft, if any (see get_club_physics)
 
     Returns:
         Estimated carry distance in yards
@@ -106,7 +111,7 @@ def estimate_carry_with_spin(
     base_carry = estimate_carry_distance(ball_speed_mph, club)
 
     # Calculate optimal spin for this ball speed and club
-    optimal_spin = get_optimal_spin_for_ball_speed(ball_speed_mph, club)
+    optimal_spin = get_optimal_spin_for_ball_speed(ball_speed_mph, club, loft_deg)
 
     # Calculate spin deviation
     spin_delta = spin_rpm - optimal_spin
@@ -138,7 +143,7 @@ def estimate_carry_with_spin(
     if club_speed_mph and club_speed_mph > 0:
         smash = ball_speed_mph / club_speed_mph
 
-        target_smash = get_club_physics(club).optimal_smash
+        target_smash = get_club_physics(club, loft_deg).optimal_smash
         smash_delta = target_smash - smash
 
         if smash_delta > 0:

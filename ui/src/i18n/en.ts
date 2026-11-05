@@ -186,11 +186,12 @@ export const en = {
   'bag.lie': 'Lie',
   'bag.defaultLoft': 'Default {loft}',
   'bag.info': 'What these values do',
-  'bag.infoNumbersTitle': 'Club: changes the numbers',
-  'bag.infoNumbers': 'The club type tunes the launch, spin and carry estimates.',
+  'bag.infoNumbersTitle': 'Club and loft: change the numbers',
+  'bag.infoNumbers':
+    'The club type and its loft tune the launch, spin and carry estimates. A 56° sand wedge is estimated between the 54° SW and the 58° LW.',
   'bag.infoSortTitle': 'Each club in the bag: keeps your shots apart',
   'bag.infoSort': 'Every shot is saved under the club you picked, so Shots and Stats show two sand wedges separately.',
-  'bag.infoAnnotateTitle': 'Loft, brand, model, bounce, lie, shaft, hand and notes: annotate your shots',
+  'bag.infoAnnotateTitle': 'Brand, model, bounce, lie, shaft, hand and notes: annotate your shots',
   'bag.infoAnnotate':
     "They record which actual club you hit each shot with, and show on the picker and your shots. They don't change the numbers.",
   'bag.shaft': 'Shaft',
