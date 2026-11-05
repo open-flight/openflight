@@ -1,7 +1,7 @@
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { MAX_BAG_CLUBS, type CustomClub } from '../../data/bag';
-import { BagEditor } from './BagEditor';
+import { BagEditor, BagInfo } from './BagEditor';
 
 /** React SSR splits interpolated text with comment markers; drop them. */
 function text(html: string): string {
@@ -96,6 +96,23 @@ describe('BagEditor', () => {
     expect(html).toContain('role="alert"');
     // SSR escapes the apostrophe in "Couldn't".
     expect(html).toContain('Couldn&#x27;t save the bag: loft_deg must be between 0 and 80 degrees');
+  });
+
+  it('offers a closed info toggle next to the close button', () => {
+    const html = render({ bag: [wedge('a')] });
+
+    expect(html).toMatch(/<button[^>]*aria-label="What these values do"[^>]*aria-expanded="false"[^>]*>i</);
+    expect(html).toContain('Acme Spinner');
+  });
+
+  it('explains what changes the numbers, what keeps shots apart and what annotates them', () => {
+    const html = text(renderToString(<BagInfo />));
+
+    expect(html).toContain('Club: changes the numbers');
+    expect(html).toContain('Each club in the bag: keeps your shots apart');
+    expect(html).toContain('two sand wedges separately');
+    expect(html).toContain('Loft, brand, model, bounce, lie, shaft, hand and notes: annotate your shots');
+    expect(html).toContain('They don&#x27;t change the numbers.');
   });
 
   it('offers Add club until the bag is full', () => {

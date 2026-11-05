@@ -8,15 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Custom clubs, in a bag per profile, with two of the same club allowed.**
+- **Make your own custom clubs, several of the same type allowed.**
   Each profile card on the Profiles view has a **Bag** button. Add the clubs
   you carry and record each one's brand, model, loft, bounce, lie, shaft, hand
   (right or left) and notes, all optional, so two 56° sand wedges on test stay
   separate. A custom club inherits its built-in club's name, label and loft (a
-  blank loft takes the type's nominal loft); physics still come from the
-  built-in type until [#280](https://github.com/open-flight/openflight/issues/280)
-  settles the reference values. Once a profile has clubs, the club picker shows
-  them with the loft under the label and the model below it; built-in clubs the
+  blank loft takes the type's nominal loft); the estimates still come from the
+  club type. The **i** button on the bag page explains which values change the
+  numbers and which annotate your shots. Once a profile has clubs, the club
+  picker shows them with the loft under the label and the model below it;
+  built-in clubs the
   bag lacks are on an **Other** tab. The header names the selected club, e.g.
   `Sand Wedge · 56° · Spinner`, and Stats gives every custom club its own
   filter chip. Each shot records the club that hit it (`custom_club_id` and

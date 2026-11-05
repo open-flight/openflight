@@ -1386,6 +1386,45 @@
   min-height: 0;
 }
 
+.bag-editor__header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bag-editor__info-toggle {
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.profile-name-modal__close.bag-editor__info-toggle--open {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.bag-editor__info {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.bag-editor__info-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.bag-editor__info-detail {
+  margin: 2px 0 0;
+  font-size: 0.9375rem;
+  color: var(--color-text-muted);
+}
+
 .bag-editor__list {
   flex: 1;
   min-height: 0;

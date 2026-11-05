@@ -72,6 +72,7 @@ interface BagEditorProps {
 export function BagEditor({ profileName, bag, defaultLofts, error, onSave, onRemove, onClose }: BagEditorProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<BagClubDraft | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   if (draft) {
     return (
@@ -95,25 +96,40 @@ export function BagEditor({ profileName, bag, defaultLofts, error, onSave, onRem
     <div className="profile-name-modal bag-editor" role="dialog" aria-modal="true" aria-label={title}>
       <div className="profile-name-modal__header">
         <span className="profile-name-modal__title">{title}</span>
-        <button
-          type="button"
-          className="profile-name-modal__close"
-          aria-label={t('profiles.closeDialog')}
-          onClick={onClose}
-        >
-          ✕
-        </button>
+        <span className="bag-editor__header-actions">
+          <button
+            type="button"
+            className={`profile-name-modal__close bag-editor__info-toggle${infoOpen ? ' bag-editor__info-toggle--open' : ''}`}
+            aria-label={t('bag.info')}
+            aria-expanded={infoOpen}
+            onClick={() => setInfoOpen(!infoOpen)}
+          >
+            i
+          </button>
+          <button
+            type="button"
+            className="profile-name-modal__close"
+            aria-label={t('profiles.closeDialog')}
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </span>
       </div>
       {error ? (
         <p className="bag-editor__error" role="alert">
           {t('bag.saveFailed', { reason: error })}
         </p>
       ) : null}
-      <BagClubList
-        bag={bag}
-        onEdit={(club) => setDraft(draftFromCustomClub(club))}
-        onRemove={(club) => onRemove(club.id)}
-      />
+      {infoOpen ? (
+        <BagInfo />
+      ) : (
+        <BagClubList
+          bag={bag}
+          onEdit={(club) => setDraft(draftFromCustomClub(club))}
+          onRemove={(club) => onRemove(club.id)}
+        />
+      )}
       <div className="profile-name-modal__actions">
         <PanelAction disabled={full} onClick={() => setDraft(newBagClubDraft(DEFAULT_NEW_CLUB))}>
           {full ? t('bag.full', { max: MAX_BAG_CLUBS }) : t('bag.add')}
@@ -123,6 +139,27 @@ export function BagEditor({ profileName, bag, defaultLofts, error, onSave, onRem
         </PanelAction>
       </div>
     </div>
+  );
+}
+
+const BAG_INFO_SECTIONS: ReadonlyArray<{ title: MessageKey; detail: MessageKey }> = [
+  { title: 'bag.infoNumbersTitle', detail: 'bag.infoNumbers' },
+  { title: 'bag.infoSortTitle', detail: 'bag.infoSort' },
+  { title: 'bag.infoAnnotateTitle', detail: 'bag.infoAnnotate' },
+];
+
+/** Plain-language note on which club values change the numbers and which annotate shots. */
+export function BagInfo() {
+  const { t } = useI18n();
+  return (
+    <dl className="bag-editor__info">
+      {BAG_INFO_SECTIONS.map(({ title, detail }) => (
+        <div className="bag-editor__info-item" key={title}>
+          <dt className="bag-editor__info-title">{t(title)}</dt>
+          <dd className="bag-editor__info-detail">{t(detail)}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
