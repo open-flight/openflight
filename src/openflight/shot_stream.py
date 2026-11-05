@@ -129,10 +129,10 @@ class ShotStreamBroker:
             self._offer(subscriber, stream_event)
         return True
 
-    def publish_club(self, club: str) -> bool:
+    def publish_club(self, club: str, custom_club_id: str = "") -> bool:
         """Broadcast an authoritative club change to every subscriber."""
         try:
-            event = build_club_event(club)
+            event = build_club_event(club, custom_club_id)
         except (TypeError, ValueError):
             logger.warning("[STREAM] Failed to encode club payload", exc_info=True)
             return False

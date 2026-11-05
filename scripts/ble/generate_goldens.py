@@ -31,6 +31,7 @@ from openflight.ble.protocol import (
     CONTROL_CHARACTERISTIC_UUID,
     SHOT_CHARACTERISTIC_UUID,
     build_club_event,
+    build_clubs_event,
     build_control_response,
     build_hello_result,
     build_power_status_event,
@@ -52,11 +53,14 @@ SHOT_V2_FIXTURE = FIXTURES / "shot_v2.json"
 REQUEST_ID = "5E0F2C4A-8B1D-4C3E-9F6A-7D2B1C0E9A84"
 PROFILE_A = "0f8e4b2a9c7d4e1f8a6b3c5d7e9f1a2b"
 PROFILE_B = "7c1d9e3f5a2b4c6d8e0f1a3b5c7d9e1f"
+CLUB_A = "3b1f0c7e9a5d4e2f8c6b0a1d3e5f7a9c"
+CLUB_B = "9d2e4f6a8b0c1d3e5f7a9b1c3d5e7f9a"
 
 
 def build_shot_v2_fixture() -> dict:
     """Build the shot contract fixture from a real (seeded) mock shot."""
     from openflight import server  # pylint: disable=import-outside-toplevel
+    from openflight.clubs.club import CustomClub  # pylint: disable=import-outside-toplevel
     from openflight.launch_monitor import ClubType  # pylint: disable=import-outside-toplevel
 
     random.seed(2026)
@@ -67,6 +71,9 @@ def build_shot_v2_fixture() -> dict:
     shot.shot_number = 7
     shot.profile_id = PROFILE_A
     shot.profile_name = "Zoë"
+    shot.custom_club = CustomClub.from_dict(
+        {"club": "7-iron", "model": "Blade"}, club_id=CLUB_A, bag=PROFILE_A
+    )
     return build_shot_event(
         server.shot_to_dict(shot),
         final=True,
@@ -105,6 +112,24 @@ def worst_case_profiles_snapshot() -> dict:
     }
 
 
+def worst_case_bag_clubs() -> list[dict]:
+    """A full bag (30 clubs) with the longest values the clubs event can carry.
+
+    Club text is printable, so a character is at most four UTF-8 bytes.
+    """
+    return [
+        {
+            "id": f"{index:032x}",
+            "bag": PROFILE_A,
+            "club": "9-hybrid",
+            "loft_deg": 12.5,
+            "model": "\U0001f3cc" * 40,
+            "brand": "x" * 40,
+        }
+        for index in range(30)
+    ]
+
+
 def build_goldens() -> dict[str, dict]:
     """Every server-to-client golden, keyed by file stem."""
     shot_v2 = json.loads(SHOT_V2_FIXTURE.read_text(encoding="utf-8"))
@@ -121,6 +146,11 @@ def build_goldens() -> dict[str, dict]:
         ],
         "active_profile_id": PROFILE_A,
     }
+    clubs = [
+        {"id": CLUB_A, "bag": PROFILE_A, "club": "sw", "loft_deg": 56.0, "model": "Spinner"},
+        {"id": CLUB_B, "bag": PROFILE_A, "club": "sw", "loft_deg": 56.0, "model": "Digger 2026"},
+        {"id": PROFILE_B, "bag": PROFILE_B, "club": "driver", "loft_deg": 10.5, "model": ""},
+    ]
     power = {
         "available": True,
         "provider": "geekworm",
@@ -218,8 +248,23 @@ def build_goldens() -> dict[str, dict]:
             "v2_event_club_changed",
             "club_changed notify on the v2 control characteristic.",
             CONTROL_CHARACTERISTIC_UUID,
-            build_club_event("7-iron"),
+            build_club_event("7-iron", CLUB_A),
             8,
+        ),
+        _golden(
+            "v2_event_clubs",
+            "clubs notify: the active bag only, with model cut to 8 characters.",
+            CONTROL_CHARACTERISTIC_UUID,
+            build_clubs_event(clubs, PROFILE_A),
+            10,
+        ),
+        _golden(
+            "v2_event_clubs_worst_case",
+            "A full 30-club bag with 8 four-byte characters per model: "
+            "the largest clubs event the server can send.",
+            CONTROL_CHARACTERISTIC_UUID,
+            build_clubs_event(worst_case_bag_clubs(), PROFILE_A),
+            11,
         ),
     ]
     return {golden["name"]: golden for golden in goldens}

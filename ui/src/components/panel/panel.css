@@ -1293,6 +1293,11 @@
   min-width: 0;
   min-height: 0;
   padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: transparent;
@@ -1310,10 +1315,309 @@
   color: var(--color-accent-fg);
 }
 
+/* Bag tiles: the loft under the club label, then the model in small type. */
+.picker-overlay__option-label {
+  line-height: 1;
+}
+
+.picker-overlay__option-detail {
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.picker-overlay__option-note {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.5em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.picker-overlay__option--selected .picker-overlay__option-detail,
+.picker-overlay__option--selected .picker-overlay__option-note {
+  color: inherit;
+}
+
 .picker-overlay--wide .picker-overlay__option {
   font-size: clamp(0.9375rem, 2.8vh, 1.25rem);
   letter-spacing: 0.02em;
   padding: 0 16px;
+}
+
+/* --------------------------------------------------------------- bag editor -- */
+
+.profiles-panel__bag {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bag-editor__error {
+  flex-shrink: 0;
+  margin: 10px 18px 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.bag-editor__empty {
+  flex: 1;
+  min-height: 0;
+}
+
+.bag-editor__header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bag-editor__info-toggle {
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.profile-name-modal__close.bag-editor__info-toggle--open {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.bag-editor__info {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.bag-editor__info-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.bag-editor__info-detail {
+  margin: 2px 0 0;
+  font-size: 0.9375rem;
+  color: var(--color-text-muted);
+}
+
+.bag-editor__list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bag-editor__row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.bag-editor__row-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bag-editor__club {
+  flex-shrink: 0;
+  min-width: 2.5em;
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.04em;
+}
+
+.bag-editor__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bag-editor__name,
+.bag-editor__specs {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bag-editor__name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.bag-editor__specs {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.bag-editor__remove {
+  flex-shrink: 0;
+  width: 52px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-faint);
+  font-size: 0.875rem;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bag-editor__remove:hover,
+.bag-editor__remove:active {
+  color: var(--color-danger);
+}
+
+/*
+ * Two rows of five: club, hand, brand, model, loft / bounce, lie, shaft and a
+ * double-width notes field. The keyboard below types into the focused one.
+ */
+.bag-editor__fields {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.bag-editor__field {
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bag-editor__field--club {
+  background: var(--color-surface);
+}
+
+.bag-editor__field--wide {
+  grid-column: span 2;
+}
+
+.bag-editor__field--hand {
+  cursor: default;
+}
+
+.bag-editor__hand-options {
+  align-self: stretch;
+  display: flex;
+  gap: 4px;
+}
+
+.bag-editor__hand {
+  flex: 1;
+  min-width: 0;
+  min-height: 1.75rem;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.bag-editor__hand--selected {
+  background: var(--color-accent-block);
+  border-color: var(--color-accent-block);
+  color: var(--color-accent-fg);
+}
+
+.bag-editor__field--focused {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.bag-editor__field--invalid {
+  border-color: var(--color-danger);
+}
+
+.bag-editor__field-label {
+  font-weight: 600;
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.bag-editor__field-value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.bag-editor__field-value--placeholder {
+  font-weight: 500;
+  color: var(--color-text-faint);
+}
+
+.bag-editor__field-error {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--color-danger);
 }
 
 /* ----------------------------------------------------- profile name modal -- */

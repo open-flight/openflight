@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from .clubs import ClubType
+from .clubs.club import CustomClub
 from .clubs.physics import get_club_physics
 from .ops243 import SpeedReading
 
@@ -184,6 +185,7 @@ class Shot:
         peak_magnitude: Signal strength of strongest reading
         readings: All raw speed readings for this shot
         club: Club type for distance estimation
+        custom_club: The custom club that hit the shot, when one was selected
         launch_angle_vertical: Vertical launch angle in degrees (from camera)
         launch_angle_horizontal: Horizontal launch angle in degrees (from camera)
         launch_angle_confidence: Backward-compatible primary launch angle confidence (0-1)
@@ -260,6 +262,7 @@ class Shot:
     mode: str = "rolling-buffer"
     profile_id: str = ""
     profile_name: str = ""
+    custom_club: Optional[CustomClub] = None
     readings_data: Optional[list] = None
     camera_replay: Optional[dict] = None
     angle_source: Optional[str] = None  # "radar", "camera", "estimated", or None
@@ -401,6 +404,8 @@ class Shot:
             "club": self.club.value,
             "profile_id": self.profile_id,
             "profile_name": self.profile_name,
+            "custom_club_id": self.custom_club.id if self.custom_club is not None else "",
+            "custom_club": self.custom_club.to_dict() if self.custom_club is not None else None,
             "timestamp": self.timestamp.isoformat(),
             "impact_timestamp": self.impact_timestamp,
             "peak_magnitude": self.peak_magnitude,

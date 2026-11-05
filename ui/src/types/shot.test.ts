@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Shot } from './shot';
-import { filterShotsByProfile, excludeShotsByProfile } from './shot';
+import type { CustomClub } from '../data/bag';
+import { clubSelectionKey, filterShotsByProfile, excludeShotsByProfile, shotClubKey, shotClubLabel } from './shot';
 
 describe('filterShotsByProfile', () => {
   const shotWith = (profileId: string | undefined): Shot => ({ profile_id: profileId, ball_speed_mph: 100 }) as Shot;
@@ -44,5 +45,54 @@ describe('excludeShotsByProfile', () => {
     const shots = [shotWith('aaa'), shotWith('bbb')];
 
     expect(excludeShotsByProfile(shots, '')).toEqual(shots);
+  });
+});
+
+describe('custom club keys and labels', () => {
+  const wedge = (id: string, model: string): CustomClub => ({
+    id,
+    bag: 'home',
+    club: 'sw',
+    name: 'Sand Wedge',
+    label: 'SW',
+    brand: 'Acme',
+    model,
+    loft_deg: 56,
+    bounce_deg: 10,
+    lie_deg: null,
+    shaft: '',
+    notes: '',
+    hand: null,
+  });
+  const shotWith = (overrides: Partial<Shot>): Shot => ({ club: 'sw', ball_speed_mph: 80, ...overrides }) as Shot;
+
+  it('keeps two custom clubs of the same type apart', () => {
+    const first = shotWith({ custom_club: wedge('a', 'Spinner') });
+    const second = shotWith({ custom_club: wedge('b', 'Digger') });
+
+    expect(shotClubKey(first)).not.toBe(shotClubKey(second));
+    expect(shotClubKey(first)).toBe('custom:a');
+  });
+
+  it('keys shots without a custom club by type, so custom and plain shots stay apart', () => {
+    expect(shotClubKey(shotWith({}))).toBe('sw');
+    expect(shotClubKey(shotWith({ custom_club: null }))).toBe('sw');
+    expect(shotClubKey(shotWith({ custom_club: wedge('a', 'Spinner') }))).not.toBe('sw');
+  });
+
+  it('matches a selection to the shots it records', () => {
+    expect(clubSelectionKey('sw', 'a')).toBe(shotClubKey(shotWith({ custom_club: wedge('a', 'Spinner') })));
+    expect(clubSelectionKey('sw', '')).toBe(shotClubKey(shotWith({})));
+  });
+
+  it('labels a custom club shot with loft and model', () => {
+    expect(shotClubLabel(shotWith({ custom_club: wedge('a', 'Spinner') }))).toBe('SW 56° Spinner');
+  });
+
+  it('labels other shots as before', () => {
+    expect(shotClubLabel(shotWith({}))).toBe('sw');
+    expect(shotClubLabel(shotWith({ club: 'Driver', training_implement_label: 'The Stack 160g' }))).toBe(
+      'The Stack 160g'
+    );
   });
 });

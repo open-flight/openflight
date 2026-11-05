@@ -28,6 +28,7 @@ from .ballistics import resolve_launch, simulate
 from .ble.protocol import (
     FEATURES as PHONE_FEATURES,
     build_club_event,
+    build_clubs_event,
     build_power_status_event,
     build_profiles_event,
     build_session_cleared_event,
@@ -37,6 +38,15 @@ from .ble.protocol import (
     stable_shot_event_id,
 )
 from .clubs import ClubType
+from .clubs.club import (
+    CLUB_NAMES,
+    Club,
+    CustomClub,
+    clean_id,
+    find_custom_club,
+    sole_custom_club_of_type,
+)
+from .clubs.store import ClubStore, ClubStoreError
 from .clubs.physics import (
     SHOT_SIMULATION_DEFAULTS,
     get_club_physics,
@@ -102,6 +112,7 @@ debug_log_path: Optional[Path] = None
 # Created lazily so importing the server (in tests, in tooling) never writes
 # to the real config directory.
 profile_store: Optional[ProfileStore] = None
+club_store: Optional[ClubStore] = None
 
 
 def get_profile_store() -> ProfileStore:
@@ -110,6 +121,14 @@ def get_profile_store() -> ProfileStore:
     if profile_store is None:
         profile_store = ProfileStore()
     return profile_store
+
+
+def get_club_store() -> ClubStore:
+    """The custom club catalog, loaded on first use."""
+    global club_store  # pylint: disable=global-statement
+    if club_store is None:
+        club_store = ClubStore()
+    return club_store
 
 
 TRAINING_IMPLEMENT_LABELS = {
@@ -187,6 +206,10 @@ ble_publisher = None
 # Monitors start on driver, and successful changes update this value atomically
 # before being fanned out over all enabled transports.
 active_club = ClubType.DRIVER
+# The selected custom club in the active profile's bag, or "" when none is
+# (no clubs, or a type-only selection the bag cannot resolve unambiguously).
+# Always a club of type ``active_club``; guarded by ``club_selection_lock``.
+active_custom_club_id = ""
 club_selection_lock = threading.Lock()
 
 # Network shot delivery for phone apps. Always available: it exposes the same
@@ -1110,21 +1133,73 @@ def apply_iwr6843_orientation_calibration(payload):  # pylint: disable=too-many-
     return response, 200
 
 
-def apply_club_selection(payload):
-    """Set the club used to tag and process future shots."""
-    global active_club  # pylint: disable=global-statement
+def _active_bag() -> list[CustomClub]:
+    """The active profile's clubs; each profile has one bag, keyed by its id."""
+    return get_club_store().list(get_profile_store().get_active().id)
+
+
+class ClubSelectionError(ValueError):
+    """A club selection request that cannot be applied, with its HTTP status."""
+
+    def __init__(self, message: str, status: int = 400):
+        super().__init__(message)
+        self.status = status
+
+
+def _parse_club_request(
+    payload, bag: list[CustomClub]
+) -> tuple[ClubType, Optional[CustomClub]]:
+    """The requested club type, and the custom club when one was named explicitly.
+
+    Raises:
+        ClubSelectionError: the payload is not an object, names an unknown or
+            unselectable club, names a custom club the active bag lacks, or
+            names both a custom club and a different club type.
+    """
     if not isinstance(payload, dict):
-        return {"error": "Club selection must be a JSON object"}, 400
+        raise ClubSelectionError("Club selection must be a JSON object")
     club_name = payload.get("club")
+    custom_club = None
+    if clean_id(payload.get("custom_club_id")):
+        custom_club = find_custom_club(bag, payload.get("custom_club_id"))
+        if custom_club is None:
+            raise ClubSelectionError("That club is not in the active profile's bag", 404)
+        if club_name in (None, ""):
+            club_name = custom_club.club_type.value
     try:
         club = ClubType(club_name)
     except (TypeError, ValueError):
         valid = ", ".join(item.value for item in ClubType if item is not ClubType.UNKNOWN)
-        return {"error": f"Unknown club; choose one of: {valid}"}, 400
+        raise ClubSelectionError(f"Unknown club; choose one of: {valid}") from None
     if club is ClubType.UNKNOWN:
-        return {"error": "Unknown is not a selectable club"}, 400
+        raise ClubSelectionError("Unknown is not a selectable club")
+    if custom_club is not None and custom_club.club_type is not club:
+        raise ClubSelectionError(
+            f"Custom club is a {custom_club.club_type.value}, not a {club.value}"
+        )
+    return club, custom_club
+
+
+def apply_club_selection(payload):
+    """Set the club used to tag and process future shots.
+
+    ``custom_club_id`` picks one club from the active profile's bag and implies
+    its type; ``club`` may accompany it but must then agree. A ``club``-only
+    selection (simulators, phones, ``/api/club``) keeps the selected custom
+    club when it is already that type, since simulators echo the club back
+    after every change. Otherwise it lands on the bag's club of that type when
+    there is exactly one, and on none.
+    """
+    global active_club, active_custom_club_id  # pylint: disable=global-statement
+    bag = _active_bag()
+    try:
+        club, custom_club = _parse_club_request(payload, bag)
+    except ClubSelectionError as error:
+        return {"error": str(error)}, error.status
 
     with club_selection_lock:
+        if custom_club is None:
+            custom_club = _custom_club_for_type(bag, club)
         # Without a monitor (startup, or tests) the selection is still recorded
         # and broadcast, as the Socket.IO handler always did; the monitor picks
         # up later changes once it exists.
@@ -1135,33 +1210,91 @@ def apply_club_selection(payload):
                 logger.exception("[SERVER] Failed to set club to %s", club.value)
                 return {"error": "OpenFlight could not change the club"}, 500
         active_club = club
-        response = {"status": "applied", "club": club.value}
-        _broadcast_club_selection(club)
-    logger.info("[SERVER] Club changed to %s", club.value)
+        active_custom_club_id = custom_club.id if custom_club is not None else ""
+        response = {"status": "applied", **_club_selection_payload()}
+        _broadcast_club_selection()
+    logger.info("[SERVER] Club changed to %s (custom club %r)", club.value, active_custom_club_id)
     return response, 200
+
+
+def _custom_club_for_type(bag: list[CustomClub], club: ClubType) -> Optional[CustomClub]:
+    """The custom club a type-only selection lands on. Caller holds ``club_selection_lock``.
+
+    The selected custom club stays when it is already that type, since
+    simulators echo the club back after every change; otherwise the bag's
+    only club of that type, or none.
+    """
+    current = find_custom_club(bag, active_custom_club_id)
+    if current is not None and current.club_type is club:
+        return current
+    return sole_custom_club_of_type(bag, club)
 
 
 def current_club_selection(_payload=None):
     """Return the Pi-owned club without changing monitor state."""
     with club_selection_lock:
-        club_value = active_club.value
-    return {"status": "current", "club": club_value}, 200
+        payload = _club_selection_payload()
+    return {"status": "current", **payload}, 200
 
 
-def _broadcast_club_selection(club: ClubType) -> None:
-    """Fan one authoritative club update out over every active transport."""
-    club_data = {"club": club.value}
+def _club_selection_payload() -> dict:
+    """``club`` and ``custom_club_id`` ("" for none). Caller holds ``club_selection_lock``."""
+    return {"club": active_club.value, "custom_club_id": active_custom_club_id}
+
+
+def reconcile_custom_club_selection() -> None:
+    """Keep the selected custom club valid after the active profile or its clubs change.
+
+    The club type is left alone; only which custom club of that type is
+    selected can change. A selection that no longer names a club of
+    ``active_club`` in the active bag falls back to the bag's only club of that
+    type, or to none. Broadcasts only when the selection actually changed.
+    """
+    global active_custom_club_id  # pylint: disable=global-statement
+    bag = _active_bag()
+    with club_selection_lock:
+        current = find_custom_club(bag, active_custom_club_id)
+        if current is not None and current.club_type is active_club:
+            return
+        fallback = sole_custom_club_of_type(bag, active_club)
+        new_id = fallback.id if fallback is not None else ""
+        if new_id == active_custom_club_id:
+            return
+        active_custom_club_id = new_id
+        _broadcast_club_selection()
+
+
+def _custom_club_for_shot(shot_club: ClubType, profile_id: str) -> Optional[CustomClub]:
+    """The selected custom club, if it is in this profile's bag and matches the shot's type.
+
+    The monitor stamps ``shot.club`` itself, so a mismatch means the selection
+    is stale for this shot and must not be attributed to it.
+    """
+    with club_selection_lock:
+        selected_id = active_custom_club_id
+    custom_club = get_club_store().get(selected_id) if selected_id else None
+    if custom_club is None or custom_club.bag != profile_id:
+        return None
+    return custom_club if custom_club.club_type is shot_club else None
+
+
+def _broadcast_club_selection() -> None:
+    """Fan one authoritative club update out over every active transport.
+
+    Called with ``club_selection_lock`` held.
+    """
+    club_data = _club_selection_payload()
     try:
         socketio.emit("club_changed", club_data)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("[SERVER] Failed to broadcast club over WebSocket", exc_info=True)
     try:
-        shot_stream.publish_club(club.value)
+        shot_stream.publish_club(club_data["club"], club_data["custom_club_id"])
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("[SERVER] Failed to broadcast club over network stream", exc_info=True)
     if ble_publisher is not None:
         try:
-            ble_publisher.publish_club(club.value)
+            ble_publisher.publish_club(club_data["club"], club_data["custom_club_id"])
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("[SERVER] Failed to broadcast club over BLE", exc_info=True)
 
@@ -1173,9 +1306,9 @@ def dispatch_phone_control_command(command_type, payload):
     kiosk and every other client see identical broadcasts.
 
     BLE has no authentication, so it is read-and-select only: profile add,
-    rename and remove, ``clear_session`` and ``delete_shot`` stay on
-    Socket.IO. Phones still hear about those changes through the
-    ``profiles``, ``session_cleared`` and ``shot_deleted`` events.
+    rename and remove, custom club edits, ``clear_session`` and ``delete_shot``
+    stay on Socket.IO. Phones still hear about those changes through the
+    ``profiles``, ``clubs``, ``session_cleared`` and ``shot_deleted`` events.
 
     The one exception is ``iwr6843_orientation_calibration``: it validates a
     phone measurement and persists the derived TI mount tilt, so a bonded or
@@ -1185,6 +1318,7 @@ def dispatch_phone_control_command(command_type, payload):
         "iwr6843_orientation_calibration": apply_iwr6843_orientation_calibration,
         "set_club": apply_club_selection,
         "get_club": current_club_selection,
+        "get_clubs": request_clubs,
         "get_profiles": request_profiles,
         "set_active_profile": apply_active_profile,
         "get_power_status": current_power_status,
@@ -1196,14 +1330,15 @@ def dispatch_phone_control_command(command_type, payload):
 
 
 def _phone_state_events() -> list[dict]:
-    """Current club, profiles and power, as seeded to a new stream client."""
+    """Current club, profiles, clubs and power, as seeded to a new stream client."""
     with club_selection_lock:
-        club_value = active_club.value
-    events = [build_club_event(club_value)]
+        club_data = _club_selection_payload()
+    events = [build_club_event(club_data["club"], club_data["custom_club_id"])]
     try:
         events.append(build_profiles_event(get_profile_store().snapshot()))
+        events.append(_phone_clubs_event())
     except Exception:  # pylint: disable=broad-exception-caught
-        logger.warning("[SERVER] Could not read profiles for the shot stream", exc_info=True)
+        logger.warning("[SERVER] Could not read profiles or clubs for the stream", exc_info=True)
     if power_monitor is not None and power_monitor.status is not None:
         events.append(build_power_status_event(power_monitor.status.to_dict()))
     return events
@@ -2028,10 +2163,13 @@ def _current_club_id() -> str:
 
 def _session_state_payload(*, include_runtime_meta: bool = False) -> dict:
     """Build the session_state event the UI applies on connect and refresh."""
+    with club_selection_lock:
+        custom_club_id = active_custom_club_id
     payload = {
         "stats": monitor.get_session_stats() if monitor else {},
         "shots": _session_shots(),
         "club": _current_club_id(),
+        "custom_club_id": custom_club_id,
     }
     if include_runtime_meta:
         payload.update(
@@ -2159,9 +2297,12 @@ def handle_connect():
     print("Client connected")
     _emit_sim_snapshot()
     _emit_profiles()
+    _emit_clubs()
     if power_monitor and power_monitor.status:
         socketio.emit("power_status", power_monitor.status.to_dict())
-    socketio.emit("club_changed", {"club": active_club.value})
+    with club_selection_lock:
+        club_data = _club_selection_payload()
+    socketio.emit("club_changed", club_data)
     if monitor:
         socketio.emit("session_state", _session_state_payload(include_runtime_meta=True))
         socketio.emit("trigger_status", _get_trigger_status())
@@ -2216,6 +2357,9 @@ def apply_active_profile(payload=None):
     store = get_profile_store()
     applied = store.set_active(_payload_dict(payload).get("profile_id"))
     _emit_profiles()
+    if applied:
+        _emit_clubs()  # phones get the new active bag
+        reconcile_custom_club_selection()
     if not applied:
         return {"error": "Unknown profile"}, 404
     return {"status": "applied", "active_profile_id": store.get_active().id}, 200
@@ -2255,8 +2399,91 @@ def handle_remove_profile(data=None):
     if profile_id and _profile_has_session_rows(profile_id):
         _emit_profiles()
         return
-    get_profile_store().remove(profile_id)
+    if get_profile_store().remove(profile_id) and get_club_store().remove_bag(profile_id):
+        _emit_clubs()
     _emit_profiles()
+
+
+def _phone_clubs_event() -> dict:
+    """The BLE/stream ``clubs`` event: the active profile's bag only."""
+    active_bag = get_profile_store().get_active().id
+    return build_clubs_event(get_club_store().snapshot()["clubs"], active_bag)
+
+
+def _clubs_payload() -> dict:
+    """The Socket.IO ``clubs`` event: every club, plus each type's inherited loft."""
+    lofts = {club_type.value: Club.builtin(club_type).loft_deg for club_type in CLUB_NAMES}
+    return {**get_club_store().snapshot(), "lofts": lofts}
+
+
+def _emit_clubs() -> None:
+    """Broadcast the custom clubs: all of them on Socket.IO, the active bag to phones."""
+    socketio.emit("clubs", _clubs_payload())
+    _publish_phone_event(_phone_clubs_event())
+
+
+def request_clubs(_payload=None):
+    """Broadcast the custom clubs, as Socket.IO ``get_clubs`` does."""
+    _emit_clubs()
+    return {"status": "sent"}, 200
+
+
+def apply_save_custom_club(payload=None):
+    """Add a custom club to a bag, or update one by ``id``; then broadcast.
+
+    A new club goes in ``bag`` (the active profile's by default), which must
+    name an existing profile. Ids are issued by the store and never reused.
+    """
+    data = _payload_dict(payload)
+    store = get_club_store()
+    try:
+        if clean_id(data.get("id")):
+            store.update(data.get("id"), data)
+        else:
+            profiles = get_profile_store()
+            bag = clean_id(data.get("bag")) or profiles.get_active().id
+            if all(profile.id != bag for profile in profiles.list()):
+                return {"error": "That bag does not belong to a profile"}, 404
+            store.add(bag, data)
+    except ClubStoreError as error:
+        logger.warning("[SERVER] Rejected custom club: %s", error)
+        _emit_clubs()
+        return {"error": str(error)}, 400
+    _emit_clubs()
+    reconcile_custom_club_selection()
+    return {"status": "applied"}, 200
+
+
+def apply_remove_custom_club(payload=None):
+    """Remove one custom club. Shots that recorded it keep their snapshot."""
+    removed = get_club_store().remove(_payload_dict(payload).get("id"))
+    _emit_clubs()
+    if not removed:
+        return {"error": "Could not remove the club"}, 404
+    reconcile_custom_club_selection()
+    return {"status": "removed"}, 200
+
+
+@socketio.on("get_clubs")
+def handle_get_clubs():
+    """Send the custom clubs to a client that asked for them."""
+    request_clubs()
+
+
+@socketio.on("save_custom_club")
+def handle_save_custom_club(data=None):
+    """Add or update a custom club; a rejection is reported as ``custom_club_error``."""
+    response, status = apply_save_custom_club(data)
+    if status != 200:
+        socketio.emit("custom_club_error", response)
+
+
+@socketio.on("remove_custom_club")
+def handle_remove_custom_club(data=None):
+    """Remove a custom club; a failure is reported as ``custom_club_error``."""
+    response, status = apply_remove_custom_club(data)
+    if status != 200:
+        socketio.emit("custom_club_error", response)
 
 
 @socketio.on("set_training_implement")
@@ -2672,7 +2899,7 @@ def _sim_on_status(target: str, event) -> None:
 
 def _sim_on_inbound(target: str, event) -> None:
     """Apply an inbound simulator event (player/club update, error, ack)."""
-    global active_club  # pylint: disable=global-statement
+    global active_club, active_custom_club_id  # pylint: disable=global-statement
     if isinstance(event, PlayerUpdate):
         sim_player_state.apply(event)
         club_value = sim_player_state.club.value
@@ -2686,6 +2913,7 @@ def _sim_on_inbound(target: str, event) -> None:
             sl.log_sim_player(target=target, handed=sim_player_state.handed, club=club_value)
         # The monitor owns current-club state for shot tagging and carry/spin
         # model selection; keep it in sync with the sim's canonical club.
+        bag = _active_bag()
         with club_selection_lock:
             monitor_updated = True
             if monitor is not None:
@@ -2695,8 +2923,10 @@ def _sim_on_inbound(target: str, event) -> None:
                     logger.exception("[sim] monitor.set_club failed")
                     monitor_updated = False
             if monitor_updated:
+                custom_club = _custom_club_for_type(bag, sim_player_state.club)
                 active_club = sim_player_state.club
-                _broadcast_club_selection(active_club)
+                active_custom_club_id = custom_club.id if custom_club is not None else ""
+                _broadcast_club_selection()
     elif isinstance(event, SimError):
         logger.warning("[sim] ← %s error: %s", target, event.message)
         socketio.emit("sim_status", {"target": target, "state": "error", "message": event.message})
@@ -4144,6 +4374,7 @@ def _handle_shot_detected(shot: Shot) -> None:
     active_profile = get_profile_store().get_active()
     shot.profile_id = active_profile.id
     shot.profile_name = active_profile.name
+    shot.custom_club = _custom_club_for_shot(shot.club, active_profile.id)
     logger.info("[SERVER] Shot callback: %.1f mph", shot.ball_speed_mph)
 
     if not _has_slow_shot_enrichment(shot):

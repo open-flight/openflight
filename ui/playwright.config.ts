@@ -1,6 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { PROFILES_PATH_ENV, uniqueE2eProfilesPath } from './tests/e2e/isolateProfilesPath';
+import {
+  CLUBS_PATH_ENV,
+  PROFILES_PATH_ENV,
+  e2eClubsPathBeside,
+  uniqueE2eProfilesPath,
+} from './tests/e2e/isolateProfilesPath';
 
 const PORT = 5173;
 const HOST = '127.0.0.1';
@@ -17,6 +22,7 @@ function backendEnv(): { [key: string]: string } {
     if (value !== undefined) env[key] = value;
   }
   env[PROFILES_PATH_ENV] = E2E_PROFILES_PATH;
+  env[CLUBS_PATH_ENV] = e2eClubsPathBeside(E2E_PROFILES_PATH);
   return env;
 }
 

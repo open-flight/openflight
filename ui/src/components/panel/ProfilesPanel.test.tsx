@@ -28,6 +28,8 @@ function render(overrides: Partial<Parameters<typeof ProfilesPanel>[0]> = {}) {
         onSelectProfile={() => {}}
         onRenameProfile={() => {}}
         onRemoveProfile={() => {}}
+        onOpenBag={() => {}}
+        bagCounts={{}}
         {...overrides}
       />
     )
@@ -96,5 +98,14 @@ describe('ProfilesPanel', () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toContain('Home');
     expect(html).not.toContain('Range');
+  });
+
+  it('offers a bag button per profile, counting the clubs it carries', () => {
+    const html = render({ bagCounts: { aaa: 2 } });
+
+    expect(html).toContain('aria-label="Edit the bag for Home"');
+    expect(html).toContain('aria-label="Edit the bag for Range"');
+    expect(html).toMatch(/profiles-panel__bag"[^>]*>Bag · 2</);
+    expect(html).toMatch(/aria-label="Edit the bag for Range"[^>]*>Bag</);
   });
 });
