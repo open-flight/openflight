@@ -79,7 +79,7 @@
 
 <!-- Insert key -->
 <circle cx="70" cy="410" r="5" fill="#C8963C" stroke="#7A5A1E" stroke-width="1"/>
-<text class="tsm" x="82" y="414">M2.5 insert + M2.5 x 6 screw (2 diagonal, or all 4)</text>
+<text class="tsm" x="82" y="414">M2.5 insert + M2.5 screw, 6 mm long (2 diagonal, or all 4)</text>
 
 <text class="tsm" x="49" y="462">Left</text>
 <text class="tsm" x="340" y="462" text-anchor="middle">REAR: Pi and UPS. You stand here, looking downrange.</text>

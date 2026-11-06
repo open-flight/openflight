@@ -20,7 +20,7 @@ The hardware used for the validated OpenFlight build is:
 |------|---------|
 | LIS3DH breakout | [Adafruit LIS3DH Triple-Axis Accelerometer, product 2809](https://www.adafruit.com/product/2809) |
 | Solderless cable kit | [4-pin JST SH 1.0 mm STEMMA QT/Qwiic cable kit on Amazon](https://www.amazon.com/Connector-Compatible-Development-Sensors-Drivers/dp/B0GJPRX4YT) |
-| Mounting | 2 (or 4) M2.5 heat-set inserts and M2.5 × 6 mm pan-head screws, for a floor bay of the [openflight-enclosure](https://github.com/open-flight/openflight-enclosure) shell |
+| Mounting | 2 (or 4) M2.5 heat-set inserts and M2.5 screws, 6 mm long, for a floor bay of the [openflight-enclosure](https://github.com/open-flight/openflight-enclosure) shell |
 
 The Amazon cable kit is the exact cable product used in this build. It includes
 JST-SH-to-female-Dupont cables, so the breakout can connect directly to the
@@ -105,7 +105,7 @@ is fully clear.
 Each bay has four Ø3.4 × 6 mm pockets on a 20.32 × 12.7 mm pattern, which
 matches the Adafruit board's holes. Press M2.5 heat-set inserts in flush with
 the floor. Two diagonal inserts hold the board; fill all four if you want.
-Screw the board down with M2.5 × 6 mm pan-head screws.
+Screw the board down with M2.5 screws, 6 mm long.
 
 Screw it flat against the floor. Avoid thick foam tape that lets the board flex
 independently from the enclosure.
