@@ -7,6 +7,7 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - Optional LIS3DH inclinometer: I2C, and a check that +Y points at the ball
 #   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
@@ -267,6 +268,30 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         info "    ./scripts/battery/geekworm/setup.sh --verify"
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- LIS3DH inclinometer (optional) ---
+    echo ""
+    if confirm "Do you have an LIS3DH inclinometer to set up?" "N"; then
+        info "Mount it flat in the LEFT floor bay (looking downrange) on M2.5 inserts."
+        info "Point the board's Y arrow at the ball: the I2 / A1-A3 / SDO / CS pin row"
+        info "faces downrange. Then positive Y is tilt-back, the sign OpenFlight uses,"
+        info "so nothing needs flipping. Picture: docs/build/inclinometer.md"
+        if command -v raspi-config > /dev/null && [ "$(sudo raspi-config nonint get_i2c)" != "0" ]; then
+            log "Enabling I2C..."
+            sudo raspi-config nonint do_i2c 0
+        fi
+        if [ ! -e /dev/i2c-1 ]; then
+            warn "/dev/i2c-1 is not there yet. Reboot, then check the mounting with:"
+            warn "    uv run python scripts/hardware-test/check_lis3dh_orientation.py"
+        elif python scripts/hardware-test/check_lis3dh_orientation.py; then
+            log "LIS3DH mounted with +Y toward the ball ✓"
+        else
+            warn "The LIS3DH check did not pass. Fix the mounting, then re-run:"
+            warn "    uv run python scripts/hardware-test/check_lis3dh_orientation.py"
+        fi
+    else
+        info "Skipped. See docs/build/inclinometer.md."
     fi
 
     # --- Bluetooth (BLE phone app) ---
