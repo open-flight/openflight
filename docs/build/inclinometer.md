@@ -99,8 +99,7 @@ be flipped in software.
 Use the **left floor bay**, as seen from behind the rig looking downrange. The
 shell has three Adafruit bays. On the new radar front, the IWR6843 sits closer
 to the middle and leans back over the front pockets of the right bay and one
-pocket of the middle bay, so you cannot get a screwdriver to them. The left bay
-is fully clear.
+pocket of the middle bay. The left bay is fully clear.
 
 Each bay has four Ø3.4 × 6 mm pockets on a 20.32 × 12.7 mm pattern, which
 matches the Adafruit board's holes. Press M2.5 heat-set inserts in flush with
