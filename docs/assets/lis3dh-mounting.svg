@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img">
+<title>LIS3DH mounting</title>
+<desc>Top view of the enclosure floor with downrange at the top. The LIS3DH sits in the left floor bay on M2.5 brass inserts, with its Y arrow and the I2, A1 to A3, SDO and CS pin row pointing at the ball. The IWR6843 on the new radar front overhangs the front pockets of the right bay and one pocket of the middle bay. A side view shows that lifting the front of the rig makes the LIS3DH pitch go positive.</desc>
+<defs>
+  <marker id="head-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1F8A4C"/></marker>
+  <marker id="head-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C0392B"/></marker>
+  <marker id="head-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3D3D3A"/></marker>
+  <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#FBE3DE"/><line x1="0" y1="0" x2="0" y2="8" stroke="#E8A497" stroke-width="3"/></pattern>
+</defs>
+<style>
+  .ts { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; fill: #3d3d3a; }
+  .tsm { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11px; fill: #5f5e5a; }
+  .th { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; fill: #3d3d3a; }
+  .silk { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9px; font-weight: 700; fill: #F2F2F2; }
+  .go { fill: #1F8A4C; font-weight: 700; }
+  .stop { fill: #C0392B; }
+</style>
+
+<rect x="0" y="0" width="960" height="700" fill="#FFFFFF"/>
+
+<!-- ============ Top view of the enclosure floor (3 px per mm, downrange is up) ============ -->
+<text class="th" x="40" y="28">Enclosure floor, seen from above. Downrange is up.</text>
+
+<!-- Ball and downrange arrow -->
+<line x1="340" y1="104" x2="340" y2="70" stroke="#1F8A4C" stroke-width="3" marker-end="url(#head-green)"/>
+<circle cx="340" cy="50" r="12" fill="#FFFFFF" stroke="#3D3D3A" stroke-width="1.5"/>
+<text class="ts go" x="362" y="54">Ball / downrange</text>
+
+<!-- Shell outline and inner wall -->
+<rect x="40" y="110" width="600" height="333" rx="18" fill="#E9ECEF" stroke="#3D3D3A" stroke-width="2"/>
+<rect x="49" y="119" width="582" height="315" rx="12" fill="#F7F8F9" stroke="#9AA3AD" stroke-width="1"/>
+<text class="tsm" x="340" y="130" text-anchor="middle">FRONT: radars face the ball</text>
+
+<!-- OPS243-A footprint -->
+<rect x="112" y="136" width="270" height="40" fill="#DCE8F5" stroke="#2F6FB0" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="tsm" x="122" y="160">OPS243-A</text>
+
+<!-- IWR6843 overhang on the new radar front -->
+<rect x="344" y="170" width="205" height="39" fill="url(#hatch)" stroke="#C0392B" stroke-width="1.2"/>
+<text class="tsm stop" x="352" y="186">IWR6843 overhang (new radar front)</text>
+
+<!-- Bay outlines (25.4 x 17.78 mm) -->
+<rect x="162.9" y="197" width="76.2" height="53.3" fill="none" stroke="#1F8A4C" stroke-width="1.5" stroke-dasharray="5 3"/>
+<rect x="301.9" y="197" width="76.2" height="53.3" fill="none" stroke="#9AA3AD" stroke-width="1.2" stroke-dasharray="5 3"/>
+<rect x="440.9" y="197" width="76.2" height="53.3" fill="none" stroke="#9AA3AD" stroke-width="1.2" stroke-dasharray="5 3"/>
+
+<!-- Middle and right bay pockets: open, or blocked by the IWR overhang -->
+<circle cx="309.5" cy="242.6" r="5" fill="#FFFFFF" stroke="#7A828C" stroke-width="1.2"/>
+<circle cx="370.5" cy="242.6" r="5" fill="#FFFFFF" stroke="#7A828C" stroke-width="1.2"/>
+<circle cx="309.5" cy="204.5" r="5" fill="#FFFFFF" stroke="#7A828C" stroke-width="1.2"/>
+<circle cx="448.5" cy="242.6" r="5" fill="#FFFFFF" stroke="#7A828C" stroke-width="1.2"/>
+<circle cx="509.5" cy="242.6" r="5" fill="#FFFFFF" stroke="#7A828C" stroke-width="1.2"/>
+<g stroke="#C0392B" stroke-width="2">
+  <circle cx="370.5" cy="204.5" r="6" fill="#FFFFFF"/><line x1="366" y1="200" x2="375" y2="209"/><line x1="375" y1="200" x2="366" y2="209"/>
+  <circle cx="448.5" cy="204.5" r="6" fill="#FFFFFF"/><line x1="444" y1="200" x2="453" y2="209"/><line x1="453" y1="200" x2="444" y2="209"/>
+  <circle cx="509.5" cy="204.5" r="6" fill="#FFFFFF"/><line x1="505" y1="200" x2="514" y2="209"/><line x1="514" y1="200" x2="505" y2="209"/>
+</g>
+
+<!-- LIS3DH in the left bay -->
+<rect x="162.9" y="197" width="76.2" height="53.3" rx="7" fill="#17191C"/>
+<circle cx="170.5" cy="204.5" r="5" fill="#C8963C" stroke="#7A5A1E" stroke-width="1"/>
+<circle cx="231.5" cy="242.6" r="5" fill="#C8963C" stroke="#7A5A1E" stroke-width="1"/>
+<circle cx="231.5" cy="204.5" r="5" fill="none" stroke="#C8963C" stroke-width="1.2" stroke-dasharray="2 2"/>
+<circle cx="170.5" cy="242.6" r="5" fill="none" stroke="#C8963C" stroke-width="1.2" stroke-dasharray="2 2"/>
+<rect x="162.9" y="215" width="12" height="21" fill="#D8D4C8"/>
+<rect x="227.1" y="215" width="12" height="21" fill="#D8D4C8"/>
+<line x1="201" y1="240" x2="201" y2="210" stroke="#4CC47F" stroke-width="3" marker-end="url(#head-green)"/>
+<path d="M239 225 C 255 226, 262 250, 262 290 S 300 318, 352 318" fill="none" stroke="#E0B414" stroke-width="2.5"/>
+<path d="M239 228 C 252 229, 259 252, 259 292 S 298 321, 350 321" fill="none" stroke="#2F62D8" stroke-width="2"/>
+<text class="tsm" x="356" y="326">to Pi pins 17 / 20 / 3 / 5</text>
+
+<!-- Bay captions -->
+<text class="ts go" x="201" y="268" text-anchor="middle">Left bay: LIS3DH</text>
+<text class="tsm" x="340" y="268" text-anchor="middle">Middle bay</text>
+<text class="tsm stop" x="340" y="282" text-anchor="middle">1 pocket blocked</text>
+<text class="tsm" x="479" y="268" text-anchor="middle">Right bay</text>
+<text class="tsm stop" x="479" y="282" text-anchor="middle">2 pockets blocked</text>
+
+<!-- Insert key -->
+<circle cx="70" cy="410" r="5" fill="#C8963C" stroke="#7A5A1E" stroke-width="1"/>
+<text class="tsm" x="82" y="414">M2.5 insert + M2.5 x 6 screw (2 diagonal, or all 4)</text>
+
+<text class="tsm" x="49" y="462">Left</text>
+<text class="tsm" x="340" y="462" text-anchor="middle">REAR: Pi and UPS. You stand here, looking downrange.</text>
+<text class="tsm" x="631" y="462" text-anchor="end">Right</text>
+
+<!-- ============ Board detail (10 px per mm, same orientation) ============ -->
+<text class="th" x="680" y="96">LIS3DH, close up</text>
+<line x1="807" y1="165" x2="807" y2="116" stroke="#1F8A4C" stroke-width="4" marker-end="url(#head-green)"/>
+<text class="ts go" x="822" y="136">+Y points at the ball</text>
+
+<path d="M705.4 170 H908.6 L934 195.4 V322.4 L908.6 347.8 H705.4 L680 322.4 V195.4 Z" fill="#17191C"/>
+<g fill="#C69A4A">
+  <circle cx="705.4" cy="195.4" r="23"/><circle cx="908.6" cy="195.4" r="23"/>
+  <circle cx="705.4" cy="322.4" r="23"/><circle cx="908.6" cy="322.4" r="23"/>
+</g>
+<g fill="#FFFFFF">
+  <circle cx="705.4" cy="195.4" r="12.5"/><circle cx="908.6" cy="195.4" r="12.5"/>
+  <circle cx="705.4" cy="322.4" r="12.5"/><circle cx="908.6" cy="322.4" r="12.5"/>
+</g>
+<g fill="#C69A4A" stroke="#17191C" stroke-width="5">
+  <circle cx="743.5" cy="195.4" r="9.5"/><circle cx="768.9" cy="195.4" r="9.5"/><circle cx="794.3" cy="195.4" r="9.5"/>
+  <circle cx="819.7" cy="195.4" r="9.5"/><circle cx="845.1" cy="195.4" r="9.5"/><circle cx="870.5" cy="195.4" r="9.5"/>
+  <circle cx="743.5" cy="322.4" r="9.5"/><circle cx="768.9" cy="322.4" r="9.5"/><circle cx="794.3" cy="322.4" r="9.5"/>
+  <circle cx="819.7" cy="322.4" r="9.5"/><circle cx="845.1" cy="322.4" r="9.5"/><circle cx="870.5" cy="322.4" r="9.5"/>
+</g>
+<g class="silk" text-anchor="middle">
+  <text x="743.5" y="181">I2</text><text x="768.9" y="181">A3</text><text x="794.3" y="181">A2</text>
+  <text x="819.7" y="181">A1</text><text x="845.1" y="181">SDO</text><text x="870.5" y="181">CS</text>
+  <text x="743.5" y="343">VIN</text><text x="768.9" y="309">3Vo</text><text x="794.3" y="343">GND</text>
+  <text x="819.7" y="309">SCL</text><text x="845.1" y="343">SDA</text><text x="870.5" y="343">INT</text>
+</g>
+<text class="silk" x="807" y="225" text-anchor="middle" style="font-size:15px">LIS3DH</text>
+<rect x="792" y="244" width="30" height="30" fill="#3A3D42"/>
+<rect x="680" y="224" width="44" height="70" fill="#D8D4C8" stroke="#8C877A" stroke-width="1"/>
+<rect x="890" y="224" width="44" height="70" fill="#D8D4C8" stroke="#8C877A" stroke-width="1"/>
+<!-- Silkscreen axis mark (Eagle 12.7, 18.8) -->
+<g stroke="#F2F2F2" stroke-width="2" fill="none">
+  <circle cx="862" cy="276" r="7"/>
+  <line x1="862" y1="269" x2="862" y2="252"/><path d="M857 256 L862 249 L867 256" fill="#F2F2F2"/>
+  <line x1="869" y1="276" x2="882" y2="276"/><path d="M878 271 L885 276 L878 281" fill="#F2F2F2"/>
+</g>
+<text class="silk" x="862" y="279.5" text-anchor="middle">Z</text>
+<text class="silk" x="872" y="256">Y</text>
+<text class="silk" x="878" y="268">X</text>
+
+<text class="ts" x="680" y="374">Top row (I2, A1-A3, SDO, CS) faces the ball.</text>
+<text class="ts" x="680" y="393">Bottom row (VIN, GND, SCL, SDA) faces you.</text>
+<text class="ts" x="680" y="412">+X points at the middle bay. Z points up.</text>
+<text class="ts" x="680" y="431">Cable: right-hand STEMMA QT port.</text>
+
+<!-- ============ Side view: the check ============ -->
+<line x1="40" y1="500" x2="920" y2="500" stroke="#E2E4E7" stroke-width="1"/>
+<text class="th" x="40" y="530">Check: lift the front and pitch goes positive</text>
+
+<line x1="60" y1="652" x2="520" y2="652" stroke="#3D3D3A" stroke-width="1.5"/>
+<rect x="400" y="606" width="44" height="46" fill="#C9CED4" stroke="#3D3D3A" stroke-width="1"/>
+<g transform="rotate(-8 110 652)">
+  <rect x="110" y="582" width="333" height="70" rx="10" fill="#E9ECEF" stroke="#3D3D3A" stroke-width="1.5"/>
+  <rect x="300" y="635" width="54" height="6" fill="#17191C"/>
+  <line x1="327" y1="630" x2="410" y2="630" stroke="#1F8A4C" stroke-width="3" marker-end="url(#head-green)"/>
+  <text class="ts go" x="300" y="620">+Y</text>
+  <text class="tsm" x="120" y="600">rear</text>
+  <text class="tsm" x="433" y="600" text-anchor="end">front</text>
+</g>
+<text class="tsm" x="452" y="644">lift 2-3 cm</text>
+<line x1="540" y1="620" x2="600" y2="620" stroke="#1F8A4C" stroke-width="3" marker-end="url(#head-green)"/>
+<circle cx="618" cy="612" r="9" fill="#FFFFFF" stroke="#3D3D3A" stroke-width="1.5"/>
+<text class="ts" x="650" y="568">With +Y toward the ball, lifting the front tilts</text>
+<text class="ts" x="650" y="586">+Y upward. The LIS3DH reads positive Y, so pitch</text>
+<text class="ts" x="650" y="604">goes positive, which is the sign OpenFlight uses.</text>
+<text class="ts" x="650" y="622">No sign flip is needed anywhere.</text>
+<text class="tsm" x="650" y="648">scripts/setup/setup.sh runs this check for you.</text>
+</svg>
