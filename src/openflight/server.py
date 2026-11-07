@@ -1246,8 +1246,6 @@ def api_screen_sleep():
         return jsonify({"error": "Unable to control backlight"}), 500
 
 
-
-
 @app.route("/api/shutdown", methods=["POST"])
 def api_shutdown():
     """Cleanly shut down the server via REST API."""
@@ -1314,7 +1312,9 @@ def init_camera_capture(
         settings = camera_capture_runtime.settings
         from .camera.replay import CameraReplayManager
 
-        camera_replay_manager = CameraReplayManager(output_dir, mirror_display=replay_mirror_override)
+        camera_replay_manager = CameraReplayManager(
+            output_dir, mirror_display=replay_mirror_override
+        )
         from openflight.camera.club_delivery import (  # noqa: PLC0415
             ReferenceBallTracker,
         )
@@ -1676,6 +1676,13 @@ def camera_capture_exposure_quality():
     return jsonify(quality)
 
 
+def _history_log_dir() -> Path:
+    """Return the directory containing recorded OpenFlight sessions."""
+    from .session_logger import SessionLogger
+
+    session_log = get_session_logger()
+    return Path(session_log.log_dir if session_log is not None else SessionLogger.DEFAULT_LOG_DIR)
+
 
 @app.route("/api/sessions/history")
 def historical_sessions():
@@ -1684,17 +1691,9 @@ def historical_sessions():
 
     include_empty = request.args.get("include_empty", "").lower() == "true"
 
-    session_log = get_session_logger()
-    log_dir = (
-        session_log.log_dir
-        if session_log is not None
-        else None
-    )
-
     from .session_metadata import load_hidden_sessions
-    from .session_logger import SessionLogger
 
-    root = Path(log_dir or SessionLogger.DEFAULT_LOG_DIR)
+    root = _history_log_dir()
     hidden = load_hidden_sessions(root)
     show_hidden = request.args.get("show_hidden", "").lower() == "true"
 
@@ -1706,14 +1705,12 @@ def historical_sessions():
     return jsonify({"sessions": sessions, "count": len(sessions)})
 
 
-
 @app.route("/api/sessions/history/<session_id>")
 def historical_session_details(session_id: str):
     """Return recorded shot measurements for a historical session."""
     from .session_history import get_session_details
 
-    session_log = get_session_logger()
-    log_dir = session_log.log_dir if session_log is not None else None
+    log_dir = _history_log_dir()
 
     details = get_session_details(session_id, log_dir)
     if details is None:
@@ -1721,6 +1718,30 @@ def historical_session_details(session_id: str):
 
     return jsonify(details)
 
+
+@app.route("/api/sessions/history/<session_id>/visibility", methods=["POST"])
+def historical_session_visibility(session_id: str):
+    """Hide or restore a historical session without deleting recordings."""
+    from .session_history import get_session_details
+    from .session_metadata import load_hidden_sessions, save_hidden_sessions
+
+    root = _history_log_dir()
+
+    if get_session_details(session_id, root) is None:
+        return jsonify({"error": "Session not found"}), 404
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get("hidden")) is not bool:
+        return jsonify({"error": "Expected a boolean hidden value"}), 400
+
+    hidden = load_hidden_sessions(root)
+    if payload["hidden"]:
+        hidden.add(session_id)
+    else:
+        hidden.discard(session_id)
+
+    save_hidden_sessions(root, hidden)
+    return jsonify({"id": session_id, "hidden": payload["hidden"]})
 
 
 @app.route("/api/sessions/history/<session_id>/shots/<int:shot_number>/replay", methods=["POST"])
@@ -1731,8 +1752,7 @@ def historical_shot_replay(session_id: str, shot_number: int):
     if camera_replay_manager is None:
         return jsonify({"error": "Camera replay is unavailable"}), 503
 
-    session_log = get_session_logger()
-    log_dir = session_log.log_dir if session_log is not None else None
+    log_dir = _history_log_dir()
 
     capture = find_shot_capture(session_id, shot_number, log_dir)
     if capture is None:
@@ -5703,9 +5723,7 @@ def main():
         from .camera.replay import CameraReplayManager
 
         replay_base = (
-            Path(args.log_dir).expanduser()
-            if args.log_dir
-            else Path.home() / "openflight_sessions"
+            Path(args.log_dir).expanduser() if args.log_dir else Path.home() / "openflight_sessions"
         )
         camera_replay_manager = CameraReplayManager(
             replay_base / args.session_location / "camera",
@@ -5909,33 +5927,6 @@ def main():
         )
     finally:
         _cleanup_hardware_for_shutdown()
-
-
-@app.route("/api/sessions/history/<session_id>/visibility", methods=["POST"])
-def historical_session_visibility(session_id: str):
-    """Hide or restore a historical session without deleting recordings."""
-    from .session_history import get_session_details
-    from .session_metadata import load_hidden_sessions, save_hidden_sessions
-    from .session_logger import SessionLogger
-
-    session_log = get_session_logger()
-    root = Path(session_log.log_dir if session_log is not None else SessionLogger.DEFAULT_LOG_DIR)
-
-    if get_session_details(session_id, root) is None:
-        return jsonify({"error": "Session not found"}), 404
-
-    payload = request.get_json(silent=True)
-    if not isinstance(payload, dict) or type(payload.get("hidden")) is not bool:
-        return jsonify({"error": "Expected a boolean hidden value"}), 400
-
-    hidden = load_hidden_sessions(root)
-    if payload["hidden"]:
-        hidden.add(session_id)
-    else:
-        hidden.discard(session_id)
-
-    save_hidden_sessions(root, hidden)
-    return jsonify({"id": session_id, "hidden": payload["hidden"]})
 
 
 if __name__ == "__main__":

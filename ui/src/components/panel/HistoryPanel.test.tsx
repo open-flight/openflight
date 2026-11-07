@@ -13,7 +13,7 @@ function rule(selector: string): string {
 }
 
 function render(): string {
-  return renderToString(<HistoryPanel onReplayShot={() => undefined} />);
+  return renderToString(<HistoryPanel onReplayShot={() => Promise.resolve()} />);
 }
 
 describe('HistoryPanel', () => {

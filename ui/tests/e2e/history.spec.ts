@@ -96,3 +96,25 @@ test.describe('touch', () => {
     expect(await shots.evaluate((node) => node.scrollTop)).toBe(0);
   });
 });
+
+test('shows a visible message when historical replay fails', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await openHistory(page);
+
+  await page.route(/\/api\/sessions\/history\/session_[^/]+\/shots\/1\/replay$/, (route) =>
+    route.fulfill({
+      status: 404,
+      json: { error: 'Camera recording unavailable' },
+    })
+  );
+
+  await page.locator('.history-session-row').first().click();
+
+  await expect(page.getByRole('region', { name: 'Recorded shots in session' })).toBeVisible();
+
+  await page.getByRole('button', { name: '▶ Replay video' }).click();
+
+  await expect(page.getByRole('alert')).toContainText(
+    'Video unavailable. Please try again.'
+  );
+});

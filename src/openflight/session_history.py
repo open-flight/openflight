@@ -6,10 +6,7 @@ from pathlib import Path
 
 from .session_logger import SessionLogger
 
-
-SESSION_FILENAME = re.compile(
-    r"^session_(\d{8}_\d{6})_(.+)\.jsonl$"
-)
+SESSION_FILENAME = re.compile(r"^session_(\d{8}_\d{6})_(.+)\.jsonl$")
 
 
 def session_camera_root(
@@ -81,14 +78,16 @@ def list_sessions(
         if shot_count == 0 and not include_empty:
             continue
 
-        sessions.append({
-            "id": path.stem,
-            "filename": path.name,
-            "started_at": start_time or match.group(1),
-            "location": match.group(2),
-            "shot_count": shot_count,
-            "camera_capture_count": camera_count,
-        })
+        sessions.append(
+            {
+                "id": path.stem,
+                "filename": path.name,
+                "started_at": start_time or match.group(1),
+                "location": match.group(2),
+                "shot_count": shot_count,
+                "camera_capture_count": camera_count,
+            }
+        )
 
     return sorted(
         sessions,
@@ -156,10 +155,7 @@ def get_session_details(
         capture = None
 
         for candidate in candidates:
-            if (
-                impact is not None
-                and candidate.get("shot_timestamp") == impact
-            ):
+            if impact is not None and candidate.get("shot_timestamp") == impact:
                 capture = candidate
                 break
 
@@ -178,21 +174,23 @@ def get_session_details(
                 ):
                     camera_available = True
 
-        output.append({
-            "shot_number": number,
-            "timestamp": shot.get("timestamp") or shot.get("ts"),
-            "club": shot.get("club"),
-            "ball_speed_mph": shot.get("ball_speed_mph"),
-            "club_speed_mph": shot.get("club_speed_mph"),
-            "smash_factor": shot.get("smash_factor"),
-            "estimated_carry_yards": shot.get("estimated_carry_yards"),
-            "spin_rpm": shot.get("spin_rpm"),
-            "spin_quality": shot.get("spin_quality"),
-            "launch_angle_vertical": shot.get("launch_angle_vertical"),
-            "launch_angle_horizontal": shot.get("launch_angle_horizontal"),
-            "camera_available": camera_available,
-            "recorded_data": shot,
-        })
+        output.append(
+            {
+                "shot_number": number,
+                "timestamp": shot.get("timestamp") or shot.get("ts"),
+                "club": shot.get("club"),
+                "ball_speed_mph": shot.get("ball_speed_mph"),
+                "club_speed_mph": shot.get("club_speed_mph"),
+                "smash_factor": shot.get("smash_factor"),
+                "estimated_carry_yards": shot.get("estimated_carry_yards"),
+                "spin_rpm": shot.get("spin_rpm"),
+                "spin_quality": shot.get("spin_quality"),
+                "launch_angle_vertical": shot.get("launch_angle_vertical"),
+                "launch_angle_horizontal": shot.get("launch_angle_horizontal"),
+                "camera_available": camera_available,
+                "recorded_data": shot,
+            }
+        )
 
     return {
         "id": session_id,
@@ -235,10 +233,7 @@ def find_shot_capture(
 
                 if event.get("type") == "shot_detected":
                     shots.append(event)
-                elif (
-                    event.get("type") == "camera_capture"
-                    and not event.get("capture_error")
-                ):
+                elif event.get("type") == "camera_capture" and not event.get("capture_error"):
                     captures.append(event)
     except OSError:
         return None
@@ -249,9 +244,9 @@ def find_shot_capture(
 
     impact = shots[0].get("impact_timestamp")
     matching = [
-        capture for capture in captures
-        if impact is not None
-        and capture.get("shot_timestamp") == impact
+        capture
+        for capture in captures
+        if impact is not None and capture.get("shot_timestamp") == impact
     ]
 
     if len(matching) != 1:

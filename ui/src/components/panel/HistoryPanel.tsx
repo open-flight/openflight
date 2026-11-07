@@ -34,7 +34,7 @@ interface Details {
 }
 
 interface Props {
-  onReplayShot: (sessionId: string, shotNumber: number) => void;
+  onReplayShot: (sessionId: string, shotNumber: number) => Promise<void>;
 }
 
 function displayDate(value: string | null | undefined): string {
@@ -219,6 +219,11 @@ export function HistoryPanel({ onReplayShot }: Props) {
             </div>
 
             {detailsLoading && <p className="history-message">Loading shots…</p>}
+            {error && (
+              <p className="history-error" role="alert">
+                {error}
+              </p>
+            )}
 
             {details?.shots.map((shot, index) => (
               <div className="history-shot-row" key={`${shot.shot_number}-${index}`}>
@@ -231,7 +236,12 @@ export function HistoryPanel({ onReplayShot }: Props) {
                     <button
                       type="button"
                       className="history-replay"
-                      onClick={() => onReplayShot(selectedId, shot.shot_number)}
+                      onClick={() => {
+                        setError(null);
+                        void onReplayShot(selectedId, shot.shot_number).catch(() => {
+                          setError('Video unavailable. Please try again.');
+                        });
+                      }}
                     >
                       ▶ Replay video
                     </button>
@@ -322,7 +332,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
                   </div>
                 </details>
                 <details className="history-detail-section">
-                  <summary>Technical &amp; Raw Data</summary>
+                  <summary>Shot Diagnostics</summary>
                   <ShotDetails data={shot.recorded_data} />
                 </details>
               </div>
@@ -413,7 +423,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
           </>
         )}
 
-        {error && (
+        {!selectedId && error && (
           <p className="history-error" role="alert">
             {error}
           </p>
