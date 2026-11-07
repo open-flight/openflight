@@ -182,3 +182,119 @@ def test_replay_rejects_capture_outside_camera_directory(tmp_path, monkeypatch):
     )
 
     assert response.status_code == 404
+
+
+def _write_capture_session(log_dir, session_id, capture_dir):
+    """Write a one-shot session whose camera capture lives in capture_dir."""
+    import json
+
+    capture_dir.mkdir(parents=True, exist_ok=True)
+    (capture_dir / "frames.npz").write_bytes(b"frames")
+    events = [
+        {"type": "shot_detected", "shot_number": 1, "impact_timestamp": 123.456},
+        {
+            "type": "camera_capture",
+            "shot_number": 1,
+            "shot_timestamp": 123.456,
+            "capture_path": str(capture_dir),
+            "metadata": {"frame_count": 60, "pre_trigger_frames": 30},
+        },
+    ]
+    (log_dir / f"{session_id}.jsonl").write_text(
+        "".join(json.dumps(event) + "\n" for event in events)
+    )
+
+
+def _history_client(tmp_path, monkeypatch, live_location):
+    """Server test client whose live replay manager serves live_location."""
+    from openflight import server
+    from openflight.camera.replay import CameraReplayManager
+
+    class FakeLogger:
+        log_dir = tmp_path
+
+    monkeypatch.setattr(server, "get_session_logger", lambda: FakeLogger())
+    monkeypatch.setattr(
+        server,
+        "camera_replay_manager",
+        CameraReplayManager(tmp_path / live_location / "camera"),
+    )
+    return server.app.test_client()
+
+
+def test_non_range_session_reports_camera_available(tmp_path):
+    from openflight.session_history import get_session_details
+
+    session_id = "session_20261101_124555_trackman"
+    _write_capture_session(
+        tmp_path, session_id, tmp_path / "trackman" / "camera" / "camera_001"
+    )
+
+    details = get_session_details(session_id, tmp_path)
+
+    assert details["shots"][0]["camera_available"] is True
+
+
+def test_capture_filed_under_another_location_is_unavailable(tmp_path):
+    from openflight.session_history import get_session_details
+
+    session_id = "session_20261101_124555_trackman"
+    _write_capture_session(
+        tmp_path, session_id, tmp_path / "range" / "camera" / "camera_001"
+    )
+
+    details = get_session_details(session_id, tmp_path)
+
+    assert details["shots"][0]["camera_available"] is False
+
+
+def test_session_location_cannot_escape_log_dir(tmp_path):
+    from openflight.session_history import find_shot_capture, get_session_details
+
+    log_dir = tmp_path / "sessions"
+    log_dir.mkdir()
+    session_id = "session_20261101_124555_.."
+    _write_capture_session(log_dir, session_id, tmp_path / "camera" / "camera_001")
+
+    details = get_session_details(session_id, log_dir)
+
+    assert details is not None
+    assert details["shots"][0]["camera_available"] is False
+    assert find_shot_capture(session_id, 1, log_dir) is None
+
+
+def test_replay_serves_session_from_another_location(tmp_path, monkeypatch):
+    session_id = "session_20261101_124555_trackman"
+    _write_capture_session(
+        tmp_path, session_id, tmp_path / "trackman" / "camera" / "camera_001"
+    )
+    client = _history_client(tmp_path, monkeypatch, live_location="range")
+
+    response = client.post(f"/api/sessions/history/{session_id}/shots/1/replay")
+
+    assert response.status_code == 200
+    assert response.get_json()["frame_count"] == 60
+
+
+def test_replay_serves_range_session_while_running_elsewhere(tmp_path, monkeypatch):
+    session_id = "session_20261030_194840_range"
+    _write_capture_session(
+        tmp_path, session_id, tmp_path / "range" / "camera" / "camera_001"
+    )
+    client = _history_client(tmp_path, monkeypatch, live_location="trackman")
+
+    response = client.post(f"/api/sessions/history/{session_id}/shots/1/replay")
+
+    assert response.status_code == 200
+
+
+def test_replay_rejects_capture_filed_under_another_location(tmp_path, monkeypatch):
+    session_id = "session_20261101_124555_trackman"
+    _write_capture_session(
+        tmp_path, session_id, tmp_path / "range" / "camera" / "camera_001"
+    )
+    client = _history_client(tmp_path, monkeypatch, live_location="range")
+
+    response = client.post(f"/api/sessions/history/{session_id}/shots/1/replay")
+
+    assert response.status_code == 404

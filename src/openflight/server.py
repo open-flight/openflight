@@ -1726,7 +1726,7 @@ def historical_session_details(session_id: str):
 @app.route("/api/sessions/history/<session_id>/shots/<int:shot_number>/replay", methods=["POST"])
 def historical_shot_replay(session_id: str, shot_number: int):
     """Register an existing historical capture for replay."""
-    from .session_history import find_shot_capture
+    from .session_history import find_shot_capture, session_camera_root
 
     if camera_replay_manager is None:
         return jsonify({"error": "Camera replay is unavailable"}), 503
@@ -1739,9 +1739,12 @@ def historical_shot_replay(session_id: str, shot_number: int):
         return jsonify({"error": "Camera recording not found"}), 404
 
     try:
+        # Validate against the session's own location, not the live one, so
+        # sessions recorded under another --session-location stay replayable.
         replay = camera_replay_manager.register(
             capture["capture_path"],
             capture["metadata"],
+            allowed_root=session_camera_root(session_id, log_dir),
         )
     except (ValueError, OSError) as error:
         logger.warning("[HISTORY] Replay unavailable: %s", error)

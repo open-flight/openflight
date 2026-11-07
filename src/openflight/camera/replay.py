@@ -75,10 +75,23 @@ class CameraReplayManager:
         self._lock = threading.Lock()
         self._encode_semaphore = threading.BoundedSemaphore(value=1)
 
-    def register(self, capture_path: str | Path, metadata: dict) -> dict[str, object]:
-        """Advertise an existing raw capture without doing any video work."""
+    def register(
+        self,
+        capture_path: str | Path,
+        metadata: dict,
+        *,
+        allowed_root: str | Path | None = None,
+    ) -> dict[str, object]:
+        """Advertise an existing raw capture without doing any video work.
+
+        ``allowed_root`` replaces the live output root for captures recorded
+        under another session location, such as historical replays.
+        """
+        root = (
+            self.output_root if allowed_root is None else Path(allowed_root).expanduser().resolve()
+        )
         resolved = Path(capture_path).expanduser().resolve()
-        if not resolved.is_relative_to(self.output_root):
+        if not resolved.is_relative_to(root):
             raise ValueError("camera capture is outside camera output directory")
         if not (resolved / "frames.npz").is_file():
             raise ValueError("camera capture has no frames archive")

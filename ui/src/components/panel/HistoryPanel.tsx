@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useDragScroll } from '../../hooks/useDragScroll';
 import { getServerOrigin } from '../../utils/serverOrigin';
 import { PanelHeader } from './PanelHeader';
 
@@ -91,6 +92,13 @@ export function HistoryPanel({ onReplayShot }: Props) {
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(scrollRef);
+
+  // The list and a session's shots share one scroller; start each at the top.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [selectedId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -171,7 +179,17 @@ export function HistoryPanel({ onReplayShot }: Props) {
         subtitle={selectedId ? 'Recorded shot measurements' : `${sessions.length} previous sessions`}
       />
 
-      <div className="history-content">
+      <div
+        className="panel__body history-content"
+        role="region"
+        aria-label={selectedId ? 'Recorded shots in session' : 'Saved sessions'}
+        ref={scrollRef}
+        onPointerDown={dragScroll.onPointerDown}
+        onPointerMove={dragScroll.onPointerMove}
+        onPointerUp={dragScroll.onPointerUp}
+        onPointerCancel={dragScroll.onPointerCancel}
+        onClickCapture={dragScroll.onClickCapture}
+      >
         {selectedId ? (
           <>
             <button
@@ -215,7 +233,7 @@ export function HistoryPanel({ onReplayShot }: Props) {
                       className="history-replay"
                       onClick={() => onReplayShot(selectedId, shot.shot_number)}
                     >
-                      ▶ Replay
+                      ▶ Replay video
                     </button>
                   ) : (
                     <span className="history-no-video">No video</span>
