@@ -164,22 +164,27 @@ def test_club_command_and_club_changed_reach_every_phone(pi):
         "schema_version": 2,
         "request_id": answer["request_id"],
         "ok": True,
-        "result": {"status": "applied", "club": "7-iron"},
+        "result": {"status": "applied", "club": "7-iron", "custom_club_id": ""},
     }
 
     for phone in (first_phone, second_phone):
         event = phone.wait_for(
             CONTROL_CHARACTERISTIC_UUID, lambda message: message.get("type") == "club_changed"
         )
-        assert event == {"schema_version": 2, "type": "club_changed", "club": "7-iron"}
+        assert event == {
+            "schema_version": 2,
+            "type": "club_changed",
+            "club": "7-iron",
+            "custom_club_id": "",
+        }
         raw_events = [
             raw for raw in phone.raw(CONTROL_CHARACTERISTIC_UUID) if b"club_changed" in raw
         ]
         assert raw_events == [encode_message(build_club_event("7-iron"))]
-    assert ("club_changed", {"club": "7-iron"}) in pi.emitted
+    assert ("club_changed", {"club": "7-iron", "custom_club_id": ""}) in pi.emitted
 
     current = second_phone.request("get_club")
-    assert current["result"] == {"status": "current", "club": "7-iron"}
+    assert current["result"] == {"status": "current", "club": "7-iron", "custom_club_id": ""}
 
 
 def test_profiles_commands_route_through_socketio_operations(pi):

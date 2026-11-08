@@ -78,7 +78,7 @@ def test_club_change_reaches_every_subscriber():
     assert broker.publish_club("3-wood")
 
     expected = (
-        'event: club_changed\ndata: {"club":"3-wood","schema_version":2,"type":"club_changed"}\n\n'
+        'event: club_changed\ndata: {"club":"3-wood","custom_club_id":"","schema_version":2,"type":"club_changed"}\n\n'
     )
     assert format_event(first.get_nowait()) == expected
     assert format_event(second.get_nowait()) == expected

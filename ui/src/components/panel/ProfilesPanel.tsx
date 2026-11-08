@@ -14,6 +14,9 @@ interface ProfilesPanelProps {
   onSelectProfile: (profileId: string) => void;
   onRenameProfile: (profile: Profile) => void;
   onRemoveProfile: (profileId: string) => void;
+  onOpenBag: (profile: Profile) => void;
+  /** How many custom clubs each profile's bag holds, by profile id. */
+  bagCounts: Record<string, number>;
   /** Pinned header control, e.g. Add profile. */
   headerAction?: ReactNode;
 }
@@ -26,6 +29,8 @@ export function ProfilesPanel({
   onSelectProfile,
   onRenameProfile,
   onRemoveProfile,
+  onOpenBag,
+  bagCounts,
   headerAction,
 }: ProfilesPanelProps) {
   const { t } = useI18n();
@@ -68,6 +73,7 @@ export function ProfilesPanel({
             const selected = profile.id === activeProfileId;
             const count = shotCounts[profile.id] ?? 0;
             const shotLabel = t(count === 1 ? 'profiles.shot' : 'profiles.shots', { count });
+            const bagCount = bagCounts[profile.id] ?? 0;
 
             return (
               <div className="profiles-panel__card-wrap" key={profile.id}>
@@ -100,6 +106,14 @@ export function ProfilesPanel({
                     </button>
                   ) : null}
                 </div>
+                <button
+                  type="button"
+                  className="profiles-panel__bag"
+                  aria-label={t('bag.openNamed', { name: profile.name })}
+                  onClick={() => onOpenBag(profile)}
+                >
+                  {bagCount > 0 ? t('bag.buttonCount', { count: bagCount }) : t('bag.button')}
+                </button>
               </div>
             );
           })
