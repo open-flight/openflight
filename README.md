@@ -337,7 +337,7 @@ Build it locally with `make docs` (serves at `localhost:8000`).
 - **[IWR6843 Operator Guide](docs/iwr6843/index.md)** — Wire, flash, mount, aim, and calibrate the angle radar
 - **[LIS3DH Inclinometer Setup](docs/build/inclinometer.md)**: Add enclosure-level compensation to IWR6843 tilt
 - **[OPS243 USB → GPIO UART Migration](docs/build/ops243-uart.md)** — Required before adding the IWR6843
-- **[OPS243 Firmware Update](docs/build/ops243-flashing.md)** — Pi Debug Probe and breakout route; solder three header pins (not included) onto GND, SWIO and CLK
+- **[OPS243 Firmware Update](docs/build/ops243-flashing.md)** — tested Pi Debug Probe route to v1.3.3, official SEGGER alternative, and UART/Memtool updates after v1.3.3's bootloader is installed; [compare parts and methods](docs/get-started/parts.md#ops243-a-firmware-updates)
 - **[IWR6843 Firmware Developer Guide](docs/development/firmware.md)** — Build the firmware from source (not needed to flash the prebuilt image)
 - **[Enclosure & Case](https://github.com/open-flight/openflight-enclosure)** — The printed case, in its own repository
 - **[Hardware Diagnostic](docs/setup/raspberry-pi.md)** — Pi setup, auto-start, and troubleshooting

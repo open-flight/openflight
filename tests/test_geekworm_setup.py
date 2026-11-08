@@ -140,6 +140,14 @@ def test_battery_guide_documents_provider_interface_and_cli():
     assert "../build/battery.md" in guide
 
 
+def test_battery_guides_warn_against_charging_below_freezing():
+    for guide_path in (BATTERY_GUIDE, OPERATOR_GUIDE):
+        guide = guide_path.read_text(encoding="utf-8")
+
+        assert "Do not charge" in guide
+        assert "below 0 °C (32 °F)" in guide
+
+
 def test_main_setup_offers_geekworm_provisioning():
     setup = MAIN_SETUP_SCRIPT.read_text(encoding="utf-8")
 

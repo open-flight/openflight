@@ -28,8 +28,9 @@ it is done and verified.
 
 - :material-memory: **[OPS243 firmware update](ops243-flashing.md)**
 
-    *When needed.* Flash a supported XMC4500 radar with a Pi Debug Probe and
-    breakout board. Requires soldering three header pins (not included).
+    *When needed.* Install v1.3.3 on the tested XMC4500 AC / 1 MiB radar with a
+    Pi Debug Probe over SSH. Also explains the official SEGGER option and
+    UART/Memtool updates once v1.3.3's bootloader is installed.
 
 - :material-battery-outline: **[Battery](battery.md)**
 

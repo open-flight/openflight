@@ -106,7 +106,9 @@ backups. It reports every change and tells you when a reboot is required.
 
 The script does **not** install the community `x120x-dkms` driver, Geekworm's
 automatic shutdown service, or any low-battery poweroff job. OpenFlight's 20%
-and 10% warnings remain informational and dismissible.
+and 10% warnings remain informational and dismissible. To power off cleanly
+when the battery runs low, install the separate, optional
+[low-battery shutdown](#low-battery-shutdown) service.
 
 ### Desktop Panel Compatibility
 
@@ -217,6 +219,52 @@ With the flag enabled, OpenFlight shows:
 
 The monitor retries every five seconds. A temporary hardware read failure does
 not stop shot capture or shut down the Pi.
+
+## Low-Battery Shutdown
+
+The X1202/X1206 take unprotected cells, so nothing else stops the Pi from
+draining them. An optional systemd service powers the Pi off before that
+happens. It runs independently of OpenFlight and works whether or not
+OpenFlight is running or started with `--battery`.
+
+```bash
+scripts/battery/install_battery_guard.sh
+```
+
+Every 20 seconds the service reads the kernel's battery and charger devices.
+When external power is offline and the battery is at or below **10%** or
+**3.40 V** for **three readings in a row**, it stops OpenFlight (the
+`openflight` service and any running server, waiting up to 15 seconds), then
+runs `systemctl poweroff`. With `POWER_OFF_ON_HALT=1` from the setup script, the
+Pi then removes power. The voltage limit catches a fuel gauge that has not
+learned the cells yet; three readings ignore a brief dip under load.
+
+It does nothing while external power is connected, and it does not act when
+the battery or charger state cannot be read: a missing driver or poor pogo-pin
+contact therefore also disables the protection. OpenFlight's red `--` battery
+state is the warning for that.
+
+Change the limits in `/etc/default/openflight-battery-guard`, then restart:
+
+```bash
+sudo nano /etc/default/openflight-battery-guard
+sudo systemctl restart openflight-battery-guard
+```
+
+Check what it has done, and remove it:
+
+```bash
+journalctl -u openflight-battery-guard
+scripts/battery/install_battery_guard.sh --uninstall
+```
+
+To test the shutdown on the real hardware, temporarily set
+`OPENFLIGHT_BATTERY_GUARD_MIN_PERCENT` above the current charge, restart the
+service, follow the journal, and disconnect the UPS input. Restore the limit
+afterwards.
+
+After a low-battery shutdown the UPS still draws a small current from the
+cells. Recharge them soon, and remove them for long-term storage.
 
 ## Session Logs
 

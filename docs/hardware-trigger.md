@@ -8,9 +8,13 @@ Hardware-trigger mode requires **OPS243-A firmware v1.3.2 or newer in the 1.3
 release train**. Firmware v1.3.1 has a vendor data-sequence bug and is rejected.
 The driver queries `?V` before sending the internal trigger setup commands and
 fails fast if the reported version is from an older or different release train,
-malformed, or unavailable. Update the physical OPS243 using the manufacturer’s
-firmware procedure before running `--trigger hardware`; this application does
-not flash the radar.
+malformed, or unavailable. A radar on v1.3.2 already meets this requirement.
+If an update is needed, the [firmware guide](build/ops243-flashing.md) installs
+v1.3.3 on the tested XMC4500 AC / 1 MiB board using a Raspberry Pi Debug Probe.
+The [parts page compares that method with SEGGER and UART/Memtool](get-started/parts.md#ops243-a-firmware-updates).
+The documented UART method requires v1.3.3's bootloader to be installed already.
+Update the physical radar before running `--trigger hardware`; normal
+OpenFlight startup does not flash it.
 
 ## Methodology
 
