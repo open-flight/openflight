@@ -97,9 +97,11 @@ configuration with prompts:
    plugging them in one at a time, so OpenFlight always knows which is which
 4. **Geekworm UPS** (optional) — enables native X1202/X1206 battery and
    external-power telemetry, Pi power settings, and desktop battery support
-5. **Auto-start on boot** — optional systemd service
-6. **Desktop shortcut** — optional
-7. **FlightWeb cloud sync** — optional uploader and device linking
+5. **RTC battery charging** (optional, rechargeable battery only) — keeps the
+   clock running while unplugged; see [RTC Backup Battery](#rtc-backup-battery)
+6. **Auto-start on boot** — optional systemd service
+7. **Desktop shortcut** — optional
+8. **FlightWeb cloud sync** — optional uploader and device linking
 
 Every step can be skipped and the script is **safe to re-run** any time —
 it picks up where you left off.
@@ -185,6 +187,36 @@ package. It does not install automatic shutdown or charging-control services.
 Cell type, board-revision power limits, physical installation, every system
 change, and troubleshooting are documented in the
 **[Geekworm X1202/X1206 Operator Guide](../build/battery.md)**.
+
+### RTC Backup Battery
+
+The Pi 5 has a real-time clock. Without a backup battery it loses the time
+whenever power is removed, and only gets it back from a network (NTP) or the
+phone app. Until then, new session logs carry the wrong timestamps. A battery on
+the **J5 (BAT)** connector keeps the clock running while the Pi is unplugged.
+
+> [!WARNING]
+> **Rechargeable batteries only.** The script below switches **on** the Pi 5's
+> battery charger. Use it only with a **rechargeable** lithium manganese coin
+> cell, such as the
+> [official Raspberry Pi RTC battery](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#add-a-backup-battery).
+> **Never** enable charging for a regular non-rechargeable coin cell (CR2032,
+> CR2025, CR1220, …) or a lithium-ion cell. Charging those can make them leak,
+> swell, or burst. If you don't know which battery you have, leave charging off.
+
+Charging is off by default. To turn it on:
+
+```bash
+./scripts/setup/enable_rtc_battery_charging.sh   # asks you to type "rechargeable"
+sudo reboot
+./scripts/setup/enable_rtc_battery_charging.sh --verify
+```
+
+The script adds `dtparam=rtc_bbat_vchg=3000000`, the charge voltage given in the
+[Raspberry Pi RTC documentation](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#real-time-clock-rtc),
+to `/boot/firmware/config.txt`, and saves a backup of that file first. `--verify` reads
+`/sys/class/rtc/rtc0/charging_voltage`, which reports `0` while charging is off.
+To stop charging, run the script with `--disable` and reboot.
 
 ### K-LD7 Device Names (Deprecated Hardware)
 
