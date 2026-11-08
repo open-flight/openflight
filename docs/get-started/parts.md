@@ -2,6 +2,10 @@
 
 Hardware components for building the OpenFlight golf launch monitor.
 
+Before buying a radar programmer, check the OPS243-A firmware version.
+[OPS243-A firmware updates](#ops243-a-firmware-updates) below compares the
+Raspberry Pi Debug Probe, SEGGER J-Link and UART/Memtool options.
+
 > **Ordering shortcut:** A shared **[OpenFlight Mouser project](https://www.mouser.com/en/Tools/Project/Share?AccessID=4c97a00bbc)** is available for the parts Mouser stocks. Check it against the tables below before you order: anything Mouser does not carry has a direct vendor link here.
 
 > **Next step after gathering parts:** See the [Raspberry Pi Setup Guide](../setup/raspberry-pi.md) for assembly and software installation.
@@ -10,7 +14,7 @@ Hardware components for building the OpenFlight golf launch monitor.
 
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
-| **OPS243 Radar** | Doppler radar for ball/club speed detection | [OmniPreSense](https://omnipresense.com/product/ops243-doppler-radar-sensor/) | $249 |
+| **OPS243-A Radar** | Doppler radar for ball/club speed detection; check its firmware before buying update tools below | [OmniPreSense](https://omnipresense.com/product/ops243-doppler-radar-sensor/) | $249 |
 | **Raspberry Pi 5** | Main compute unit (4GB+ recommended) | [Adafruit](https://www.adafruit.com/product/5812) | $130 |
 | **7" Touchscreen Display** | HMTECH 7" 1024x600 IPS display | [Amazon](https://www.amazon.com/dp/B0D3QB7X4Z) | $46 |
 | **Raspberry Pi Display Cable, Standard–Mini, 200 mm (SC1131)** | Only with the Touch Display 2 below: the 22-way (Pi 5 "mini") to 15-way (display "standard") DSI ribbon. Buy **200 mm** — the ~100 mm ribbon in the Display 2 box does not reach the Pi in the v3 case ([Cable lengths](#cable-lengths-enclosure-v3)). 300 and 500 mm fit but leave a loop to stow | [Raspberry Pi](https://www.raspberrypi.com/products/display-cable/) / [Mouser](https://www.mouser.com/ProductDetail/Raspberry-Pi/SC1131?qs=HoCaDK9Nz5eSyEpyddOkmQ%3D%3D) / [Amazon](https://www.amazon.com/dp/B0GX33S2C6) (Raspberry Pi's own listing; pick 200 mm) | ~$2 |
@@ -43,7 +47,7 @@ SEN-14262               Raspberry Pi           OPS243
 │ GATE ─────┼──────────┼──────────┼──────────┤ HOST_INT │
 │           │          │          │          │ (J3 P3)  │
 │ GND ──────┼──────────┤ GND      ├──────────┤ GND      │
-│           │          │          │          │ (J3 P1)  │
+│           │          │          │          │ (J3 P10) │
 └───────────┘          └──────────┘          └──────────┘
 ```
 
@@ -65,14 +69,57 @@ See [sound-trigger-wiring.md](../build/sound-trigger.md) for detailed instructio
 
 Hardware mode lets the OPS243-A start the rolling-buffer capture from its own speed trigger, so the sound detector, its resistor and its wiring are not needed. The supported firmware is OPS243-A 1.3.2 or newer in the 1.3 release train. Check before buying anything: plug the radar into USB, open a serial terminal, send `?V`, and read the version it prints back.
 
-- **It reports 1.3.2 or later in the 1.3 train.** Nothing to buy; use `scripts/start-kiosk.sh --trigger hardware`. OmniPreSense [told the project on 2026-09-10](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576) that 1.3.2 went onto the sensors shipping from that build on (1.3.1 had gone to some earlier customers with a late bug), so a new order should arrive like this. Skip the Sound Trigger table above if you choose hardware mode.
-- **It reports 1.3.1 or older.** You flash it yourself, which is where the debugger cost comes in. OmniPreSense's [AN-013 code-update note](https://omnipresense.com/wp-content/uploads/2019/06/AN-013-D_OPS241-Code-Update.pdf) is the procedure: a SEGGER J-Link on the radar's keyed `J2` JTAG header (a 10-pin 1.27 mm Cortex debug header, not the `J3` UART header OpenFlight wires to), Infineon's free XMCFlasher in Serial Wire Debug mode with the XMC4500-1024 target selected, and the 1.3.2 hex file, which is not a public download — OmniPreSense hand it out on request. **Two ways to ask, both confirmed by Sandy at OmniPreSense**, who [said on the project Discord](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576) *"If you have a Segger programmer, and would like to update the code on your OPS243, please send me a message here or via email on our website"*: message them on **Discord**, or use the **contact page on [omnipresense.com](https://omnipresense.com/contact/)**. The customerservice@omnipresense.com address reaches them too. They will also confirm which J-Link model to get. Send `?P` first and pick the XMC4700 in XMCFlasher instead if the board reports that part ([note on the PR](https://github.com/open-flight/openflight/pull/221#issuecomment-5463503457)). Do not press Erase in XMCFlasher: it clears the factory settings some sensors carry and anything you saved to persistent memory. On Windows run the J-Link driver installer as administrator and tick the legacy J-Link USB driver, or XMCFlasher will not find the probe ([upgrade report](https://github.com/open-flight/openflight/pull/221#issuecomment-5756563718)).
+- **It reports 1.3.2 or later in the 1.3 train.** No update is required for internal triggering; use `scripts/start-kiosk.sh --trigger hardware`. Skip the Sound Trigger table above if you choose hardware mode. Version 1.3.2 already supports this mode; v1.3.3 adds the bootloader used by the UART update method below.
+- **It reports 1.3.1 or older.** Update before using the internal trigger. The [Debug Probe guide](../build/ops243-flashing.md) installs the public vendor v1.3.3 image on the tested XMC4500 AC / 1 MiB board. See the update options below before buying a programmer.
+
+## OPS243-A firmware updates
+
+Send `?V` in a serial terminal to check the version. The
+[public OmniPreSense firmware repository](https://github.com/omnipresense/OPS243-A_Firmware)
+provides v1.3.3; the Debug Probe guide downloads and checks the exact vendor
+image used in the successful update.
+
+> **Manufacturer confirmation pending:** The Raspberry Pi Debug Probe/OpenOCD
+> method worked on the tested XMC4500 AC / 1 MiB board, but has **not yet been
+> confirmed by OmniPreSense**. SEGGER and UART/Memtool are the manufacturer's
+> documented methods.
+
+| Method | When to use it | Parts and connection | Instructions |
+| --- | --- | --- | --- |
+| **Raspberry Pi Debug Probe + OpenOCD** | First upgrade from firmware older than 1.3.3 on the tested **XMC4500 AC / 1 MiB OPS243-A** | Probe, Cortex 10-pin (2 × 5), 1.27 mm keyed breakout and ribbon, three soldered header pins; about **$30** total. Probe **D** port → breakout → radar **J2** | [Tested guide](../build/ops243-flashing.md), including script download, backup, update and verification; runs on the Pi over SSH |
+| **SEGGER J-Link + XMCFlasher** | Manufacturer's programmer-based update method, including first upgrades from older firmware | Compatible J-Link and target cable to radar **J2**; EDU Mini example below | [AN-013-G, pages 1–7](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-G_Code-Update.pdf); select the correct processor/interface for your board |
+| **3.3 V USB-to-UART adapter + Memtool** | Subsequent updates **only when v1.3.3 and its bootloader are already installed** | Adapter wired directly to radar **J3**; **no J2 ribbon or SWD breakout** | [AN-013-G, pages 8–12](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-G_Code-Update.pdf) and [Infineon's free Memtool](https://softwaretools.infineon.com/tools/com.ifx.tb.tool.infineonmemtool) |
+
+The documented UART method does **not** provide the first upgrade from 1.3.2
+or older. A board running 1.3.2 can keep using internal triggering without an
+update, or use a programmer-based method to install 1.3.3 and its bootloader.
+For XMC4700, OPS243-C or other processors/revisions, ask
+[OmniPreSense](https://omnipresense.com/contact/) for the correct firmware and
+procedure; do not apply the tested XMC4500 guide to those boards.
+
+Buy only the tools for your chosen method:
 
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
-| **SEGGER J-Link EDU Mini (Adafruit 3571)** | Only if you go the internal-trigger route and your OPS243-A reports firmware older than 1.3.2. This is the low-cost programmer AN-013 points at; the 9-pin 0.05" (1.27 mm) Cortex target cable that fits `J2` is in the box | [Mouser](https://www.mouser.se/en/ProductDetail/Adafruit/3571?qs=YCa%2FAAYMW03SrXLinBpZFw%3D%3D) / [Amazon](https://www.amazon.com/dp/B0758XRMTF) / [Adafruit](https://www.adafruit.com/product/3571) | $76 |
+| **Raspberry Pi Debug Probe and SWD breakout set** | Full specifications, example suppliers, ribbon and header-pin requirements are in the flashing guide | [Parts for the tested method](../build/ops243-flashing.md#1-get-the-parts) | ~$30 total |
+| **SEGGER J-Link EDU Mini (Adafruit 3571)** | Alternative programmer for the AN-013-G method; the Debug Probe route above is another option for the tested XMC4500 board. Cortex target cable fitting `J2` included | [Mouser](https://www.mouser.se/en/ProductDetail/Adafruit/3571?qs=YCa%2FAAYMW03SrXLinBpZFw%3D%3D) / [Amazon](https://www.amazon.com/dp/B0758XRMTF) / [Adafruit](https://www.adafruit.com/product/3571) | $76 |
+| **USB-to-UART cable, 3.3 V TX/RX logic** | For the UART method after v1.3.3's bootloader is installed; Adafruit 954 is the manufacturer's suggested example | [Adafruit 954](https://www.adafruit.com/product/954) | $9.95 |
 
-That is about four times the sound trigger's $18, and it is a one-off tool rather than a part of the monitor, so it is a trade you make for the wiring and the R17 soldering the internal trigger removes, not for the price.
+**Already own the Debug Probe? Keep it for future updates.** Its
+[**U** port](https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html)
+can serve as a 3.3 V USB-to-TTL serial adapter, providing the same TX/RX/GND
+function as the separate UART cable. After v1.3.3's bootloader is installed,
+it should be reusable for the UART method instead of buying another cable;
+the specific Debug Probe/Memtool combination has **not been tested here**.
+Connect U directly to J3 for UART, without the SWD breakout or J2 ribbon, and
+provide a separate radar power connection: the U port supplies no power.
+The tested OpenOCD method uses **D**, not U.
+
+Do not press **Erase** in XMCFlasher: it clears factory and saved persistent
+settings. The [Debug Probe guide explains its settings-preservation checks](../build/ops243-flashing.md#how-the-procedure-preserves-settings).
+On Windows, run the J-Link driver installer as administrator and tick the
+legacy J-Link USB driver if XMCFlasher cannot find the probe
+([upgrade report](https://github.com/open-flight/openflight/pull/221#issuecomment-5756563718)).
 
 ## Angle Radar (TI IWR6843) — CURRENT
 
@@ -320,7 +367,7 @@ Independent of each other; add the ones you want.
 | Camera | InnoMaker OV9281, experimental vision work only | $30 |
 | **Battery power, [X1202](power.md#route-2-the-geekworm-x1202-x1206-ups-hat)** | HAT $48, four 18650s $24, 12 V adapter $15, panel DC jack $8, the lead into the board $2-3, and a 12 mm button with leads $6 — $104 in all. It **replaces** the $14 supply in step 1, so the net add is | **+$90** |
 | Battery power, [X1206](power.md#route-2-the-geekworm-x1202-x1206-ups-hat) instead | the same list with a $52 HAT and four 21700s at $32 | +$102 |
-| J-Link EDU Mini | only if your OPS243 reports firmware older than 1.3.2 and you want the internal trigger | $76 |
+| OPS243-A update tools, if needed | Choose [Debug Probe, SEGGER or UART](#ops243-a-firmware-updates) according to the installed firmware and board; buy only one route | ~$30 Debug Probe set / $76 J-Link example / $9.95 UART cable |
 
 ### Worked totals
 
@@ -384,11 +431,12 @@ changes: the X1206 V2.0 carries its four 21700 holders on the board, uses the
 same power-button header, and takes the same 12 V adapter.
 
 With the internal hardware trigger, the Sound Trigger line ($18) becomes
-optional and drops out of every total above for a radar that already reports
-firmware 1.3.2. For one that arrived with 1.3.1 or older, the swap instead costs
-the ~$76 J-Link EDU Mini listed under
-[Internal Hardware Trigger](#internal-hardware-trigger), a one-off tool that
-flashes the 1.3.2 firmware.
+optional and drops out of every total above for a radar already running
+firmware 1.3.2 or newer in the 1.3 release train. A radar on 1.3.1 or older
+needs an update first: allow about $30 for the tested Debug Probe set, or use
+the manufacturer's SEGGER route. The guide installs v1.3.3; its bootloader
+then enables subsequent updates with the $9.95 UART cable. Update tools are
+separate from the build totals; see [firmware update options](#ops243-a-firmware-updates).
 
 OpenFlight works without any angle radar: you get ball speed, club speed, smash
 factor, spin rate, and estimated carry. The angle radar adds measured launch

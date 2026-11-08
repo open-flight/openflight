@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **OPS243-A Debug Probe flashing guide.** A copy-and-paste
+  [XMC4500 AC / 1 MiB procedure](build/ops243-flashing.md) for firmware 1.3.3
+  covers parts, soldering three header pins onto the breakout, SWD wiring, verified
+  backup, scripted firmware download and preparation, verified writes and
+  post-boot verification. A single script also updates the probe over SSH.
+  Includes tested OS/OpenOCD versions, the retained
+  settings address range and verification evidence. The parts page compares the
+  Debug Probe, official SEGGER and UART/Memtool options, updates tool costs,
+  and distinguishes v1.3.2 internal-trigger support from v1.3.3's update bootloader.
 - **Optional low-battery shutdown for UPS builds.**
   `scripts/battery/install_battery_guard.sh` installs a systemd service that,
   when external power is offline and the battery is at or below 10% or 3.40 V

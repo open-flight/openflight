@@ -26,6 +26,12 @@ it is done and verified.
 
     *Optional.* LIS3DH enclosure-level tilt compensation.
 
+- :material-memory: **[OPS243 firmware update](ops243-flashing.md)**
+
+    *When needed.* Install v1.3.3 on the tested XMC4500 AC / 1 MiB radar with a
+    Pi Debug Probe over SSH. Also explains the official SEGGER option and
+    UART/Memtool updates once v1.3.3's bootloader is installed.
+
 - :material-battery-outline: **[Battery](battery.md)**
 
     *Optional.* Geekworm X1202/X1206 UPS with native telemetry.
@@ -42,5 +48,8 @@ it is done and verified.
 Order everything from the **[parts list](../get-started/parts.md)** first — some
 items have long lead times, and a partial build cannot be verified end to end.
 
-You will need a soldering iron for exactly one joint: the R17 gain resistor on
-the SEN-14262. See [sound trigger wiring](sound-trigger.md#before-you-wire-solder-r17).
+You will need a soldering iron for the R17 gain resistor on the SEN-14262; see
+[sound trigger wiring](sound-trigger.md#before-you-wire-solder-r17). If updating
+the OPS243 with the Debug Probe route, solder three header pins onto the
+breakout's GND, SWIO and CLK pads. Header pins are not included; have them,
+an iron and solder before starting.
