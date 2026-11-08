@@ -53,8 +53,8 @@ Doppler radar, with an optional TI IWR6843 angle radar.
 
 Optional on top: battery power from a Geekworm UPS HAT (**+$90**, and it
 replaces the 27 W supply — see [Powering OpenFlight](docs/get-started/power.md)),
-a tilt sensor ($15), a global-shutter camera ($30), and a rechargeable RTC
-battery ($5) so log timestamps stay correct offline. Everything together is
+a tilt sensor ($15), a global-shutter camera ($30), and an RTC battery ($5).
+Everything together is
 roughly **$824**. Full staged breakdown in the
 [parts list](docs/get-started/parts.md#cost-summary).
 

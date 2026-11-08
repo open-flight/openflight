@@ -256,5 +256,6 @@ def test_setup_guide_documents_rechargeable_only_warning():
     guide = SETUP_GUIDE.read_text(encoding="utf-8")
 
     assert "### RTC Backup Battery" in guide
-    assert "**Rechargeable batteries only.**" in guide
-    assert "enable_rtc_battery_charging.sh --disable" in guide or "`--disable`" in guide
+    assert "**Rechargeable batteries only**" in guide
+    assert "CR2032" in guide
+    assert "--disable" in guide

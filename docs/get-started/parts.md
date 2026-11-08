@@ -186,7 +186,7 @@ One unit is mounted vertically (launch angle), one horizontally (club path / aim
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
 | **InnoMaker OV9281 global-shutter camera** | High-speed monochrome camera for experimental vision work. Camera software is not enabled in the production kiosk path | [Amazon](https://www.amazon.com/dp/B09WTP5GZH?th=1) | ~$30 |
-| **Raspberry Pi RTC Battery (rechargeable)** | Keeps the Pi 5's clock running while it is unplugged, so session logs have the correct date and time even when the Pi has no Wi-Fi (NTP) and the phone app is not connected. Without it, the clock resets at every power-off and logs carry wrong timestamps until one of those sets it. The official battery is a **rechargeable** lithium manganese coin cell that plugs into the Pi 5's `J5` (BAT) connector, with an adhesive pad to stick it down. Charging is off by default: turn it on with the setup script ([RTC Backup Battery](../setup/raspberry-pi.md#rtc-backup-battery)). **Buy a rechargeable cell only** — never fit a CR2032 or other non-rechargeable coin cell, or a lithium-ion cell, because the script turns the Pi's charger on | [Mouser](https://www.mouser.com/c/?q=Raspberry%20Pi%20RTC%20battery) | ~$5 |
+| **Raspberry Pi RTC Battery (rechargeable)** | Keeps the clock running while unplugged, so logs have the correct time without Wi-Fi or the phone app. Plugs into `J5` (BAT); [enable charging](../setup/raspberry-pi.md#rtc-backup-battery). **Rechargeable only — never a CR2032** | [Mouser](https://www.mouser.com/c/?q=Raspberry%20Pi%20RTC%20battery) | ~$5 |
 
 See [Camera and YOLO Experiments](../development/camera-yolo.md) before buying the
 camera; the standard setup does not install its optional software dependencies.
@@ -319,7 +319,7 @@ Independent of each other; add the ones you want.
 |---|---|---|
 | Inclinometer | LIS3DH and its Qwiic-to-Dupont cable, so the rig can sit on uneven ground | $15 |
 | Camera | InnoMaker OV9281, experimental vision work only | $30 |
-| RTC battery | the official **rechargeable** Raspberry Pi RTC battery, so log timestamps stay correct without Wi-Fi or the phone app | $5 |
+| RTC battery | correct log times offline (rechargeable only) | $5 |
 | **Battery power, [X1202](power.md#route-2-the-geekworm-x1202-x1206-ups-hat)** | HAT $48, four 18650s $24, 12 V adapter $15, panel DC jack $8, the lead into the board $2-3, and a 12 mm button with leads $6 — $104 in all. It **replaces** the $14 supply in step 1, so the net add is | **+$90** |
 | Battery power, [X1206](power.md#route-2-the-geekworm-x1202-x1206-ups-hat) instead | the same list with a $52 HAT and four 21700s at $32 | +$102 |
 | J-Link EDU Mini | only if your OPS243 reports firmware older than 1.3.2 and you want the internal trigger | $76 |

@@ -272,11 +272,7 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
 
     # --- RTC backup battery charging (Pi 5) ---
     echo ""
-    info "A backup battery on the Pi 5's RTC (J5 / BAT connector) keeps the clock"
-    info "running while unplugged, so session logs have the correct time without"
-    info "a network (NTP) or the phone app. Charging it must be switched on —"
-    info "but ONLY for a RECHARGEABLE battery such as the official Raspberry Pi"
-    info "RTC battery. NEVER for a regular CR2032 or other non-rechargeable cell."
+    info "An RTC battery keeps log times correct offline. RECHARGEABLE only — never a CR2032."
     if confirm "Do you have a RECHARGEABLE RTC battery (e.g. the official one) fitted?" "N"; then
         "$SCRIPT_DIR/enable_rtc_battery_charging.sh" \
             || warn "RTC battery charging was not enabled. Run later with: ./scripts/setup/enable_rtc_battery_charging.sh"

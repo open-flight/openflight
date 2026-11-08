@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Enable (or disable) trickle charging of a RECHARGEABLE Raspberry Pi 5 RTC
-# backup battery, so the clock keeps the correct time while the Pi is
-# unplugged and session logs are timestamped correctly without NTP or the
-# phone app.
+# Enable (or disable) charging of a RECHARGEABLE Raspberry Pi 5 RTC battery,
+# so log times stay correct while the Pi is unplugged.
 
 set -euo pipefail
 
@@ -39,16 +37,9 @@ usage() {
     cat <<'EOF'
 Usage: scripts/setup/enable_rtc_battery_charging.sh [--disable | --verify] [--yes]
 
-Turn on trickle charging for a RECHARGEABLE backup battery on the Raspberry
-Pi 5 RTC (J5 / BAT connector). With a charged battery the Pi keeps the right
-time while unplugged, so session logs get correct timestamps even without a
-network (NTP) or the phone app.
-
-  ONLY use this with a RECHARGEABLE lithium manganese cell, such as the
-  official Raspberry Pi RTC battery. NEVER enable charging for a
-  non-rechargeable (primary) coin cell such as a CR2032, or for a
-  lithium-ion cell. Charging a non-rechargeable cell can make it leak,
-  swell, or burst.
+Turn on charging for a RECHARGEABLE Pi 5 RTC battery (J5 / BAT), so log
+times stay correct while unplugged. Never use it with a CR2032 or other
+non-rechargeable cell.
 
   --disable  Remove the charging setting from config.txt (stop charging)
   --verify   Read-only: show the current charging voltage from sysfs
@@ -75,20 +66,9 @@ is_pi_5() {
 print_battery_warning() {
     cat <<EOF
 
-  ==================================================================
-    RECHARGEABLE RTC BATTERY ONLY
-
-    This turns ON the Pi 5's battery charger on the J5 (BAT) port.
-
-    OK:    the official Raspberry Pi RTC battery, or another
-           RECHARGEABLE lithium manganese (ML-type) coin cell.
-
-    NEVER: a regular non-rechargeable coin cell (CR2032, CR2025,
-           CR1220, ...) or a lithium-ion cell. Charging those can
-           make them leak, swell, or burst.
-
-    Not sure what you have? Do NOT continue - check the label.
-  ==================================================================
+  RECHARGEABLE RTC BATTERY ONLY (e.g. the official Raspberry Pi one).
+  NEVER a CR2032 or other non-rechargeable cell: charging it can make it
+  leak or burst. Not sure? Stop and check the label.
 
 EOF
 }
