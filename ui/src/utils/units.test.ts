@@ -8,6 +8,8 @@ import {
   getDistanceUnit,
   getSpeedUnit,
   getUnitsLabel,
+  isUnitSystem,
+  UNIT_SYSTEM_IDS,
 } from './units';
 
 describe('units helpers', () => {
@@ -38,6 +40,30 @@ describe('units helpers', () => {
   it('joins speed and distance units for chrome labels', () => {
     expect(getUnitsLabel('imperial')).toBe('mph / yds');
     expect(getUnitsLabel('metric')).toBe('km/h / m');
+    expect(getUnitsLabel('mphMeters')).toBe('mph / m');
+  });
+
+  it('keeps mph but converts carry to meters for the mph / m preset', () => {
+    expect(convertSpeedFromMph(150, 'mphMeters')).toBe(150);
+    expect(formatSpeed(150, 'mphMeters', 1)).toBe('150.0');
+    expect(getSpeedUnit('mphMeters')).toBe('mph');
+    expect(convertDistanceFromYards(100, 'mphMeters')).toBeCloseTo(91.44, 2);
+    expect(formatDistance(100, 'mphMeters', 0)).toBe('91');
+    expect(getDistanceUnit('mphMeters')).toBe('m');
+    expect(formatCarryRange([200, 220], 'mphMeters')).toBe('183-201 m');
+  });
+
+  it('lists the unit presets in menu order', () => {
+    expect(UNIT_SYSTEM_IDS).toEqual(['imperial', 'metric', 'mphMeters']);
+  });
+
+  it('recognises only known unit presets', () => {
+    for (const id of UNIT_SYSTEM_IDS) {
+      expect(isUnitSystem(id)).toBe(true);
+    }
+    for (const value of [null, undefined, '', 'Metric', 'mph-meters', 'toString', '__proto__', 1]) {
+      expect(isUnitSystem(value)).toBe(false);
+    }
   });
 
   it('formats carry ranges in the selected unit system', () => {

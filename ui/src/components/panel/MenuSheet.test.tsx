@@ -18,6 +18,17 @@ describe('MenuSheet profiles', () => {
   });
 });
 
+describe('MenuSheet units', () => {
+  it('offers imperial, metric, and the mph / m teaching preset', () => {
+    const html = renderMenu();
+
+    expect(html).toContain('aria-label="Display units"');
+    expect(html).toContain('>MPH / YDS</button>');
+    expect(html).toContain('>KM/H / M</button>');
+    expect(html).toContain('>MPH / M</button>');
+  });
+});
+
 describe('MenuSheet language', () => {
   it('offers a language dropdown with the shipped locales', () => {
     const html = renderMenu();
