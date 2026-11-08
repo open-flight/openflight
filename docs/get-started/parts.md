@@ -186,7 +186,7 @@ One unit is mounted vertically (launch angle), one horizontally (club path / aim
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
 | **InnoMaker OV9281 global-shutter camera** | High-speed monochrome camera for experimental vision work. Camera software is not enabled in the production kiosk path | [Amazon](https://www.amazon.com/dp/B09WTP5GZH?th=1) | ~$30 |
-| **Raspberry Pi RTC Battery (rechargeable)** | Keeps the clock running while unplugged, so logs have the correct time without Wi-Fi or the phone app. Plugs into `J5` (BAT); [enable charging](../setup/raspberry-pi.md#rtc-backup-battery). **Rechargeable only — never a CR2032** | [Mouser](https://www.mouser.com/c/?q=Raspberry%20Pi%20RTC%20battery) | ~$5 |
+| **Raspberry Pi RTC Battery (rechargeable)** | Keeps the clock running while unplugged, so logs have the correct time without Wi-Fi or the phone app. Plugs into `J5` (BAT); [enable charging](../setup/raspberry-pi.md#rtc-backup-battery). **Rechargeable only — never a CR2032** | [Mouser](https://www2.mouser.com/en/ProductDetail/Raspberry-Pi/SC1163?qs=HoCaDK9Nz5cYgJBx%2FEW8VQ%3D%3D) | ~$5 |
 
 See [Camera and YOLO Experiments](../development/camera-yolo.md) before buying the
 camera; the standard setup does not install its optional software dependencies.
