@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="610" viewBox="0 0 680 610" role="img">
+<title>Raspberry Pi 5 GPIO header map</title>
+<desc>Raspberry Pi 5 40-pin header as mounted in the case, USB ports at the back (top) and pin 1 at the front (bottom), 5V column on the outer edge. OPS243 on physical pins 4, 6, 8 and 10; SEN-14262 sound detector VCC on 1, GND on 9 and GATE on 11 (GPIO17, spliced to OPS243 J3 pin 3); display power on 2 and 14; LIS3DH on 3, 5, 17 and 20; the Geekworm X1202 UPS pogo pins on 3, 5, 31 and 36. The ribbon connectors are labelled in the OPS243 wiring diagram; the OPS243 J3 header has its own diagram.</desc>
+<style>
+  .ts { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; fill: #5F5E5A; }
+  .th { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; fill: #3d3d3a; }
+  .t { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 14px; fill: #3d3d3a; }
+</style>
+<rect x="0" y="0" width="680" height="610" fill="#FFFFFF"/>
+
+<circle cx="590" cy="20" r="6" fill="#7E57C2"/><text class="ts" x="602" y="20" dominant-baseline="central">SEN-14262</text>
+<circle cx="80" cy="20" r="6" fill="#D85A30"/><text class="ts" x="92" y="20" dominant-baseline="central">OPS243</text>
+<circle cx="200" cy="20" r="6" fill="#1D9E75"/><text class="ts" x="212" y="20" dominant-baseline="central">LIS3DH</text>
+<circle cx="320" cy="20" r="6" fill="#378ADD"/><text class="ts" x="332" y="20" dominant-baseline="central">Display power</text>
+<circle cx="470" cy="20" r="8" fill="#EF9F27" fill-opacity="0.4" stroke="#BA7517" stroke-width="0.5"/><text class="ts" x="484" y="20" dominant-baseline="central">UPS pogo pin</text>
+<text class="ts" x="340" y="46" text-anchor="middle" dominant-baseline="central">Back of case · USB ports</text>
+<rect x="302" y="58" width="76" height="484" rx="6" fill="#F5F4EF" stroke="#B4B2A9" stroke-width="0.5"/>
+<rect x="350" y="520" width="16" height="16" rx="2" fill="none" stroke="#73726C" stroke-width="1"/>
+<circle cx="358" cy="528" r="6" fill="#7E57C2"/>
+<circle cx="322" cy="528" r="8" fill="#378ADD"/>
+<circle cx="358" cy="504" r="8" fill="#1D9E75"/>
+<circle cx="322" cy="504" r="8" fill="#D85A30"/>
+<circle cx="358" cy="480" r="8" fill="#1D9E75"/>
+<circle cx="322" cy="480" r="8" fill="#D85A30"/>
+<circle cx="358" cy="456" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="456" r="8" fill="#D85A30"/>
+<circle cx="358" cy="432" r="8" fill="#7E57C2"/>
+<circle cx="322" cy="432" r="8" fill="#D85A30"/>
+<circle cx="358" cy="408" r="8" fill="#7E57C2"/>
+<circle cx="322" cy="408" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="384" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="384" r="8" fill="#378ADD"/>
+<circle cx="358" cy="360" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="360" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="336" r="8" fill="#1D9E75"/>
+<circle cx="322" cy="336" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="312" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="312" r="8" fill="#1D9E75"/>
+<circle cx="358" cy="288" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="288" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="264" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="264" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="240" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="240" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="216" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="216" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="192" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="192" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="168" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="168" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="144" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="144" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="120" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="120" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="96" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="96" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="72" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="322" cy="72" r="8" fill="none" stroke="#73726C" stroke-width="0.8" opacity="0.6"/>
+<circle cx="358" cy="504" r="12" fill="#EF9F27" fill-opacity="0.4" stroke="#BA7517" stroke-width="0.5"/>
+<circle cx="322" cy="120" r="12" fill="#EF9F27" fill-opacity="0.4" stroke="#BA7517" stroke-width="0.5"/>
+<circle cx="358" cy="480" r="12" fill="#EF9F27" fill-opacity="0.4" stroke="#BA7517" stroke-width="0.5"/>
+<circle cx="358" cy="168" r="12" fill="#EF9F27" fill-opacity="0.4" stroke="#BA7517" stroke-width="0.5"/>
+<rect x="268" y="500" width="14" height="8" rx="2" fill="#8D5524" stroke="#73726C" stroke-width="0.5"/>
+<rect x="268" y="476" width="14" height="8" rx="2" fill="#D32F2F" stroke="#73726C" stroke-width="0.5"/>
+<rect x="268" y="452" width="14" height="8" rx="2" fill="#F57C00" stroke="#73726C" stroke-width="0.5"/>
+<rect x="268" y="428" width="14" height="8" rx="2" fill="#F2C200" stroke="#73726C" stroke-width="0.5"/>
+<rect x="268" y="308" width="14" height="8" rx="2" fill="#1A1A1A" stroke="#73726C" stroke-width="0.5"/>
+<rect x="398" y="500" width="14" height="8" rx="2" fill="#1E66D0" stroke="#73726C" stroke-width="0.5"/>
+<rect x="398" y="476" width="14" height="8" rx="2" fill="#F2C200" stroke="#73726C" stroke-width="0.5"/>
+<rect x="398" y="332" width="14" height="8" rx="2" fill="#D32F2F" stroke="#73726C" stroke-width="0.5"/>
+<text class="th" x="262" y="528" text-anchor="end" dominant-baseline="central">Screen 5V · 2</text>
+<text class="th" x="262" y="504" text-anchor="end" dominant-baseline="central">OPS 5V → J3 9 · 4</text>
+<text class="th" x="262" y="480" text-anchor="end" dominant-baseline="central">OPS GND → J3 10 · 6</text>
+<text class="th" x="262" y="456" text-anchor="end" dominant-baseline="central">TXD0 → J3 6 · 8</text>
+<text class="th" x="262" y="432" text-anchor="end" dominant-baseline="central">RXD0 ← J3 7 · 10</text>
+<text class="ts" x="262" y="408" text-anchor="end" dominant-baseline="central">GPIO18 · 12</text>
+<text class="th" x="262" y="384" text-anchor="end" dominant-baseline="central">Screen GND · 14</text>
+<text class="ts" x="262" y="360" text-anchor="end" dominant-baseline="central">GPIO23 · 16</text>
+<text class="ts" x="262" y="336" text-anchor="end" dominant-baseline="central">GPIO24 · 18</text>
+<text class="th" x="262" y="312" text-anchor="end" dominant-baseline="central">LIS3DH GND · 20</text>
+<text class="ts" x="262" y="288" text-anchor="end" dominant-baseline="central">GPIO25 · 22</text>
+<text class="ts" x="262" y="264" text-anchor="end" dominant-baseline="central">GPIO8 · 24</text>
+<text class="ts" x="262" y="240" text-anchor="end" dominant-baseline="central">GPIO7 · 26</text>
+<text class="ts" x="262" y="216" text-anchor="end" dominant-baseline="central">ID_SC · 28</text>
+<text class="ts" x="262" y="192" text-anchor="end" dominant-baseline="central">GND · 30</text>
+<text class="ts" x="262" y="168" text-anchor="end" dominant-baseline="central">GPIO12 · 32</text>
+<text class="ts" x="262" y="144" text-anchor="end" dominant-baseline="central">GND · 34</text>
+<text class="th" x="262" y="120" text-anchor="end" dominant-baseline="central">UPS charge ctrl GPIO16 · 36</text>
+<text class="ts" x="262" y="96" text-anchor="end" dominant-baseline="central">GPIO20 · 38</text>
+<text class="ts" x="262" y="72" text-anchor="end" dominant-baseline="central">GPIO21 · 40</text>
+<text class="th" x="420" y="528" dominant-baseline="central">1 · SEN VCC 3.3V</text>
+<text class="th" x="420" y="504" dominant-baseline="central">3 · SDA: LIS3DH + UPS</text>
+<text class="th" x="420" y="480" dominant-baseline="central">5 · SCL: LIS3DH + UPS</text>
+<text class="ts" x="420" y="456" dominant-baseline="central">7 · GPIO4</text>
+<text class="th" x="420" y="432" dominant-baseline="central">9 · SEN GND</text>
+<text class="th" x="420" y="408" dominant-baseline="central">11 · SEN GATE GPIO17 + J3 3</text>
+<text class="ts" x="420" y="384" dominant-baseline="central">13 · GPIO27</text>
+<text class="ts" x="420" y="360" dominant-baseline="central">15 · GPIO22</text>
+<text class="th" x="420" y="336" dominant-baseline="central">17 · LIS3DH 3.3V</text>
+<text class="ts" x="420" y="312" dominant-baseline="central">19 · GPIO10</text>
+<text class="ts" x="420" y="288" dominant-baseline="central">21 · GPIO9</text>
+<text class="ts" x="420" y="264" dominant-baseline="central">23 · GPIO11</text>
+<text class="ts" x="420" y="240" dominant-baseline="central">25 · GND</text>
+<text class="ts" x="420" y="216" dominant-baseline="central">27 · ID_SD</text>
+<text class="ts" x="420" y="192" dominant-baseline="central">29 · GPIO5</text>
+<text class="th" x="420" y="168" dominant-baseline="central">31 · UPS AC detect GPIO6</text>
+<text class="ts" x="420" y="144" dominant-baseline="central">33 · GPIO13</text>
+<text class="ts" x="420" y="120" dominant-baseline="central">35 · GPIO19</text>
+<text class="ts" x="420" y="96" dominant-baseline="central">37 · GPIO26</text>
+<text class="ts" x="420" y="72" dominant-baseline="central">39 · GND</text>
+<text class="ts" x="340" y="558" text-anchor="middle" dominant-baseline="central">Front of case · pin 1 end · power board on the left</text>
+<circle cx="80" cy="590" r="8" fill="#EF9F27" fill-opacity="0.4" stroke="#BA7517" stroke-width="0.5"/>
+<text class="t" x="94" y="590" dominant-baseline="central">UPS shares the I2C bus on 3 and 5: fuel gauge 0x36, LIS3DH 0x18</text>
+</svg>
