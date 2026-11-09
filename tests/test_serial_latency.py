@@ -1,10 +1,16 @@
 """Tests for USB serial latency timer diagnostics."""
 
+import os
 from pathlib import Path
+
+import pytest
 
 from openflight.serial_latency import read_usb_serial_latency_timer
 
 
+@pytest.mark.skipif(
+    os.name == "nt", reason="symlink creation requires elevation on Windows"
+)
 def test_read_usb_serial_latency_timer_resolves_udev_alias(tmp_path: Path):
     dev_root = tmp_path / "dev"
     sysfs_root = tmp_path / "sys" / "bus" / "usb-serial" / "devices"
