@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Optional
+
 import numpy as np
 
 DELAY_FLAG_MS = 10.0

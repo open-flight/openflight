@@ -42,6 +42,7 @@ from .clubs.physics import (
     get_club_physics,
     get_club_simulation_profile,
 )
+from .gc2 import GC2_DEFAULT_MAC, GC2Monitor
 from .launch_monitor import SPIN_CONFIDENCE_HIGH, SPIN_CONFIDENCE_RELIABLE, Shot, summarize_shots
 from .ops243 import (
     UART_BAUD_COMMANDS,
@@ -1987,6 +1988,7 @@ def _get_trigger_status() -> dict:
 
     is_rolling_buffer = isinstance(monitor, RollingBufferMonitor)
     is_swing_speed = isinstance(monitor, (SwingSpeedMonitor, MockSwingSpeedMonitor))
+    is_gc2 = isinstance(monitor, GC2Monitor)
     session_logger = get_session_logger()
     stats = session_logger.stats if session_logger else {}
 
@@ -1994,6 +1996,8 @@ def _get_trigger_status() -> dict:
         mode = "swing-speed"
     elif mock_mode:
         mode = "mock"
+    elif is_gc2:
+        mode = "gc2"
     else:
         mode = "rolling-buffer"
     trigger_type = None
@@ -2005,10 +2009,15 @@ def _get_trigger_status() -> dict:
         if hasattr(monitor, "radar") and hasattr(monitor.radar, "port"):
             radar_port = monitor.radar.port
 
+    if is_gc2:
+        radar_connected = bool(monitor.get_radar_info().get("Connected"))
+    else:
+        radar_connected = monitor is not None and not mock_mode
+
     return {
         "mode": mode,
         "trigger_type": trigger_type,
-        "radar_connected": monitor is not None and not mock_mode,
+        "radar_connected": radar_connected,
         "radar_port": radar_port,
         "triggers_total": stats.get("triggers_total", 0),
         "triggers_accepted": stats.get("triggers_accepted", 0),
@@ -2466,7 +2475,7 @@ def handle_set_radar_config(data):
     """Update radar configuration."""
     global radar_config  # pylint: disable=global-statement
 
-    if not monitor or (mock_mode and not mock_swing_speed_mode):
+    if not monitor or isinstance(monitor, GC2Monitor) or (mock_mode and not mock_swing_speed_mode):
         log_session_error(
             "Radar config update rejected: radar not connected",
             component="server",
@@ -3552,8 +3561,12 @@ def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
             # club_path_deg can come from IWR6843 (_process_iwr6843_angle,
             # above) rather than K-LD7, so a failure here is not necessarily
             # a K-LD7 failure -- see the except block below.
+            has_measured_spin_axis = (
+                shot.spin_axis_deg is not None and shot.spin_source == "measured"
+            )
             if (
-                shot.launch_angle_horizontal is not None
+                not has_measured_spin_axis
+                and shot.launch_angle_horizontal is not None
                 and shot.club_path_deg is not None
                 and (shot.launch_angle_horizontal_confidence or 0.0) >= SPIN_AXIS_MIN_CONFIDENCE
             ):
@@ -4309,6 +4322,8 @@ def start_monitor(
     swing_speed_kwargs: Optional[dict] = None,
     ops_baud: Optional[int] = None,
     mock_enrichment_ms: float = 0.0,
+    gc2: bool = False,
+    gc2_mac: str = GC2_DEFAULT_MAC,
 ):
     """
     Start the monitor in launch monitor or swing speed mode.
@@ -4321,6 +4336,8 @@ def start_monitor(
         ops_baud: Target UART baud when the OPS243 is on the GPIO header
         mock_enrichment_ms: In mock mode, simulate optional hardware taking this
             long, so shots go provisional then final (0 disables)
+        gc2: Use the GC2 TCP shot feed instead of radar hardware
+        gc2_mac: Bluetooth MAC address of the GC2 (Linux only)
     """
     global monitor, mock_mode, mock_swing_speed_mode, debug_mode, radar_config
 
@@ -4341,6 +4358,9 @@ def start_monitor(
     elif mock:
         # Mock mode for testing without radar
         monitor = MockLaunchMonitor(enrichment_ms=mock_enrichment_ms)
+    elif gc2:
+        monitor = GC2Monitor(mac=gc2_mac)
+        print(f"[MODE] GC2 mode (Bluetooth: {gc2_mac})")
     elif swing_speed_mode:
         from .swing_speed import SwingSpeedMonitor
 
@@ -4377,7 +4397,7 @@ def start_monitor(
 
     logger.info(
         "[SERVER] Starting monitor: mode=%s, trigger=%s, sample_rate=%dksps",
-        "swing-speed" if swing_speed_mode else ("mock" if mock else "rolling-buffer"),
+        "swing-speed" if swing_speed_mode else ("mock" if mock else ("gc2" if gc2 else "rolling-buffer")),
         trigger_type,
         sample_rate_ksps,
     )
@@ -4387,15 +4407,20 @@ def start_monitor(
     if session_logger:
         radar_info = monitor.get_radar_info() if not mock else {}
         session_logger.start_session(
-            radar_port=port if not mock else "mock",
+            radar_port="gc2" if gc2 else (port if not mock else "mock"),
             firmware_version=radar_info.get("Version"),
             camera_enabled=camera_capture_runtime is not None,
             camera_model="capture" if camera_capture_runtime is not None else None,
             config=_session_start_config(),
-            mode="swing-speed" if swing_speed_mode else ("mock" if mock else "rolling-buffer"),
-            trigger_type=None if swing_speed_mode or mock else trigger_type,
+            mode=(
+                "swing-speed"
+                if swing_speed_mode
+                else ("mock" if mock else ("gc2" if gc2 else "rolling-buffer"))
+            ),
+            trigger_type=None if swing_speed_mode or mock or gc2 else trigger_type,
+
         )
-        if not mock and radar_info:
+        if not mock and not gc2 and radar_info:
             session_logger.log_connection(
                 device="ops243",
                 port=port or "auto",
@@ -4441,7 +4466,7 @@ def start_monitor(
             event_callback=on_swing_speed_detected,
             live_callback=on_live_reading,
         )
-    elif not mock:
+    elif not mock and not gc2:
 
         def on_trigger_diagnostic(data: dict):
             """Forward trigger diagnostics to connected UI clients."""
@@ -4455,6 +4480,17 @@ def start_monitor(
         )
         if iwr6843_runtime is not None:
             iwr6843_runtime.capture_monitor.arm()
+    elif gc2:
+
+        def on_gc2_connection_changed(_connected: bool):
+            socketio.emit("trigger_status", _get_trigger_status())
+
+        monitor.start(
+            shot_callback=on_shot_detected,
+            live_callback=on_live_reading,
+            processing_callback=on_shot_processing,
+            connection_callback=on_gc2_connection_changed,
+        )
     else:
         monitor.start(  # pylint: disable=unexpected-keyword-arg
             shot_callback=on_shot_detected,
@@ -4972,6 +5008,17 @@ def main():
             "shots arrive provisional, then final with direction data (default: off)"
         ),
     )
+    parser.add_argument(
+        "--gc2",
+        action="store_true",
+        help="Use a GC2 over Bluetooth (Linux only) as the shot source instead of radar hardware",
+    )
+    parser.add_argument(
+        "--gc2-mac",
+        default=GC2_DEFAULT_MAC,
+        help=f"Bluetooth MAC address of the GC2 (default {GC2_DEFAULT_MAC})",
+    )
+
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     parser.add_argument(
         "--web-port", type=int, default=8080, help="Web server port (default: 8080)"
@@ -5431,6 +5478,17 @@ def main():
             "--swing-speed requires real OPS243 radar hardware; use --mock-swing-speed for UI testing"
         )
 
+    if args.gc2 and (
+        args.mock
+        or args.swing_speed
+        or args.iwr6843
+        or args.kld7
+        or args.kld7_horizontal
+        #or args.camera_capture
+    ):
+        parser.error("--gc2 cannot be combined with mock, swing-speed and radar.#")
+
+
     if args.iwr6843 and args.kld7:
         parser.error("--iwr6843 and vertical --kld7 cannot both own launch angle")
     if args.iwr6843 and args.kld7_horizontal:
@@ -5492,7 +5550,7 @@ def main():
     startup_status = StartupStatusReporter(
         args.startup_status_file,
         configured_startup_components(
-            mock=args.mock,
+            mock=args.mock or args.gc2,
             camera=args.camera_capture,
             iwr6843=args.iwr6843,
             inclinometer=args.inclinometer,
@@ -5724,13 +5782,15 @@ def main():
             _cleanup_hardware_for_shutdown()
             sys.exit(1)
 
-    monitor_component = "monitor" if args.mock else "ops"
-    monitor_label = "shot simulator" if args.mock else "OPS radar"
+    monitor_component = "monitor" if args.mock or args.gc2 else "ops"
+    monitor_label = "GC2 shot bridge" if args.gc2 else ("shot simulator" if args.mock else "OPS radar")
     startup_status.start(monitor_component, f"Starting {monitor_label}")
     try:
         start_monitor(
             port=args.port,
             mock=args.mock,
+            gc2=args.gc2,
+            gc2_mac=args.gc2_mac,
             trigger_type=args.trigger,
             debug=args.debug,
             trigger_kwargs=trigger_kwargs,
@@ -5743,12 +5803,12 @@ def main():
     except Exception:
         monitor_recovery = (
             "Relaunch OpenFlight and check the terminal log."
-            if args.mock
+            if args.mock or args.gc2
             else "Check the OPS radar USB and power connections, then relaunch OpenFlight."
         )
         startup_status.error(
             monitor_component,
-            f"{'Shot simulator' if args.mock else 'OPS radar'} failed to initialize",
+            f"{'GC2 shot bridge' if args.gc2 else ('Shot simulator' if args.mock else 'OPS radar')  } failed to initialize",
             monitor_recovery,
         )
         _cleanup_hardware_for_shutdown()
@@ -5794,6 +5854,8 @@ def main():
     if args.mock:
         print("Running in MOCK mode - no radar required")
         print("Simulate shots via WebSocket or API")
+    if args.gc2:
+        print(f"Running in GC2 mode - connecting to GC2 over Bluetooth {args.gc2_mac}")
     if args.swing_speed:
         print("Running in SWING SPEED mode - no ball impact trigger required")
 
