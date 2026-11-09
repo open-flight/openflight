@@ -7,6 +7,7 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - Optional charging for a RECHARGEABLE Pi 5 RTC backup battery
 #   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
@@ -280,6 +281,17 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         fi
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- RTC backup battery charging (Pi 5) ---
+    echo ""
+    info "An RTC battery keeps log times correct offline. RECHARGEABLE only — never a CR2032."
+    if confirm "Do you have a RECHARGEABLE RTC battery (e.g. the official one) fitted?" "N"; then
+        "$SCRIPT_DIR/enable_rtc_battery_charging.sh" \
+            || warn "RTC battery charging was not enabled. Run later with: ./scripts/setup/enable_rtc_battery_charging.sh"
+    else
+        info "Skipped. If you fit a rechargeable RTC battery later, run:"
+        info "    ./scripts/setup/enable_rtc_battery_charging.sh"
     fi
 
     # --- Bluetooth (BLE phone app) ---
