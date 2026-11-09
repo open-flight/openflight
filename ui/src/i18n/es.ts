@@ -5,6 +5,7 @@ export const es: Messages = {
   'nav.profiles': 'Perfiles',
   'nav.stats': 'Estadísticas',
   'nav.shots': 'Golpes',
+  'nav.history': 'Historial',
   'nav.camera': 'Cámara',
   'nav.debug': 'Depuración',
   'nav.panels': 'Paneles',

@@ -15,7 +15,7 @@ function webServers(): WebServerConfig[] {
 
 describe('E2E profile isolation', () => {
   it('starts a fresh isolated backend instead of reusing a live OpenFlight server', () => {
-    const backend = webServers().find((server) => server.url === 'http://127.0.0.1:8080');
+    const backend = webServers().find((server) => server.url === `http://127.0.0.1:${process.env.OPENFLIGHT_E2E_BACKEND_PORT ?? '8081'}`);
 
     expect(backend).toMatchObject({
       reuseExistingServer: false,
