@@ -227,9 +227,17 @@ draining them. An optional systemd service powers the Pi off before that
 happens. It runs independently of OpenFlight and works whether or not
 OpenFlight is running or started with `--battery`.
 
+`scripts/setup/setup.sh` offers it right after the UPS step, defaulting to yes.
+To install it on its own:
+
 ```bash
 scripts/battery/install_battery_guard.sh
 ```
+
+It reads the battery through the I2C fuel gauge and the GPIO6 charger overlay
+that `scripts/battery/geekworm/setup.sh` configures, so run that first. The
+service can be installed before the reboot: until the driver loads it reads
+nothing and does nothing.
 
 Every 20 seconds the service reads the kernel's battery and charger devices.
 When external power is offline and the battery is at or below **10%** or

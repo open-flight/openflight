@@ -16,7 +16,7 @@
   Related projects:
   <a href="https://github.com/open-flight/openflight-enclosure">Enclosure</a>
   &middot;
-  <a href="https://github.com/open-flight/openflight-mobile">Mobile App</a>
+  <a href="https://github.com/open-flight/openflight-mobile-kmp">Mobile App</a>
 </p>
 
 > [!WARNING]

@@ -46,7 +46,8 @@ Configure native Linux telemetry for Geekworm X1202/X1206 UPS boards.
   --no-panel  Do not install or verify the Raspberry Pi taskbar patch
   -h, --help  Show this help
 
-The setup path does not install automatic-shutdown or charging-control services.
+It does not install charging control or the low-battery shutdown; the shutdown
+is scripts/battery/install_battery_guard.sh, which scripts/setup/setup.sh offers.
 EOF
 }
 
@@ -431,7 +432,8 @@ main() {
     configure_eeprom
     install_panel_package
 
-    log "No automatic-shutdown or charging-control service was installed."
+    log "No charging-control or low-battery shutdown service was installed."
+    log "For the shutdown, run: scripts/battery/install_battery_guard.sh"
     if [[ "$REBOOT_REQUIRED" == "true" ]]; then
         log "Reboot required. After reboot, run: scripts/battery/geekworm/setup.sh --verify"
     elif [[ "$PANEL_RESTART_REQUIRED" == "true" ]]; then
