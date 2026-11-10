@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`scripts/setup/setup.sh` offers the low-battery shutdown.** Answering yes
+  to the Geekworm X1202/X1206 question now also asks whether to install
+  `openflight-battery-guard.service` (default yes). A failed Geekworm step,
+  such as the taskbar package, warns instead of ending the setup run.
+- **Optional low-battery shutdown for UPS builds.**
+  `scripts/battery/install_battery_guard.sh` installs a systemd service that,
+  when external power is offline and the battery is at or below 10% or 3.40 V
+  for three readings 20 seconds apart, stops OpenFlight and powers the Pi off.
+  It never acts on external power or when the battery or charger state is
+  unreadable. Limits live in `/etc/default/openflight-battery-guard`; see
+  [Low-Battery Shutdown](build/battery.md#low-battery-shutdown).
 - **Phone-assisted IWR6843 tilt calibration.** A phone can send a stable
   accelerometer measurement with the BLE command
   `iwr6843_orientation_calibration` or `POST /api/calibration/iwr6843/orientation`
