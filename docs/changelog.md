@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **GSPro no longer shows unmeasured club fields as zero.** Shots send club speed,
+  plus club path only when it was measured, instead of the full club schema with
+  zero defaults.
 - **Simulator output tags estimated launch angles as estimated.** When the
   server fills in a launch angle before the sim fan-out, the resolver tagged
   it, and the carry built on it, as measured. It now reads the angle's source,

@@ -5,6 +5,7 @@ state.py behind the protocol-neutral Codec interface the transport expects.
 Spec: https://gsprogolf.com/GSProConnectV1.html
 """
 
+import json
 from typing import List, Optional
 
 from openflight.gspro.messages import (
@@ -83,7 +84,23 @@ class GSProCodec:
                 IsHeartBeat=False,
             ),
         )
-        return serialize_payload(payload)
+        return self._without_unmeasured_club_fields(serialize_payload(payload), resolved)
+
+    @staticmethod
+    def _without_unmeasured_club_fields(wire: bytes, resolved: ResolvedShot) -> bytes:
+        """Keep only the club fields this shot actually has.
+
+        The full ClubData schema defaults AngleOfAttack, FaceToTarget, Lie, Loft,
+        Path, etc. to 0.0, and GSPro displays those zeros (and derives face-to-path
+        and similar from them) as if they were measured. Send club speed (when
+        present) and path only when the resolver did not have to fill it in.
+        """
+        obj = json.loads(wire)
+        club = {"Speed": obj["ClubData"]["Speed"]}
+        if resolved.provenance.get("club_path") != "estimated":
+            club["Path"] = obj["ClubData"]["Path"]
+        obj["ClubData"] = club
+        return json.dumps(obj, separators=(",", ":")).encode("utf-8")
 
     def parse_inbound(self, frame: bytes) -> List[InboundEvent]:
         resp = parse_response(frame)  # raises ValueError on malformed JSON
