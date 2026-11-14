@@ -1,5 +1,10 @@
 # OpenFlight IARC v3 Case
 
+> **Superseded.** Do not print this case for a new build. The current
+> enclosure lives in
+> [open-flight/openflight-enclosure](https://github.com/open-flight/openflight-enclosure).
+> These files are kept for existing builds only.
+
 The assembly instructions and build photos now live in the documentation site:
 
 **→ [docs/build/enclosure.md](../../docs/build/enclosure.md)**

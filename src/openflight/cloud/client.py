@@ -5,7 +5,7 @@ Pi. The low-level transport is injectable (``request_fn``) so tests run without
 the network.
 
 The contract lives entirely in this module; nothing here imports FlightWeb
-code. See docs/openflight-cloud-uploader-spec.md.
+code. See docs/reference/cloud-uploader-spec.md.
 """
 
 import json

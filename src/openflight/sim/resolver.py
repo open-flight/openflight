@@ -71,14 +71,18 @@ def resolve_shot(shot: Shot, player_state: PlayerState) -> ResolvedShot:
 
     if shot.launch_angle_vertical is not None:
         vla = float(shot.launch_angle_vertical)
-        provenance["vla"] = "measured"
+        provenance["vla"] = (
+            "estimated" if shot.launch_angle_vertical_source == "estimated" else "measured"
+        )
     else:
         vla = get_club_physics(shot.club).optimal_launch_deg
         provenance["vla"] = "estimated"
 
     if shot.launch_angle_horizontal is not None:
         hla = float(shot.launch_angle_horizontal)
-        provenance["hla"] = "measured"
+        provenance["hla"] = (
+            "estimated" if shot.launch_angle_horizontal_source == "estimated" else "measured"
+        )
     else:
         hla = 0.0
         provenance["hla"] = "estimated"
@@ -114,7 +118,7 @@ def resolve_shot(shot: Shot, player_state: PlayerState) -> ResolvedShot:
     # means launch-angle-informed: the carry model was driven by a measured launch
     # angle rather than falling back to club-type defaults. The UI badge reflects
     # that distinction, not a claim that carry itself was measured (PR #115 review #6).
-    provenance["carry"] = "measured" if shot.has_launch_angle else "estimated"
+    provenance["carry"] = provenance["vla"]
 
     if shot.club_speed_mph is not None and shot.club_speed_mph > 0:
         club_speed = float(shot.club_speed_mph)

@@ -161,6 +161,8 @@ class RollingBufferProcessor:
     IMPACT_TRANSITION_MIN_DELTA_MPH = 15.0
     IMPACT_TRANSITION_MAX_GAP_MS = 25.0
 
+    ENABLE_CLUB_SPEED_SHADOW = False  # experimental; default OFF
+
     def __init__(self, sample_rate: int = 30000):
         """Initialize processor with pre-computed window function.
 
@@ -1898,6 +1900,45 @@ class RollingBufferProcessor:
                 impact.timestamp_ms if impact.timestamp_ms is not None else float("nan"),
                 impact.reason,
             )
+
+        if self.ENABLE_CLUB_SPEED_SHADOW:
+            try:
+                from .club_speed_diagnostics import diagnose_club_speed
+
+                diagnostic = diagnose_club_speed(
+                    self, timeline, ball_speed_mph, ball_timestamp_ms,
+                    capture, club_type, current_mph=club_speed_mph, impact=impact,
+                )
+                logger.info(
+                    "[CLUB-SHADOW] status=%s agreement=%s three_way=%s "
+                    "spread=%s current=%s legacy=%s tracker=%s transition=%s "
+                    "review=%s ball_trigger_delay_ms=%s points=%d",
+                    diagnostic.status, diagnostic.agreement,
+                    diagnostic.three_way_agreement, diagnostic.three_way_spread_mph,
+                    diagnostic.current_mph, diagnostic.legacy_mph,
+                    diagnostic.tracker_mph, diagnostic.impact_transition_mph,
+                    diagnostic.review_candidate_mph,
+                    diagnostic.ball_trigger_delay_ms, diagnostic.tracker_points,
+                )
+                from .club_speed_stage4 import classify as classify_recovery
+
+                decision = classify_recovery({
+                    "current_mph": diagnostic.current_mph,
+                    "measured_ball_mph": ball_speed_mph,
+                    "legacy_mph": diagnostic.legacy_mph,
+                    "tracker_mph": diagnostic.tracker_mph,
+                    "transition_mph": diagnostic.impact_transition_mph,
+                    "ball_trigger_delay_ms": diagnostic.ball_trigger_delay_ms,
+                })
+                logger.info(
+                    "[CLUB-STAGE4] classification=%s evidence=%s candidate=%s "
+                    "terminal=%s delta=%s three_way=%s (advisory only)",
+                    decision.classification, decision.evidence,
+                    decision.candidate_mph, decision.terminal_agreement,
+                    decision.terminal_difference_mph, decision.three_way_agreement,
+                )
+            except Exception:
+                logger.exception("[CLUB-SHADOW] diagnostic failed; original speed unchanged")
 
         if expected_spin_rpm is None and expected_spin_for_ball_speed is not None:
             expected_spin_rpm = expected_spin_for_ball_speed(ball_speed_mph)

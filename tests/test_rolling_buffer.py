@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from openflight.clubs import ClubType
+from openflight.clubs.physics import get_club_physics
 from openflight.launch_monitor import Shot
 from openflight.rolling_buffer import (
     HardwareTriggeredCapture,
@@ -184,6 +185,17 @@ class TestEstimateCarryWithSpin:
 
         # Should be very close (club speed at optimal smash has minimal effect)
         assert abs(carry_no_club - carry_with_club) < 5
+
+    @pytest.mark.parametrize("smash_delta, carry_factor", [(0.0, 1.0), (-0.07, 0.958)])
+    def test_carry_adjustment_uses_shared_smash_reference(self, smash_delta, carry_factor):
+        club = ClubType.IRON_7
+        target = get_club_physics(club).optimal_smash
+        baseline = estimate_carry_with_spin(100, 6000, club)
+        adjusted = estimate_carry_with_spin(
+            100, 6000, club, club_speed_mph=100 / (target + smash_delta)
+        )
+
+        assert adjusted == pytest.approx(baseline * carry_factor)
 
     def test_carry_increases_with_ball_speed(self):
         """Higher ball speed should always increase carry."""
@@ -1290,6 +1302,32 @@ class TestRollingBufferMonitorSpinPlausibility:
         assert shot is not None
         assert shot.impact_timestamp == pytest.approx(1715000000.123)
         assert shot.impact_timestamp_kld7 == pytest.approx(1715000000.115)
+
+
+class TestProcessedCaptureSmashFactor:
+    """ProcessedCapture.smash_factor must share Shot's physical max."""
+
+    @staticmethod
+    def _processed(ball: float, club) -> ProcessedCapture:
+        return ProcessedCapture(
+            timeline=SpeedTimeline(readings=[], sample_rate_hz=937.5),
+            ball_speed_mph=ball,
+            ball_timestamp_ms=68.0,
+            club_speed_mph=club,
+        )
+
+    def test_none_above_max(self):
+        assert self._processed(160.0, 90.0).smash_factor is None
+
+    def test_exactly_max_unchanged(self):
+        assert self._processed(150.0, 100.0).smash_factor == 1.5
+
+    def test_below_max_unchanged(self):
+        assert self._processed(140.0, 100.0).smash_factor == pytest.approx(1.4)
+
+    def test_none_without_club_speed(self):
+        assert self._processed(140.0, None).smash_factor is None
+        assert self._processed(140.0, 0.0).smash_factor is None
 
 
 class TestRollingBufferShotIdentity:

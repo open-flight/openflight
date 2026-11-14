@@ -122,3 +122,31 @@ def test_carry_falls_back_to_table_when_nothing_committed():
     assert resolve_shot(shot, PlayerState()).carry_yards == pytest.approx(
         shot.estimated_carry_yards
     )
+
+
+def test_server_estimated_launch_angles_are_tagged_estimated():
+    # server._ensure_user_facing_launch_angles fills missing angles before the
+    # sim fan-out and marks them with source "estimated".
+    shot = _shot(
+        launch_angle_vertical=11.0, launch_angle_vertical_source="estimated",
+        launch_angle_horizontal=0.0, launch_angle_horizontal_source="estimated",
+    )
+    r = resolve_shot(shot, PlayerState())
+    assert r.vla == 11.0
+    assert r.hla == 0.0
+    assert r.provenance["vla"] == "estimated"
+    assert r.provenance["hla"] == "estimated"
+    assert r.provenance["carry"] == "estimated"
+
+
+def test_measured_vla_keeps_measured_carry_when_only_hla_is_estimated():
+    # A vertical angle radar alone gives a measured VLA, and the server fills in
+    # the neutral 0.0 HLA.
+    shot = _shot(
+        launch_angle_vertical=12.0, launch_angle_vertical_source="radar",
+        launch_angle_horizontal=0.0, launch_angle_horizontal_source="estimated",
+    )
+    r = resolve_shot(shot, PlayerState())
+    assert r.provenance["vla"] == "measured"
+    assert r.provenance["hla"] == "estimated"
+    assert r.provenance["carry"] == "measured"
