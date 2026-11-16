@@ -26,7 +26,7 @@ describe('SimShotBadges', () => {
     expect(html).toContain('2 measured / 1 estimated');
   });
 
-  it('renders a card per connected simulator', () => {
+ it('renders a card per connected simulator', () => {
     const ogs: SimShotInfo = {
       target: 'opengolfsim',
       shot_number: 3,
@@ -34,7 +34,6 @@ describe('SimShotBadges', () => {
       values: { ball_speed: 130, spin_axis: -2 },
       provenance: { ball_speed: 'measured', spin_axis: 'estimated' },
     };
-    const html = renderToString(<SimShotBadges latestSimShots={{ gspro: gsproShot, opengolfsim: ogs, partee }} />);
     const partee: SimShotInfo = { ...gsproShot, target: 'partee', shot_number: 4 };
     const pureplay: SimShotInfo = { ...gsproShot, target: 'pureplay', shot_number: 5 };
     const html = renderToString(
@@ -45,4 +44,3 @@ describe('SimShotBadges', () => {
     expect(html).toContain('Sent to PAR-TEE');
     expect(html).toContain('Sent to Pureplay');
   });
-});
