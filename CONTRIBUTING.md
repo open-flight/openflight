@@ -169,7 +169,7 @@ will fail if:
 6. **Update documentation** if needed
    - Update README.md for user-facing changes
    - Update relevant docs in `docs/`
-   - Add entry to `docs/CHANGELOG.md` under `[Unreleased]`
+   - Add entry to `docs/changelog.md` under `[Unreleased]`
 
 7. **Submit a pull request** and fill out the PR template — including the automated
    tests, manual testing, and "why it was required" sections

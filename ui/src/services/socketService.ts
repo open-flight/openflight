@@ -239,6 +239,24 @@ class SocketService {
     this.socket?.emit('toggle_debug');
   }
 
+  reinitializeRadar(): Promise<{ ok: boolean; message: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket?.connected) {
+        resolve({ ok: false, message: 'Not connected to OpenFlight server' });
+        return;
+      }
+      this.socket
+        .timeout(15000)
+        .emit('reinitialize_radar', (error: Error | null, response: { ok: boolean; message: string } | undefined) => {
+          if (error || !response) {
+            resolve({ ok: false, message: 'Recovery timed out or server disconnected' });
+            return;
+          }
+          resolve(response);
+        });
+    });
+  }
+
   setRadarConfig(config: Partial<RadarConfig>) {
     this.socket?.emit('set_radar_config', config);
   }

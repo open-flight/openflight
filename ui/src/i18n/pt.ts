@@ -184,6 +184,8 @@ export const pt: Messages = {
   'power.critical': 'Bateria crítica',
   'power.lowDetail': 'Conecte o OpenFlight à energia em breve.',
   'power.criticalDetail': 'Conecte o OpenFlight à energia agora.',
+  'power.coldCharging':
+    'Não carregue as baterias abaixo de 0\u00a0°C (32\u00a0°F). Se o OpenFlight estiver frio, deixe-o aquecer antes de ligá-lo à energia.',
   'power.dismiss': 'Fechar',
 
   'display.tvAria': 'Modo de tela de TV',

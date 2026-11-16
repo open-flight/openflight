@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`scripts/setup/setup.sh` offers the low-battery shutdown.** Answering yes
+  to the Geekworm X1202/X1206 question now also asks whether to install
+  `openflight-battery-guard.service` (default yes). A failed Geekworm step,
+  such as the taskbar package, warns instead of ending the setup run.
+- **Optional low-battery shutdown for UPS builds.**
+  `scripts/battery/install_battery_guard.sh` installs a systemd service that,
+  when external power is offline and the battery is at or below 10% or 3.40 V
+  for three readings 20 seconds apart, stops OpenFlight and powers the Pi off.
+  It never acts on external power or when the battery or charger state is
+  unreadable. Limits live in `/etc/default/openflight-battery-guard`; see
+  [Low-Battery Shutdown](build/battery.md#low-battery-shutdown).
+- **Phone-assisted IWR6843 tilt calibration.** A phone can send a stable
+  accelerometer measurement with the BLE command
+  `iwr6843_orientation_calibration` or `POST /api/calibration/iwr6843/orientation`
+  (`GET` reads the current tilt). The Pi recomputes tilt and roll from the
+  gravity vector, rejects unstable or inconsistent measurements, subtracts the
+  enclosure LIS3DH pitch when it is enabled, applies the tilt immediately and
+  saves it to `~/.config/openflight/iwr6843_phone_orientation.json`. At startup
+  `--iwr6843-tilt-deg` wins over the saved phone calibration, which wins over
+  the calibration JSON. This is the first BLE command that writes persisted
+  configuration; see
+  [Security and scope](ios-ble.md#security-and-scope).
+
 ### Changed
+- **The OPS sound-trigger hardware test defaults to the Pi GPIO UART.**
+  `scripts/hardware-test/test_sound_trigger.py` now uses `/dev/ttyAMA0`
+  when `--port` is omitted. For USB, pass the device explicitly, for example
+  `--port /dev/ttyACM0`.
 - **Chromium fallback is reachable during Electron upgrades.** If `ui/dist`
   already exists, a missing Electron install no longer requires Node 22.12 and
   a successful `npm install` before the kiosk can start. Old Node or a failed
@@ -22,6 +50,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **Simulator output tags estimated launch angles as estimated.** When the
+  server fills in a launch angle before the sim fan-out, the resolver tagged
+  it, and the carry built on it, as measured. It now reads the angle's source,
+  so the simulator badges, `sim_shot` event and `sim_send` log entries match
+  the data.
+- **Doc paths named from the Python package resolve again.** The K-LD7
+  OPS-bin penalty warning, the cloud client and session-logger comments,
+  and the two-ray module docstring pointed at flat `docs/*.md` files that
+  moved in the docs restructure. A new test scans `src/openflight`,
+  `scripts/`, `.github/`, and the top-level guides for `docs/…​.md`
+  references and fails on any that do not exist.
+- **`openflight-cloud` honors `--config`/`--log-dir` before the subcommand.**
+  The subcommand's defaults overwrote options given before it, so
+  `openflight-cloud --log-dir X push` scanned the default session directory.
+  The server's session-end push uses that form, so with a custom `--log-dir`
+  it looked in the wrong place.
 - **Stale doc paths from the docs restructure.** The hardware-help issue
   template and the user-facing messages in `scripts/setup/setup.sh`,
   `setup_kld7_devices.sh`, `capture_kld7_radc.py`, `replay_spin_dechirp.py`,
@@ -70,6 +114,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   full horizontal speed, overstating attack angle on any shot with club path.
 
 ### Added
+- **Mock mode simulates the optional hardware phones react to.** So a Pi
+  with no radar, UPS or camera can exercise every phone event: mock shots
+  now report `shot_processing` `capturing` then `calculating` like the radar,
+  `simulate_shot` with `{"fail": true}` reports `failed` without a shot,
+  `--mock-enrichment-ms MS` sends mock shots provisional then final through the
+  real enrichment pipeline (above the 20 s deadline they finalize as skipped),
+  and `--battery mock` cycles `power_status` through every state. See
+  [simulating hardware](ios-ble.md#simulating-hardware-on-a-pi-without-it).
+- **Network shot stream and club API for phone apps, and catch-up after a
+  reconnect.** `GET /api/shots/stream` sends the same schema 2 messages as BLE
+  as Server-Sent Events: a stream opens with the current club, profiles and
+  (with `--battery`) power status, then the session's shots, then live shots
+  and events, with a heartbeat every 15 s. It needs no flag and accepts up to
+  eight clients (`503` beyond that). `GET`/`POST /api/club` reads and sets the
+  club through the same server operation as the kiosk and BLE, and club
+  changes are broadcast on the stream too. A reconnecting phone names the
+  newest shot it has (`last_event_id` in BLE `hello`, or `Last-Event-ID` on the
+  stream) and is sent that shot again plus every later current-session shot,
+  oldest first, up to 100; replays are the exact bytes sent live, and cleared
+  or deleted shots are never replayed. Shots deleted on the kiosk while the
+  phone was away are sent first, as `shot_deleted` events, and a shot taken
+  during a BLE catch-up no longer pushes a missed shot out of the delivery
+  queue. `hello` advertises the `shot_catch_up` and `deletion_catch_up`
+  features, and the stream names the same list in an `OpenFlight-Features`
+  header, so phone apps can tell an older Pi apart. See
+  [phone app connection](ios-ble.md#catch-up-after-a-reconnect).
 - **Bluetooth LE connection for phone apps.** `--ble` (with the optional `ble`
   extra, `bless==0.3.0` on Linux) advertises one GATT service with a shot and a
   control characteristic, speaking schema version 2; without BlueZ or the

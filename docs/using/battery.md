@@ -3,13 +3,16 @@
 OpenFlight can display battery percentage, external-power state, and low-battery
 warnings when a supported UPS provider is selected. Monitoring is disabled by
 default and is read-only: OpenFlight does not change charging behavior or shut
-down Linux automatically.
+down Linux automatically. A separate, optional
+[low-battery shutdown](../build/battery.md#low-battery-shutdown) service can
+power the Pi off before the cells run flat.
 
 ## Supported Providers
 
 | Provider | CLI value | Hardware | Setup guide |
 |---|---|---|---|
 | Geekworm | `geekworm` | X1202 and X1206 | [Geekworm X1202/X1206](../build/battery.md) |
+| Simulated | `mock` | None: cycles through every power state for testing the UI and phone apps | [Simulating hardware](../ios-ble.md#simulating-hardware-on-a-pi-without-it) |
 
 Start OpenFlight with an installed provider:
 
@@ -71,6 +74,14 @@ Warnings at 20% and 10% are dismissible and appear only while discharging.
 |---|---|
 | ![Dismissible low-battery warning at 20%](images/battery-alert-low.jpg) | ![Dismissible critical-battery warning at 10%](images/battery-alert-critical.jpg) |
 
+> [!WARNING]
+> **Do not charge lithium-ion cells below 0 °C (32 °F).** Charging below
+> freezing plates metallic lithium onto the anode, which permanently reduces
+> capacity and can make the cell unsafe. When a low-battery warning appears on a
+> cold day, bring the launch monitor indoors, or let it warm above freezing,
+> before connecting external power. See the
+> [UPS cell warnings](../build/battery.md#choose-a-board).
+
 Session logs contain `power_status` records with the provider, percentage,
 voltage, external-power state, availability, timestamp, and any read error.
 The session-start configuration also records the selected provider.
@@ -106,6 +117,8 @@ provider name and reader in `src/openflight/power/factory.py`, and add focused
 reader and factory tests. Provider-specific Pi provisioning belongs under
 `scripts/battery/<provider>/`, with its operator guide under `docs/battery/`.
 
-Keep provider readers read-only. Any future controlled shutdown behavior must
-remain a separate policy that first stops OpenFlight cleanly, asks Linux to
-halt, and only then allows the UPS to remove Pi power.
+Keep provider readers read-only. Controlled shutdown stays a separate policy
+that first stops OpenFlight cleanly, asks Linux to halt, and only then allows
+the UPS to remove Pi power. `scripts/battery/battery_guard.sh` is that policy;
+it reads the standard `/sys/class/power_supply` devices, so a new provider
+whose kernel driver exposes them needs no changes there.

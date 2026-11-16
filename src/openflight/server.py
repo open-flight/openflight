@@ -26,11 +26,15 @@ from flask_socketio import SocketIO
 
 from .ballistics import resolve_launch, simulate
 from .ble.protocol import (
+    FEATURES as PHONE_FEATURES,
+    build_club_event,
     build_power_status_event,
     build_profiles_event,
     build_session_cleared_event,
     build_shot_deleted_event,
     build_shot_processing_event,
+    encode_shot_event,
+    stable_shot_event_id,
 )
 from .clubs import ClubType
 from .clubs.physics import (
@@ -46,10 +50,18 @@ from .ops243 import (
     SpeedReading,
     set_show_raw_readings,
 )
+from .phone_catch_up import PhoneShotCache, normalize_last_event_id, select_catch_up
+from .phone_orientation import (
+    PhoneOrientationMeasurement,
+    PhoneOrientationValidationError,
+    load_phone_orientation_calibration,
+    save_phone_orientation_calibration,
+)
 from .power import SUPPORTED_BATTERY_PROVIDERS, PowerMonitor, PowerStatus
 from .profiles import ProfileStore
 from .rolling_buffer.monitor import estimate_carry_with_spin, get_optimal_spin_for_ball_speed
 from .session_logger import get_session_logger, init_session_logger, log_session_error
+from .shot_stream import SSE_MIMETYPE, ShotStreamBroker, ShotStreamFull
 from .sim import (
     IncompleteShotError,
     PlayerState as SimPlayerState,
@@ -142,6 +154,10 @@ camera_capture_config: dict = {"enabled": False}
 camera_replay_manager = None
 camera_reference_ball_tracker = None
 camera_ball_flight_reference_tracker = None
+PHONE_ORIENTATION_CALIBRATION_PATH = (
+    Path.home() / ".config" / "openflight" / "iwr6843_phone_orientation.json"
+)
+_iwr6843_calibration_lock = threading.Lock()
 
 # Optional LIS3DH enclosure orientation used to compensate TI mount tilt.
 inclinometer_service = None
@@ -172,6 +188,15 @@ ble_publisher = None
 # before being fanned out over all enabled transports.
 active_club = ClubType.DRIVER
 club_selection_lock = threading.Lock()
+
+# Network shot delivery for phone apps. Always available: it exposes the same
+# shots the browser UI already broadcasts over WebSocket, so it adds no reach
+# beyond the existing HTTP server.
+shot_stream = ShotStreamBroker()
+
+# The exact bytes last sent per shot, so a reconnecting phone's catch-up
+# (BLE and network alike) replays what it would have received live.
+phone_shot_cache = PhoneShotCache()
 
 shutdown_lock = threading.Lock()
 shutdown_cleanup_started = False
@@ -981,6 +1006,110 @@ def display():
     return send_from_directory(_react_app_dir(), "index.html")
 
 
+@app.route("/api/calibration/iwr6843/orientation", methods=["GET", "POST"])
+def api_iwr6843_orientation_calibration():
+    """Read or apply a gravity-referenced phone measurement to TI mount tilt."""
+    if iwr6843_runtime is None:
+        return {"error": "TI IWR6843 radar is not enabled"}, 409
+
+    if request.method == "GET":
+        return {
+            "status": "ready",
+            "configured_iwr_tilt_deg": round(math.degrees(iwr6843_runtime.calibration.tilt_rad), 4),
+            "azimuth_offset_deg": round(iwr6843_runtime.azimuth_offset_deg, 4),
+            "calibration": iwr6843_runtime_config.get("phone_orientation_calibration"),
+        }
+
+    return apply_iwr6843_orientation_calibration(request.get_json(silent=True))
+
+
+def apply_iwr6843_orientation_calibration(payload):  # pylint: disable=too-many-return-statements
+    """Validate, persist, and activate one phone orientation measurement."""
+    if iwr6843_runtime is None:
+        return {"error": "TI IWR6843 radar is not enabled"}, 409
+
+    try:
+        measurement = PhoneOrientationMeasurement.from_payload(payload)
+    except PhoneOrientationValidationError as error:
+        return {"error": str(error)}, 400
+
+    enclosure_pitch_deg = None
+    if inclinometer_service is not None:
+        try:
+            selection = inclinometer_service.wait_for_stable(timeout_s=2.0)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning("[SERVER] Enclosure sensor failed during phone calibration: %s", error)
+            return {"error": "Could not read the enclosure sensor; try again"}, 409
+        if selection.snapshot is None:
+            return {
+                "error": (
+                    "The enclosure sensor is not stable "
+                    f"({selection.status}); keep the rig still and try again"
+                )
+            }, 409
+        enclosure_pitch_deg = float(selection.snapshot.calibrated_pitch_deg)
+
+    configured_tilt_deg = measurement.mount_tilt_deg - (enclosure_pitch_deg or 0.0)
+    if not -45.0 <= configured_tilt_deg <= 45.0:
+        return {"error": "Derived TI-to-enclosure tilt is outside the supported range"}, 400
+
+    record = {
+        "schema_version": 1,
+        "source": "ios_companion",
+        "configured_iwr_tilt_deg": configured_tilt_deg,
+        "enclosure_pitch_deg": enclosure_pitch_deg,
+        "azimuth_offset_deg": iwr6843_runtime.azimuth_offset_deg,
+        "measurement": measurement.to_dict(),
+        "applied_at": datetime.now().astimezone().isoformat(),
+    }
+
+    try:
+        with _iwr6843_calibration_lock:
+            save_phone_orientation_calibration(record, PHONE_ORIENTATION_CALIBRATION_PATH)
+            calibration_meta = dict(iwr6843_runtime.calibration.meta)
+            calibration_meta["phone_orientation_calibration"] = record
+            iwr6843_runtime.calibration = replace(
+                iwr6843_runtime.calibration,
+                tilt_rad=math.radians(configured_tilt_deg),
+                meta=calibration_meta,
+            )
+            iwr6843_runtime_config.update(
+                {
+                    "tilt_deg": configured_tilt_deg,
+                    "tilt_source": "ios_companion",
+                    "phone_orientation_calibration": record,
+                }
+            )
+    except OSError as error:
+        logger.warning("[SERVER] Failed to persist phone orientation: %s", error, exc_info=True)
+        return {"error": "OpenFlight could not save the calibration"}, 500
+
+    session_logger = get_session_logger()
+    if session_logger:
+        session_logger.log_config_change(
+            {"iwr6843": dict(iwr6843_runtime_config)},
+            source="ios_companion",
+        )
+    response = {
+        "status": "applied",
+        "persistent": True,
+        "measured_mount_tilt_deg": measurement.mount_tilt_deg,
+        "enclosure_pitch_deg": enclosure_pitch_deg,
+        "configured_iwr_tilt_deg": configured_tilt_deg,
+        "roll_deg": measurement.roll_deg,
+        "azimuth_offset_deg": iwr6843_runtime.azimuth_offset_deg,
+    }
+    socketio.emit("iwr6843_orientation_calibrated", response)
+    logger.info(
+        "[SERVER] Applied iOS phone calibration: measured tilt %.3fdeg, "
+        "enclosure pitch %s, configured TI tilt %.3fdeg",
+        measurement.mount_tilt_deg,
+        f"{enclosure_pitch_deg:.3f}deg" if enclosure_pitch_deg is not None else "not enabled",
+        configured_tilt_deg,
+    )
+    return response, 200
+
+
 def apply_club_selection(payload):
     """Set the club used to tag and process future shots."""
     global active_club  # pylint: disable=global-statement
@@ -1026,6 +1155,10 @@ def _broadcast_club_selection(club: ClubType) -> None:
         socketio.emit("club_changed", club_data)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("[SERVER] Failed to broadcast club over WebSocket", exc_info=True)
+    try:
+        shot_stream.publish_club(club.value)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Failed to broadcast club over network stream", exc_info=True)
     if ble_publisher is not None:
         try:
             ble_publisher.publish_club(club.value)
@@ -1043,8 +1176,13 @@ def dispatch_phone_control_command(command_type, payload):
     rename and remove, ``clear_session`` and ``delete_shot`` stay on
     Socket.IO. Phones still hear about those changes through the
     ``profiles``, ``session_cleared`` and ``shot_deleted`` events.
+
+    The one exception is ``iwr6843_orientation_calibration``: it validates a
+    phone measurement and persists the derived TI mount tilt, so a bonded or
+    nearby phone can change saved radar configuration.
     """
     handlers = {
+        "iwr6843_orientation_calibration": apply_iwr6843_orientation_calibration,
         "set_club": apply_club_selection,
         "get_club": current_club_selection,
         "get_profiles": request_profiles,
@@ -1057,10 +1195,57 @@ def dispatch_phone_control_command(command_type, payload):
     return handler(payload)
 
 
+def _phone_state_events() -> list[dict]:
+    """Current club, profiles and power, as seeded to a new stream client."""
+    with club_selection_lock:
+        club_value = active_club.value
+    events = [build_club_event(club_value)]
+    try:
+        events.append(build_profiles_event(get_profile_store().snapshot()))
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Could not read profiles for the shot stream", exc_info=True)
+    if power_monitor is not None and power_monitor.status is not None:
+        events.append(build_power_status_event(power_monitor.status.to_dict()))
+    return events
+
+
+@app.route("/api/club", methods=["GET", "POST"])
+def api_club_selection():
+    """Read or set the active club over the network (HTTP)."""
+    if request.method == "GET":
+        return current_club_selection()
+    return apply_club_selection(request.get_json(silent=True))
+
+
 @app.route("/<path:path>")
 def static_files(path):
     """Serve static files."""
     return send_from_directory(app.static_folder, path)
+
+
+@app.route("/api/screen/sleep", methods=["POST"])
+def api_screen_sleep():
+    """Switch off the display without stopping OpenFlight."""
+    backlight = Path(
+        os.environ.get(
+            "OPENFLIGHT_BACKLIGHT_PATH",
+            "/sys/class/backlight/panel_backlight@1/brightness",
+        )
+    )
+
+    try:
+        if not backlight.exists():
+            return jsonify({"error": "Display backlight not found"}), 404
+
+        backlight.write_text("0\n")
+        logger.info("[SERVER] Screen backlight switched off")
+        return jsonify({"status": "sleeping"}), 200
+
+    except OSError:
+        logger.exception("[SERVER] Unable to switch off screen")
+        return jsonify({"error": "Unable to control backlight"}), 500
+
+
 
 
 @app.route("/api/shutdown", methods=["POST"])
@@ -1180,6 +1365,27 @@ def init_camera_capture(
         return False
 
 
+def _resolve_iwr_mount_tilt(
+    calibration_tilt_deg: float,
+    *,
+    explicit_tilt_deg: float | None,
+) -> tuple[float, str, dict | None]:
+    """Resolve TI tilt with explicit CLI values taking highest precedence.
+
+    Also returns the saved phone calibration record when it supplied the tilt.
+    """
+    if explicit_tilt_deg is not None:
+        return float(explicit_tilt_deg), "command_line", None
+    try:
+        saved = load_phone_orientation_calibration(PHONE_ORIENTATION_CALIBRATION_PATH)
+    except (OSError, json.JSONDecodeError, PhoneOrientationValidationError) as error:
+        logger.warning("[SERVER] Ignoring invalid saved phone calibration: %s", error)
+        return float(calibration_tilt_deg), "calibration_file", None
+    if saved is not None:
+        return float(saved["configured_iwr_tilt_deg"]), "ios_companion", saved
+    return float(calibration_tilt_deg), "calibration_file", None
+
+
 def init_iwr6843(
     *,
     port: str | None,
@@ -1216,8 +1422,13 @@ def init_iwr6843(
         calibration = Calibration.load(calibration_path)
         calibration.tee_range_m = tee_range_m
         calibration.tee_ball_height_m = ball_height_m
-        if tilt_deg is not None:
-            calibration.tilt_rad = math.radians(tilt_deg)
+        resolved_tilt_deg, tilt_source, phone_calibration = _resolve_iwr_mount_tilt(
+            math.degrees(calibration.tilt_rad),
+            explicit_tilt_deg=tilt_deg,
+        )
+        calibration.tilt_rad = math.radians(resolved_tilt_deg)
+        if phone_calibration is not None:
+            calibration.meta["phone_orientation_calibration"] = phone_calibration
         if radar_height_m is not None:
             calibration.meta["radar_height_m"] = radar_height_m
 
@@ -1261,6 +1472,7 @@ def init_iwr6843(
             "tx_order": resolved_order,
             "tdm_sign_policy": iwr6843_runtime.tdm_sign_policy,
             "tilt_deg": math.degrees(calibration.tilt_rad),
+            "tilt_source": tilt_source,
             "radar_height_m": calibration.radar_height_m,
             "ball_height_m": calibration.tee_ball_height_m,
             "azimuth_offset_deg": azimuth_offset_deg,
@@ -1270,6 +1482,8 @@ def init_iwr6843(
             "raw_dump_saved": save_dumps,
             "output_dir": str(Path(output_dir).expanduser()),
         }
+        if phone_calibration is not None:
+            iwr6843_runtime_config["phone_orientation_calibration"] = phone_calibration
         logger.info(
             "[SERVER] IWR6843 initialized "
             "(port=%s, BCM%d, estimator=LCMF-v1, firmware boundary freeze)",
@@ -1571,6 +1785,57 @@ def _camera_capture_settings_payload() -> dict:
 def handle_get_camera_capture_settings():
     """Send current high-speed capture settings to the requesting UI."""
     socketio.emit("camera_capture_settings", _camera_capture_settings_payload())
+
+
+def _stream_deletion_catch_up(last_event_id) -> list[dict]:
+    """Missed deletions for a stream client, or none on failure."""
+    try:
+        return phone_deletion_catch_up(last_event_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Could not load missed deletions for the stream", exc_info=True)
+        return []
+
+
+def _stream_catch_up(last_event_id) -> list[tuple[str, bytes]] | None:
+    """Catch-up for a stream client, or ``None`` (latest-shot replay) on failure."""
+    try:
+        return phone_catch_up(last_event_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("[SERVER] Could not load missed shots for the stream", exc_info=True)
+        return None
+
+
+@app.route("/api/shots/stream")
+def shots_stream():
+    """Stream completed shots to phones as Server-Sent Events.
+
+    Speaks schema 2, the only phone schema; ``?schema=2`` is accepted for
+    clients that name it. A client resumes with ``Last-Event-ID`` (or
+    ``?last_event_id=``) and is seeded with the session shots it missed, as
+    BLE ``hello`` does: missed deletions after the state events, then the
+    missed shots. ``OpenFlight-Features`` names the same features ``hello``
+    returns, so a phone can tell what this Pi supports.
+    """
+    if request.args.get("schema", "2") != "2":
+        return {"error": "Unsupported schema; use 2"}, 400
+    last_event_id = request.headers.get("Last-Event-ID") or request.args.get("last_event_id")
+    try:
+        subscriber = shot_stream.subscribe(
+            initial_events=_phone_state_events() + _stream_deletion_catch_up(last_event_id),
+            catch_up=_stream_catch_up(last_event_id),
+        )
+    except ShotStreamFull as exc:
+        logger.warning("[SERVER] Refused shot stream client: %s", exc)
+        return str(exc), 503
+
+    response = Response(shot_stream.frames(subscriber), mimetype=SSE_MIMETYPE)
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    response.headers["OpenFlight-Features"] = ",".join(PHONE_FEATURES)
+    # Covers the case where the response is discarded without ever being
+    # iterated; unsubscribing twice is a no-op.
+    response.call_on_close(lambda: shot_stream.unsubscribe(subscriber))
+    return response
 
 
 @socketio.on("set_camera_capture_settings")
@@ -2099,6 +2364,8 @@ def apply_delete_shot(payload):
         return {"error": "Shot not found"}, 404
 
     socketio.emit("session_state", _session_state_payload())
+    # Remembered so a phone that is away now hears of it when it reconnects.
+    phone_shot_cache.remember_deletion(timestamp)
     _publish_phone_event(build_shot_deleted_event(timestamp))
     return {"status": "deleted", "timestamp": timestamp}, 200
 
@@ -2110,9 +2377,14 @@ def handle_delete_shot(data):
 
 
 @socketio.on("simulate_shot")
-def handle_simulate_shot():
-    """Simulate a shot (only works in mock mode)."""
-    if monitor and isinstance(monitor, (MockLaunchMonitor, MockSwingSpeedMonitor)):
+def handle_simulate_shot(data=None):
+    """Simulate a shot (only works in mock mode).
+
+    ``{"fail": true}`` simulates a capture the radar could not process.
+    """
+    if isinstance(monitor, MockLaunchMonitor):
+        monitor.simulate_shot(fail=bool(_payload_dict(data).get("fail")))
+    elif isinstance(monitor, MockSwingSpeedMonitor):
         monitor.simulate_shot()
 
 
@@ -2152,6 +2424,35 @@ radar_config = {
     "min_magnitude": 0,
     "transmit_power": 0,
 }
+
+
+# Prevent concurrent recovery requests from issuing overlapping serial commands.
+_manual_radar_recovery_lock = threading.Lock()
+
+
+@socketio.on("reinitialize_radar")
+def handle_reinitialize_radar():
+    """Operator-requested OPS recovery; sound-trigger mode only, no flash writes."""
+    from .rolling_buffer.monitor import RollingBufferMonitor  # pylint: disable=import-outside-toplevel
+
+    if mock_mode or not isinstance(monitor, RollingBufferMonitor):
+        return {"ok": False, "message": "Recovery requires a real rolling-buffer radar"}
+    if getattr(monitor, "trigger_type", None) != "sound":
+        return {"ok": False, "message": "Recovery is available only in sound-trigger mode"}
+    if not _manual_radar_recovery_lock.acquire(blocking=False):
+        return {"ok": False, "message": "A radar recovery is already running"}
+    try:
+        logger.warning("[SERVER] Manual OPS radar reinitialisation requested from Debug menu")
+        monitor.reinitialize_radar()
+        return {
+            "ok": True,
+            "message": "Radar configuration sent. Test a sound trigger to verify recovery.",
+        }
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception("[SERVER] Manual OPS radar reinitialisation failed")
+        return {"ok": False, "message": f"Reinitialisation failed: {exc}"}
+    finally:
+        _manual_radar_recovery_lock.release()
 
 
 @socketio.on("get_radar_config")
@@ -3065,6 +3366,8 @@ def _attach_camera_replay(shot: Shot, camera_capture) -> None:
 
 def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
     """Mutate a shot with available radar/camera measurements and timings."""
+    if shot.mode == "mock" and _mock_enrichment_enabled():
+        return _ShotEnrichmentResult(iwr6843_ms=monitor.enrich(shot))
 
     # Snapshot orientation before IWR capture can block, and select only data
     # timestamped before impact so impact vibration cannot bias the geometry.
@@ -3628,8 +3931,15 @@ def _publish_phone_shot(
     final: bool,
     enrichment: dict | None,
 ) -> None:
-    """Hand one shot to the phone transports; never raises."""
-    transports = []
+    """Hand one shot to the BLE and SSE phone transports; never raises."""
+    try:
+        phone_shot_cache.remember(
+            stable_shot_event_id(shot_data),
+            encode_shot_event(shot_data, final=final, enrichment=enrichment),
+        )
+    except (KeyError, TypeError, ValueError):
+        logger.warning("[SERVER] Could not cache shot for phone catch-up", exc_info=True)
+    transports = [("network stream", shot_stream)]
     if ble_publisher is not None:
         transports.append(("BLE", ble_publisher))
     for name, transport in transports:
@@ -3639,9 +3949,46 @@ def _publish_phone_shot(
             logger.warning("[SERVER] Failed to queue shot over %s", name, exc_info=True)
 
 
+def phone_catch_up(last_event_id=None) -> list[tuple[str, bytes]]:
+    """The current-session shots a reconnecting phone missed, oldest first.
+
+    Shared by BLE ``hello`` and the network stream's ``Last-Event-ID``; see
+    ``openflight.phone_catch_up`` for the rule. The session decides which
+    shots exist, so cleared and deleted shots are never replayed. A shot is
+    replayed as the bytes last published for it, or rebuilt as a final shot
+    when that is no longer cached.
+    """
+    session = monitor
+    if session is None or not hasattr(session, "get_shots"):
+        return []
+    entries = []
+    for shot in session.get_shots():
+        try:
+            shot_data = shot_to_dict(shot)
+            event_id = stable_shot_event_id(shot_data)
+            payload = phone_shot_cache.get(event_id) or encode_shot_event(shot_data, final=True)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            logger.warning("[SERVER] Skipped a shot that could not be replayed", exc_info=True)
+            continue
+        entries.append((event_id, payload))
+    return select_catch_up(entries, normalize_last_event_id(last_event_id))
+
+
+def phone_deletion_catch_up(last_event_id=None) -> list[dict]:
+    """``shot_deleted`` events a reconnecting phone missed, oldest first.
+
+    Shared by BLE ``hello`` and the network stream; sent before the catch-up
+    shots. See ``openflight.phone_catch_up`` for the rule.
+    """
+    return [
+        build_shot_deleted_event(timestamp)
+        for timestamp in phone_shot_cache.deletions_since(normalize_last_event_id(last_event_id))
+    ]
+
+
 def _publish_phone_event(event: dict) -> None:
-    """Hand one event to the phone transports; never raises."""
-    transports = []
+    """Hand one event to the BLE and SSE phone transports; never raises."""
+    transports = [("network stream", shot_stream)]
     if ble_publisher is not None:
         transports.append(("BLE", ble_publisher))
     for name, transport in transports:
@@ -3713,11 +4060,16 @@ def _emit_ops_enrichment_skipped(shot: Shot, *, reason: str) -> None:
         )
 
 
+def _mock_enrichment_enabled() -> bool:
+    """Whether the mock monitor simulates optional hardware (``--mock-enrichment-ms``)."""
+    return getattr(monitor, "enrichment_ms", 0) > 0 and hasattr(monitor, "enrich")
+
+
 def _has_slow_shot_enrichment(shot: Shot) -> bool:
     """Whether optional hardware can add seconds to this shot callback."""
-    return shot.mode != "mock" and (
-        iwr6843_runtime is not None or camera_capture_runtime is not None
-    )
+    if shot.mode == "mock":
+        return _mock_enrichment_enabled()
+    return iwr6843_runtime is not None or camera_capture_runtime is not None
 
 
 def _drain_shot_enrichment_queue() -> None:
@@ -3956,6 +4308,7 @@ def start_monitor(
     swing_speed_mode: bool = False,
     swing_speed_kwargs: Optional[dict] = None,
     ops_baud: Optional[int] = None,
+    mock_enrichment_ms: float = 0.0,
 ):
     """
     Start the monitor in launch monitor or swing speed mode.
@@ -3966,6 +4319,8 @@ def start_monitor(
         trigger_type: Trigger strategy (hardware, sound, speed, or polling)
         debug: Enable verbose debug output
         ops_baud: Target UART baud when the OPS243 is on the GPIO header
+        mock_enrichment_ms: In mock mode, simulate optional hardware taking this
+            long, so shots go provisional then final (0 disables)
     """
     global monitor, mock_mode, mock_swing_speed_mode, debug_mode, radar_config
 
@@ -3985,7 +4340,7 @@ def start_monitor(
         print("[MODE] Mock swing speed training mode")
     elif mock:
         # Mock mode for testing without radar
-        monitor = MockLaunchMonitor()
+        monitor = MockLaunchMonitor(enrichment_ms=mock_enrichment_ms)
     elif swing_speed_mode:
         from .swing_speed import SwingSpeedMonitor
 
@@ -4101,7 +4456,11 @@ def start_monitor(
         if iwr6843_runtime is not None:
             iwr6843_runtime.capture_monitor.arm()
     else:
-        monitor.start(shot_callback=on_shot_detected, live_callback=on_live_reading)
+        monitor.start(  # pylint: disable=unexpected-keyword-arg
+            shot_callback=on_shot_detected,
+            live_callback=on_live_reading,
+            processing_callback=on_shot_processing,
+        )
 
 
 def _cloud_raw_uploads_enabled() -> bool:
@@ -4208,13 +4567,26 @@ def stop_monitor():
 
 
 class MockLaunchMonitor:
-    """Mock launch monitor for UI development without radar hardware."""
+    """Mock launch monitor for UI development without radar hardware.
 
-    def __init__(self):
+    Like the rolling-buffer radar it reports ``capturing`` then ``calculating``
+    to ``processing_callback`` (and ``failed`` for ``simulate_shot(fail=True)``).
+    With ``enrichment_ms`` it also stands in for IWR6843/camera hardware: shots
+    are recorded without horizontal launch, club path and spin axis, and
+    ``enrich`` supplies them after that delay, so mock shots go provisional then
+    final through the real enrichment pipeline.
+    """
+
+    def __init__(self, *, enrichment_ms: float = 0.0, processing_step_s: float = 0.15):
         """Initialize mock monitor."""
+        if enrichment_ms < 0:
+            raise ValueError("Mock enrichment delay must not be negative")
+        self.enrichment_ms = enrichment_ms
+        self.processing_step_s = processing_step_s
         self._shots: List[Shot] = []
         self._running = False
         self._shot_callback = None
+        self._processing_callback = None
         self._current_club = ClubType.DRIVER
 
     def connect(self):
@@ -4225,9 +4597,10 @@ class MockLaunchMonitor:
         """Disconnect from mock radar."""
         self.stop()
 
-    def start(self, shot_callback=None, live_callback=None):  # pylint: disable=unused-argument
+    def start(self, shot_callback=None, live_callback=None, processing_callback=None):  # pylint: disable=unused-argument
         """Start mock monitoring."""
         self._shot_callback = shot_callback
+        self._processing_callback = processing_callback
         self._running = True
         print("Mock monitor started - simulate shots via WebSocket")
 
@@ -4235,8 +4608,64 @@ class MockLaunchMonitor:
         """Stop mock monitoring."""
         self._running = False
 
-    def simulate_shot(self, ball_speed: float = None):
-        """Simulate a shot for testing using realistic TrackMan-based values."""
+    def _notify_processing(self, state: str, *, pause: bool = True) -> None:
+        """Report a processing state; UI errors must not break the simulated shot."""
+        if self._processing_callback is None:
+            return
+        try:
+            self._processing_callback(state)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("[MOCK] Processing callback failed", exc_info=True)
+        if pause and self.processing_step_s > 0:
+            time.sleep(self.processing_step_s)
+
+    @staticmethod
+    def _simulated_direction(confidence: float) -> dict:
+        """Horizontal launch, club path and spin axis: what IWR6843/camera measure."""
+        defaults = SHOT_SIMULATION_DEFAULTS
+        launch_h = random.gauss(0, defaults.horizontal_launch_std_dev_deg)
+        return {
+            "launch_angle_horizontal": round(launch_h, 1),
+            "launch_angle_horizontal_confidence": confidence,
+            "launch_angle_horizontal_source": "mock",
+            "club_path_deg": round(
+                random.uniform(-defaults.club_path_max_abs_deg, defaults.club_path_max_abs_deg),
+                1,
+            ),
+            "spin_axis_deg": round(
+                launch_h
+                - random.uniform(
+                    -defaults.spin_axis_error_max_abs_deg,
+                    defaults.spin_axis_error_max_abs_deg,
+                ),
+                1,
+            ),
+        }
+
+    def enrich(self, shot: Shot) -> float:
+        """Simulate optional hardware: wait ``enrichment_ms``, then add direction.
+
+        Returns the elapsed milliseconds, as the hardware timings are reported.
+        """
+        started = time.monotonic()
+        time.sleep(self.enrichment_ms / 1000.0)
+        confidence = shot.launch_angle_confidence or SHOT_SIMULATION_DEFAULTS.confidence_min
+        for field, value in self._simulated_direction(confidence).items():
+            setattr(shot, field, value)
+        return (time.monotonic() - started) * 1000.0
+
+    def simulate_shot(self, ball_speed: float = None, *, fail: bool = False):
+        """Simulate a shot for testing using realistic TrackMan-based values.
+
+        ``fail`` simulates a capture the radar could not process: ``failed`` is
+        reported and no shot is recorded (returns ``None``).
+        """
+        self._notify_processing("capturing")
+        self._notify_processing("calculating", pause=not fail)
+        if fail:
+            self._notify_processing("failed", pause=False)
+            return None
+
         physics = get_club_physics(self._current_club)
         profile = get_club_simulation_profile(self._current_club)
         defaults = SHOT_SIMULATION_DEFAULTS
@@ -4267,9 +4696,14 @@ class MockLaunchMonitor:
             defaults.min_launch_deg,
             random.gauss(physics.optimal_launch_deg, profile.launch_std_dev_deg),
         )
-        launch_h = random.gauss(0, defaults.horizontal_launch_std_dev_deg)
         launch_confidence = round(
             random.uniform(defaults.confidence_min, defaults.confidence_max), 2
+        )
+        # With simulated enrichment these arrive later, as from IWR6843/camera.
+        direction = (
+            {field: None for field in self._simulated_direction(launch_confidence)}
+            if self.enrichment_ms > 0
+            else self._simulated_direction(launch_confidence)
         )
 
         club_aoa = round(
@@ -4288,30 +4722,13 @@ class MockLaunchMonitor:
             spin_rpm=spin_rpm,
             spin_confidence=random.choice(defaults.spin_confidence_choices),
             launch_angle_vertical=round(launch_v, 1),
-            launch_angle_horizontal=round(launch_h, 1),
             launch_angle_confidence=launch_confidence,
             launch_angle_vertical_confidence=launch_confidence,
-            launch_angle_horizontal_confidence=launch_confidence,
             launch_angle_vertical_source="mock",
-            launch_angle_horizontal_source="mock",
             angle_source="mock",
             club_angle_deg=club_aoa,
-            club_path_deg=round(
-                random.uniform(
-                    -defaults.club_path_max_abs_deg,
-                    defaults.club_path_max_abs_deg,
-                ),
-                1,
-            ),
-            spin_axis_deg=round(
-                launch_h
-                - random.uniform(
-                    -defaults.spin_axis_error_max_abs_deg,
-                    defaults.spin_axis_error_max_abs_deg,
-                ),
-                1,
-            ),
             mode="mock",
+            **direction,
         )
 
         self._shots.append(shot)
@@ -4544,6 +4961,16 @@ def main():
         "--mock-swing-speed",
         action="store_true",
         help="Run swing speed training mode with simulated reps and no OPS radar",
+    )
+    parser.add_argument(
+        "--mock-enrichment-ms",
+        type=float,
+        default=0.0,
+        metavar="MS",
+        help=(
+            "With --mock, simulate IWR6843/camera enrichment taking MS milliseconds: "
+            "shots arrive provisional, then final with direction data (default: off)"
+        ),
     )
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     parser.add_argument(
@@ -4992,6 +5419,10 @@ def main():
     # launch angle), so require it whenever the K-LD7 radars are enabled.
     if args.kld7 and args.kld7_mount_tilt is None:
         parser.error("--kld7-mount-tilt is required when --kld7 is passed")
+    if args.mock_enrichment_ms < 0:
+        parser.error("--mock-enrichment-ms must not be negative")
+    if args.mock_enrichment_ms > 0 and (not args.mock or args.mock_swing_speed):
+        parser.error("--mock-enrichment-ms requires --mock (launch monitor mode)")
     if args.mock_swing_speed:
         args.mock = True
         args.swing_speed = True
@@ -5307,6 +5738,7 @@ def main():
             swing_speed_mode=args.swing_speed,
             swing_speed_kwargs=swing_speed_kwargs,
             ops_baud=args.ops_baud,
+            mock_enrichment_ms=args.mock_enrichment_ms,
         )
     except Exception:
         monitor_recovery = (
@@ -5335,6 +5767,8 @@ def main():
 
         ble_publisher = BleShotPublisher(
             command_handler=dispatch_phone_control_command,
+            catch_up_provider=phone_catch_up,
+            catch_up_events_provider=phone_deletion_catch_up,
         )
         ble_publisher.start()
         print("Bluetooth LE enabled (advertising as OpenFlight)")
