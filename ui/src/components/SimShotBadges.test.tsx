@@ -34,7 +34,6 @@ describe('SimShotBadges', () => {
       values: { ball_speed: 130, spin_axis: -2 },
       provenance: { ball_speed: 'measured', spin_axis: 'estimated' },
     };
-    const partee: SimShotInfo = { ...gsproShot, target: 'partee', shot_number: 4 };
     const html = renderToString(<SimShotBadges latestSimShots={{ gspro: gsproShot, opengolfsim: ogs, partee }} />);
     const partee: SimShotInfo = { ...gsproShot, target: 'partee', shot_number: 4 };
     const pureplay: SimShotInfo = { ...gsproShot, target: 'pureplay', shot_number: 5 };
