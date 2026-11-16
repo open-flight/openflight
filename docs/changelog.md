@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Pureplay Connect connector.** `"type": "pureplay"` in `config/sim.json`
+  streams shots to [Pureplay](https://github.com/PureplayGolf/Pureplay-Connect)
+  over its binary Connect v1 protocol (port 9760 by default). OpenFlight connects
+  out as the device and sends ball data, and club data when present. Only
+  measured fields are marked valid, so estimated values are never passed off as
+  readings, and strict mode is declined. Pureplay can set the club and
+  handedness. The sim transport gains two optional codec hooks
+  (`find_frame_end`, `drain_outbound`) for non-JSON protocols; existing
+  connectors are unaffected. See [Pureplay Connect](using/simulator/pureplay.md)
 - **`scripts/setup/setup.sh` offers the low-battery shutdown.** Answering yes
   to the Geekworm X1202/X1206 question now also asks whether to install
   `openflight-battery-guard.service` (default yes). A failed Geekworm step,

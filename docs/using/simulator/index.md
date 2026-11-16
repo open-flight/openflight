@@ -11,6 +11,7 @@ Supported simulators:
 - [GSPro](gspro.md) (OpenConnectV1)
 - [OpenGolfSim](opengolfsim.md)
 - [PAR-TEE](partee.md)
+- [Pureplay Connect](pureplay.md)
 
 This document explains how the connector layer works and how to add a new
 simulator. For setting up a specific simulator, see its page above.
@@ -30,13 +31,16 @@ simulator. For setting up a specific simulator, see its page above.
        // GSPro
        { "type": "gspro", "enabled": false, "host": "192.168.1.50", "port": 921 },
        // PAR-TEE (iPhone/iPad) on the phone's Wi-Fi address; see partee.md.
-       { "type": "partee", "enabled": false, "host": "192.168.1.70", "port": 921 }
+       { "type": "partee", "enabled": false, "host": "192.168.1.70", "port": 921 },
+       // Pureplay Connect on the machine running Pureplay; see pureplay.md.
+       { "type": "pureplay", "enabled": false, "host": "192.168.1.60", "port": 9760 }
      ]
    }
    ```
-   A connector's `type` is the *product*. All three ride the shared OpenConnect
-   V1 codec and differ only in name and default port (GSPro 921, OpenGolfSim's
-   Developer API 3111, PAR-TEE 921).
+   A connector's `type` is the *product*. GSPro, OpenGolfSim and PAR-TEE ride
+   the shared OpenConnect V1 codec and differ only in name and default port
+   (GSPro 921, OpenGolfSim's Developer API 3111, PAR-TEE 921). Pureplay Connect
+   is a binary protocol with its own codec (default port 9760).
 2. **Enable the feature at launch with `--sim`** (off by default). Connectors
    marked `enabled` in the file then come up:
    ```bash
@@ -78,7 +82,7 @@ the parts that are **specific to one protocol**:
 | Connection state, player state, inbound event types, resolved shot | `sim/types.py` | shared |
 | Connector = codec + transport, and the codec registry | `sim/codec.py` | shared |
 | Config (`config/sim.json` + CLI merge) | `sim/config.py` | shared |
-| **Wire format**: serialize a shot, parse inbound messages, heartbeat | `gspro/codec.py`, `opengolfsim/codec.py` | **per-sim** |
+| **Wire format**: serialize a shot, parse inbound messages, heartbeat | `gspro/codec.py`, `opengolfsim/codec.py`, `pureplay/codec.py` | **per-sim** |
 
 The key idea: two simulators differ only in their **wire format** and their
 **inbound message shapes**. Everything else — connecting, reconnecting,
@@ -111,6 +115,13 @@ class Codec(Protocol):
     def on_connect_bytes(self) -> Optional[bytes]: ...               # e.g. a hello frame
     def fields_for_target(self) -> list[str]: ...                    # which fields it sends
 ```
+
+A codec for a non-JSON protocol can also define two optional hooks, which the
+transport looks up when present: `find_frame_end(buf)` returns the index just
+past the first complete frame in the receive buffer (or `None`), replacing the
+JSON framing, and `drain_outbound()` returns reply bytes the codec queued while
+parsing, which the transport then sends. The Pureplay codec uses both; JSON
+codecs define neither.
 
 Inbound messages are normalized into protocol-neutral events
 (`PlayerUpdate`, `ShotAck`, `SimError`) so the server handles club changes and

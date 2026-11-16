@@ -167,14 +167,26 @@ def test_shot_is_delivered_as_ball_then_club_frames(link):
     ball = host.wait_for(wire.MsgType.BALL_DATA)
     club = host.wait_for(wire.MsgType.CLUB_DATA)
     shot_id, mask, speed, *_ = struct.unpack("<IH7f", ball.payload)
-    assert (shot_id, mask) == (1, wire.BALL_SPEED | wire.BALL_VLA | wire.BALL_HLA)
+    all_ball_bits = (1 << 7) - 1  # outside strict mode estimates are sent too
+    assert (shot_id, mask) == (1, all_ball_bits)
     assert speed == pytest.approx(53.6448)  # 120 mph in m/s
     assert struct.unpack_from("<I", club.payload)[0] == shot_id
 
 
-def test_strict_mode_request_is_refused_on_the_wire(link):
+def test_strict_mode_limits_the_wire_shot_to_measured_fields(link):
+    connector, host, _ = link
+    host.wait_for(wire.MsgType.HELLO)
+    host.send(wire.encode_set_strict_mode(True))
+    host.wait_for(wire.MsgType.STRICT_MODE_ACK)
+    connector.send_shot(resolved_shot())
+    ball = host.wait_for(wire.MsgType.BALL_DATA)
+    _, mask, *_ = struct.unpack("<IH7f", ball.payload)
+    assert mask == wire.BALL_SPEED | wire.BALL_VLA | wire.BALL_HLA
+
+
+def test_strict_mode_request_is_acknowledged_on_the_wire(link):
     _, host, _ = link
     host.wait_for(wire.MsgType.HELLO)
     host.send(wire.encode_set_strict_mode(True))
     ack = host.wait_for(wire.MsgType.STRICT_MODE_ACK)
-    assert ack.payload[0] == 0
+    assert ack.payload[0] == 1

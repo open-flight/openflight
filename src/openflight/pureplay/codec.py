@@ -12,9 +12,16 @@ transport hooks (``find_frame_end`` and ``drain_outbound``, see sim.transport):
   device must push ReadyState after the handshake. The codec queues those replies
   while parsing and the transport sends them.
 
-Pureplay's validity mask means "this field was actually measured", so only
-fields whose ``ResolvedShot.provenance`` is "measured" are marked valid;
-estimated/fallback values are cleared rather than passed off as readings.
+Pureplay's validity mask means "this field was actually measured". The host
+switches strict mode on (tournaments) and off with SetStrictMode:
+
+* strict mode off (default, casual rounds): every resolved value is sent,
+  estimated ones included, so Pureplay gets a full shot;
+* strict mode on: only fields whose ``ResolvedShot.provenance`` is "measured"
+  are marked valid; estimated/fallback values are cleared rather than passed
+  off as readings.
+
+The mode starts off on every new link and the host sets it again as needed.
 """
 
 import logging
@@ -40,8 +47,6 @@ _PUREPLAY_FIELDS = [
     "club_speed",
     "club_path",
 ]
-
-STRICT_REFUSAL_REASON = "OpenFlight cannot guarantee measured-only data"
 
 _HOST_TO_DEVICE = {
     wire.MsgType.HELLO_ACK,
@@ -86,6 +91,7 @@ class PureplayCodec:
         self._decoder = wire.FrameDecoder()
         self._outbound: List[bytes] = []
         self._shot_id = 0
+        self._strict = False
 
     # --- optional transport hooks ------------------------------------------------
 
@@ -109,6 +115,7 @@ class PureplayCodec:
             self._decoder = wire.FrameDecoder()
             self._outbound.clear()
             self._shot_id = 0
+            self._strict = False
         return wire.encode_hello(self.device_name, self.firmware, battery_powered=False)
 
     def heartbeat_bytes(self) -> bytes:
@@ -120,15 +127,21 @@ class PureplayCodec:
         return list(_PUREPLAY_FIELDS)
 
     def build_shot(self, resolved) -> bytes:
-        """BallData, then ClubData if any club reading exists (spec section 4.3)."""
+        """BallData, then ClubData if any club reading exists (spec section 4.3).
+
+        Outside strict mode every resolved value is sent; in strict mode only
+        measured ones are.
+        """
         with self._lock:
             self._shot_id += 1
             shot_id = self._shot_id
+            strict = self._strict
 
         def pick(field: str, value):
-            if resolved.provenance.get(field) == "measured":
-                return value
-            return None
+            """The value, or None to leave the field invalid (not sent)."""
+            if strict and resolved.provenance.get(field) != "measured":
+                return None
+            return value
 
         speed_ms = pick("ball_speed", resolved.ball_speed_mph)
         frames = [
@@ -202,11 +215,11 @@ class PureplayCodec:
             ]
 
         if msg_type == wire.MsgType.SET_STRICT_MODE:
-            if wire.parse_set_strict_mode(payload):
-                logger.info("[pureplay] strict mode requested; refusing (not guaranteed)")
-                self._queue(wire.encode_strict_mode_ack(False, STRICT_REFUSAL_REASON))
-            else:
-                self._queue(wire.encode_strict_mode_ack(True))
+            strict = wire.parse_set_strict_mode(payload)
+            with self._lock:
+                self._strict = strict
+            logger.info("[pureplay] strict mode %s", "on (measured only)" if strict else "off")
+            self._queue(wire.encode_strict_mode_ack(True))
             return []
 
         if msg_type == wire.MsgType.ERROR:

@@ -6,7 +6,7 @@ import pytest
 
 from openflight.clubs import ClubType
 from openflight.pureplay import protocol as wire
-from openflight.pureplay.codec import STRICT_REFUSAL_REASON, PureplayCodec
+from openflight.pureplay.codec import PureplayCodec
 from openflight.sim.types import PlayerUpdate, ResolvedShot, SimError
 
 
@@ -58,8 +58,31 @@ def club(frame):
 # --- outbound shots ----------------------------------------------------------
 
 
-def test_default_sends_only_measured_fields():
-    codec = PureplayCodec()
+def strict(codec):
+    codec.parse_inbound(wire.encode_set_strict_mode(True))
+    codec.drain_outbound()
+    return codec
+
+
+def test_default_sends_every_resolved_field_including_estimates():
+    frames = frames_of(PureplayCodec().build_shot(make_shot()))
+    _, mask, vals = ball(frames[0])
+    assert mask == (
+        wire.BALL_SPEED
+        | wire.BALL_VLA
+        | wire.BALL_HLA
+        | wire.BALL_TOTAL_SPIN
+        | wire.BALL_BACK_SPIN
+        | wire.BALL_SIDE_SPIN
+        | wire.BALL_SPIN_AXIS
+    )
+    assert vals[3] == pytest.approx(5000.0)  # estimated total spin is sent
+    _, club_mask, _ = club(frames[1])
+    assert club_mask == wire.CLUB_HEAD_SPEED | wire.CLUB_PATH
+
+
+def test_strict_mode_sends_only_measured_fields():
+    codec = strict(PureplayCodec())
     frames = frames_of(codec.build_shot(make_shot()))
     assert [f.msg_type for f in frames] == [wire.MsgType.BALL_DATA, wire.MsgType.CLUB_DATA]
     _, mask, vals = ball(frames[0])
@@ -70,11 +93,11 @@ def test_default_sends_only_measured_fields():
     assert vals[3:] == [0.0, 0.0, 0.0, 0.0]  # unmeasured spin fields are zeroed
 
 
-def test_measured_spin_is_sent_when_provenance_says_so():
+def test_measured_spin_is_sent_in_strict_mode_when_provenance_says_so():
     shot = make_shot(
         total_spin="measured", spin_axis="measured", back_spin="measured", side_spin="measured"
     )
-    _, mask, _ = ball(frames_of(PureplayCodec().build_shot(shot))[0])
+    _, mask, _ = ball(frames_of(strict(PureplayCodec()).build_shot(shot))[0])
     spin_bits = (
         wire.BALL_TOTAL_SPIN | wire.BALL_BACK_SPIN | wire.BALL_SIDE_SPIN | wire.BALL_SPIN_AXIS
     )
@@ -82,7 +105,7 @@ def test_measured_spin_is_sent_when_provenance_says_so():
 
 
 def test_club_data_carries_speed_in_ms_and_leaves_smash_to_host():
-    frames = frames_of(PureplayCodec().build_shot(make_shot()))
+    frames = frames_of(strict(PureplayCodec()).build_shot(make_shot()))
     _, mask, vals = club(frames[1])
     assert mask == wire.CLUB_HEAD_SPEED  # path is estimated, smash is host-derived
     assert vals[0] == pytest.approx(33.528)  # 75 mph in m/s
@@ -91,7 +114,7 @@ def test_club_data_carries_speed_in_ms_and_leaves_smash_to_host():
 def test_club_data_includes_measured_path():
     shot = make_shot(club_path="measured")
     shot.club_path_deg = 2.5
-    _, mask, vals = club(frames_of(PureplayCodec().build_shot(shot))[1])
+    _, mask, vals = club(frames_of(strict(PureplayCodec()).build_shot(shot))[1])
     assert mask == wire.CLUB_HEAD_SPEED | wire.CLUB_PATH
     assert vals[4] == pytest.approx(2.5)
 
@@ -99,6 +122,7 @@ def test_club_data_includes_measured_path():
 def test_no_club_data_without_club_readings():
     shot = make_shot(club_speed="estimated")
     shot.club_speed_mph = None
+    shot.club_path_deg = None
     frames = frames_of(PureplayCodec().build_shot(shot))
     assert [f.msg_type for f in frames] == [wire.MsgType.BALL_DATA]
 
@@ -107,15 +131,14 @@ def test_club_path_alone_is_sent_when_measured():
     shot = make_shot(club_speed="estimated", club_path="measured")
     shot.club_speed_mph = None
     shot.club_path_deg = -3.0
-    frames = frames_of(PureplayCodec().build_shot(shot))
+    frames = frames_of(strict(PureplayCodec()).build_shot(shot))
     _, mask, _ = club(frames[1])
     assert mask == wire.CLUB_PATH
 
 
-def test_estimated_path_is_never_invented_without_club_speed():
+def test_strict_mode_never_sends_estimated_club_data():
     shot = make_shot(club_speed="estimated", club_path="estimated")
-    shot.club_speed_mph = None
-    frames = frames_of(PureplayCodec().build_shot(shot))
+    frames = frames_of(strict(PureplayCodec()).build_shot(shot))
     assert [f.msg_type for f in frames] == [wire.MsgType.BALL_DATA]
 
 
@@ -173,17 +196,27 @@ def test_set_club_info_becomes_player_update():
     assert codec.parse_inbound(frame) == [PlayerUpdate(handed="LH", club=ClubType.IRON_7)]
 
 
-def test_strict_mode_is_refused_and_end_of_strict_is_acknowledged():
+def test_strict_mode_is_acknowledged_both_ways():
     codec = PureplayCodec()
-    codec.parse_inbound(wire.encode_set_strict_mode(True))
-    (refusal,) = frames_of(codec.drain_outbound())
-    assert refusal.msg_type == wire.MsgType.STRICT_MODE_ACK
-    assert refusal.payload[0] == 0
-    assert STRICT_REFUSAL_REASON.encode() in refusal.payload
+    for flag in (True, False):
+        codec.parse_inbound(wire.encode_set_strict_mode(flag))
+        (ack,) = frames_of(codec.drain_outbound())
+        assert ack.msg_type == wire.MsgType.STRICT_MODE_ACK
+        assert ack.payload == bytes([1, 0])  # accepted, empty reason
 
+
+def test_leaving_strict_mode_sends_estimates_again():
+    codec = strict(PureplayCodec())
     codec.parse_inbound(wire.encode_set_strict_mode(False))
-    (ack,) = frames_of(codec.drain_outbound())
-    assert ack.payload == bytes([1, 0])
+    _, mask, _ = ball(frames_of(codec.build_shot(make_shot()))[0])
+    assert mask & wire.BALL_TOTAL_SPIN
+
+
+def test_strict_mode_resets_on_a_new_link():
+    codec = strict(PureplayCodec())
+    codec.on_connect_bytes()
+    _, mask, _ = ball(frames_of(codec.build_shot(make_shot()))[0])
+    assert mask & wire.BALL_TOTAL_SPIN
 
 
 def test_host_error_becomes_sim_error():
