@@ -153,3 +153,72 @@ def test_connection_callback_fires_only_on_state_change():
     monitor._set_connected(False)  # pylint: disable=protected-access
 
     assert states == [True, False]
+
+
+def test_early_shot_callback_fires_once_for_each_accepted_shot():
+    early = []
+    shots = []
+    parser = GC2StreamParser(shots.append, merge_window=60, shot_started_callback=early.append)
+
+    parser.feed(b"TM=1,ID=1,SP=0\r\n" + FIRST + FIRST + UPDATE)
+    assert len(early) == 1
+    assert shots == []
+
+    parser.feed(NEXT_SHOT)
+    assert len(early) == 2
+    assert len(shots) == 1
+    assert early[0] == shots[0].impact_time
+    parser.flush()
+    assert early[1] == shots[1].impact_time
+
+    reconnected = GC2StreamParser(
+        shots.append, merge_window=60, last_shot_tms=parser.last_shot_tms,
+        shot_started_callback=early.append,
+    )
+    reconnected.feed(NEXT_SHOT)
+    assert len(early) == 2
+
+
+def test_monitor_early_callback_failure_does_not_prevent_shot(caplog):
+    monitor = GC2Monitor()
+    shots = []
+    monitor._shot_callback = shots.append  # pylint: disable=protected-access
+
+    def fail(_timestamp):
+        raise RuntimeError("camera failed")
+
+    monitor._shot_started_callback = fail  # pylint: disable=protected-access
+    parser = GC2StreamParser(
+        monitor._handle_shot_data,  # pylint: disable=protected-access
+        merge_window=60,
+        shot_started_callback=monitor._handle_shot_started,  # pylint: disable=protected-access
+    )
+    parser.feed(FIRST)
+    parser.flush()
+
+    assert len(shots) == 1
+    assert "GC2 early shot callback failed" in caplog.text
+
+
+def test_read_loop_delivers_early_event_before_merged_shot(monkeypatch):
+    from openflight.gc2 import gc2_monitor
+
+    events = []
+    monitor = GC2Monitor()
+    monitor._running = True  # pylint: disable=protected-access
+    monitor._shot_started_callback = lambda timestamp: events.append(("early", timestamp))  # pylint: disable=protected-access
+    monitor._shot_callback = lambda shot: events.append(("shot", shot))  # pylint: disable=protected-access
+
+    class Socket:
+        def recv(self, _size):
+            if not events:
+                return FIRST + UPDATE
+            return b""
+
+    monkeypatch.setattr(gc2_monitor.select, "select", lambda *args: ([args[0][0]], [], []))
+    with pytest.raises(OSError, match="Bluetooth connection closed"):
+        monitor._read_loop(Socket())  # pylint: disable=protected-access
+
+    assert [event[0] for event in events] == ["early", "shot"]
+    assert events[0][1] == events[1][1].impact_timestamp
+    assert events[1][1].spin_rpm == 2800.0

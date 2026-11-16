@@ -146,9 +146,11 @@ class GC2StreamParser:
         on_shot: Callable[[GC2ShotData], None],
         merge_window: float = SHOT_MERGE_WINDOW_SECONDS,
         last_shot_tms: frozenset = frozenset(),
+        shot_started_callback: Optional[Callable[[float], None]] = None,
     ):
         """Initialize the GC2 stream parser with a callback and merge window."""
         self._on_shot = on_shot
+        self._shot_started_callback = shot_started_callback
         self._merge_window = merge_window
         self._line_buffer = ""
         self._last_data_time = time.monotonic()
@@ -266,6 +268,8 @@ class GC2StreamParser:
         self._merge(shot, shot_number, values)
         self._pending = shot
         self._pending_deadline = now + self._merge_window
+        if self._shot_started_callback is not None:
+            self._shot_started_callback(shot.impact_time)
 
     @staticmethod
     def _merge(shot: GC2ShotData, shot_number: int, values: dict) -> None:

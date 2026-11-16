@@ -1278,6 +1278,7 @@ def init_camera_capture(
     horizontal_offset_deg: float,
     use_gpio_trigger: bool,
     shot_analysis_enabled: bool = False,
+    trigger_source: str | None = None,
 ) -> bool:
     """Initialize passive high-speed camera capture for offline alignment."""
     global camera_capture_runtime, camera_capture_config  # pylint: disable=global-statement
@@ -1326,7 +1327,7 @@ def init_camera_capture(
             "shot_analysis_enabled": shot_analysis_enabled,
             "output_dir": str(Path(output_dir).expanduser()),
             "gpio_pin_bcm": gpio_pin,
-            "trigger_source": "gpio" if use_gpio_trigger else "iwr6843_fanout",
+            "trigger_source": trigger_source or ("gpio" if use_gpio_trigger else "iwr6843_fanout"),
             "width": settings.width,
             "height": settings.height,
             "fps": settings.fps,
@@ -4485,11 +4486,17 @@ def start_monitor(
         def on_gc2_connection_changed(_connected: bool):
             socketio.emit("trigger_status", _get_trigger_status())
 
-        monitor.start(
+        def on_gc2_shot_started(timestamp: float):
+            if camera_capture_runtime is not None:
+                if not camera_capture_runtime.notify_trigger(timestamp):
+                    logger.warning("[CAMERA] GC2 shot trigger was not accepted")
+
+        monitor.start(  # pylint: disable=unexpected-keyword-arg
             shot_callback=on_shot_detected,
             live_callback=on_live_reading,
             processing_callback=on_shot_processing,
             connection_callback=on_gc2_connection_changed,
+            shot_started_callback=on_gc2_shot_started,
         )
     else:
         monitor.start(  # pylint: disable=unexpected-keyword-arg
@@ -5659,8 +5666,9 @@ def main():
             rotate_180=args.camera_capture_rotate_180,
             mirror_horizontal=args.camera_capture_mirror_horizontal,
             scaler_crop=camera_capture_scaler_crop,
-            use_gpio_trigger=not args.iwr6843,
+            use_gpio_trigger=not (args.iwr6843 or args.gc2),
             shot_analysis_enabled=args.camera_shot_analysis,
+            trigger_source="gc2" if args.gc2 else ("iwr6843_fanout" if args.iwr6843 else "gpio"),
         ):
             print("Camera capture unavailable - running without high-speed camera capture")
             startup_status.skip("camera", "High-speed camera unavailable; continuing")

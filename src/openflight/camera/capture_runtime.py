@@ -134,7 +134,7 @@ def ensure_picamera2_import_path() -> bool:
 
 
 class CameraCaptureRuntime:
-    """Maintain a high-speed camera ring and save clips on sound-trigger edges."""
+    """Maintain a high-speed camera ring and save clips on trigger events."""
 
     def __init__(
         self,
@@ -461,7 +461,7 @@ class CameraCaptureRuntime:
         }
 
     def notify_trigger(self, timestamp: float | None = None) -> bool:
-        """Freeze the camera ring on a sound-trigger edge."""
+        """Freeze the camera ring on a trigger event."""
         if not self._running:
             return False
         trigger_epoch = time.time() if timestamp is None else float(timestamp)

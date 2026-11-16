@@ -4820,6 +4820,76 @@ class TestGc2TriggerStatus:
 
         assert any(name == "trigger_status" for name, _ in emitted)
 
+    def test_gc2_early_shot_triggers_camera(self, monkeypatch, caplog):
+        calls = []
+
+        class Camera:
+            def notify_trigger(self, timestamp):
+                calls.append(timestamp)
+                return False
+
+        monkeypatch.setattr(server_module, "monitor", None)
+        monkeypatch.setattr(server_module, "camera_capture_runtime", Camera())
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(GC2Monitor, "connect", lambda self: True)
+        monkeypatch.setattr(
+            GC2Monitor,
+            "start",
+            lambda self, **kwargs: kwargs["shot_started_callback"](123.0),
+        )
+
+        server_module.start_monitor(gc2=True)
+
+        assert calls == [123.0]
+        assert "GC2 shot trigger was not accepted" in caplog.text
+
+    def test_gc2_camera_capture_matches_shot_and_registers_replay(self, tmp_path, monkeypatch):
+        from openflight.camera.capture_runtime import CameraCaptureRuntime, CameraCaptureSettings
+        from openflight.camera.replay import CameraReplayManager
+        from openflight.camera.triggered_buffer import CameraFrame
+        from openflight.gc2.gc2_protocol import GC2StreamParser
+
+        callbacks = {}
+        settings = CameraCaptureSettings(
+            width=3, height=2, fps=10, pre_ms=100, post_ms=100, auto_exposure=False
+        )
+        runtime = CameraCaptureRuntime(output_dir=tmp_path, settings=settings)
+        runtime._running = True  # pylint: disable=protected-access
+        frame = CameraFrame(np.zeros((2, 3), dtype=np.uint8), 1, 1, 1000, 1.0)
+        runtime._ring.add_frame(frame)  # pylint: disable=protected-access
+        monkeypatch.setattr(server_module, "monitor", None)
+        monkeypatch.setattr(server_module, "camera_capture_runtime", runtime)
+        monkeypatch.setattr(server_module, "camera_replay_manager", CameraReplayManager(tmp_path))
+        monkeypatch.setattr(server_module, "get_session_logger", lambda: None)
+        monkeypatch.setattr(GC2Monitor, "connect", lambda self: True)
+        monkeypatch.setattr(GC2Monitor, "start", lambda self, **kwargs: callbacks.update(kwargs))
+
+        server_module.start_monitor(gc2=True)
+        shots = []
+        parser = GC2StreamParser(
+            shots.append, merge_window=60, shot_started_callback=callbacks["shot_started_callback"]
+        )
+        parser.feed(b"TM=1,ID=1,SP=150\r\n")
+        runtime._ring.add_frame(frame)  # pylint: disable=protected-access
+        capture = runtime._ring.pop_capture()  # pylint: disable=protected-access
+        assert capture is not None
+        runtime._ready.put(capture)  # pylint: disable=protected-access
+        worker = threading.Thread(target=runtime._save_loop)  # pylint: disable=protected-access
+        worker.start()
+        try:
+            parser.flush()
+            shot = GC2Monitor()._build_shot(shots[0])  # pylint: disable=protected-access
+            saved = runtime.capture_for_shot(shot.impact_timestamp, timeout_s=2)
+            assert saved is not None and saved.valid
+            assert saved.trigger_timestamp == shot.impact_timestamp
+            server_module._attach_camera_replay(shot, saved)  # pylint: disable=protected-access
+            assert shot.camera_replay is not None
+        finally:
+            runtime._running = False  # pylint: disable=protected-access
+            runtime._ready.put(None)  # pylint: disable=protected-access
+            worker.join(timeout=2)
+        assert not worker.is_alive()
+
     def test_radar_config_rejected_for_gc2(self, monkeypatch):
         emitted = []
         monkeypatch.setattr(server_module, "monitor", GC2Monitor())

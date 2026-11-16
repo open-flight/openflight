@@ -1,9 +1,10 @@
 # OV9281 High-Speed Camera
 
-OpenFlight can capture a short, synchronized camera movie around impact. The
-camera does not replace the OPS243 or IWR6843: OPS anchors speed and trigger
-timing, the IWR6843 measures radar angles, and the camera provides a visual
-record of the clubhead and early ball flight.
+OpenFlight can capture a short camera movie around a shot. With radar hardware,
+OPS anchors speed and trigger timing, the IWR6843 measures radar angles, and the
+camera provides a visual record of the clubhead and early ball flight. GC2 can
+also trigger capture, but its delayed shot message does not establish impact
+timing.
 
 Camera capture is experimental. Camera-assisted horizontal launch, club path,
 and attack angle must remain quality-gated until they are validated against a
@@ -318,7 +319,20 @@ scripts/start-kiosk.sh \
 ```
 
 When capture is enabled, OpenFlight keeps a rolling pre-trigger frame buffer and freezes it
-from the same sound-trigger event used by the radar pipeline.
+from the same sound-trigger event used by the radar pipeline. With `--gc2`, the
+first accepted GC2 shot message triggers the camera instead, without a GPIO
+sound trigger:
+
+```bash
+scripts/start-kiosk.sh --gc2 --camera-capture
+```
+
+The GC2 message arrives after impact, with hardware-dependent latency. Increase
+`--camera-capture-pre-ms` as needed to retain impact and the preceding swing;
+the default 150 ms may not be sufficient. Longer buffers use more memory.
+The replay's impact marker and camera analysis assume the trigger is close to
+impact, so they are not reliably impact-aligned for GC2 captures. Validate the
+captured footage and timing on your own hardware before relying on them.
 
 ## Shot Replay
 

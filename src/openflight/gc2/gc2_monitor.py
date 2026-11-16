@@ -44,6 +44,7 @@ class GC2Monitor:
         self._last_shot_tms = frozenset()
 
         self._shot_callback = None
+        self._shot_started_callback = None
         self._connection_callback = None
         self._shots: List[Shot] = []
         self._current_club = ClubType.DRIVER
@@ -63,16 +64,19 @@ class GC2Monitor:
         """Stop the monitor and clean up resources."""
         self.stop()
 
-    def start(
+    def start(  # pylint: disable=too-many-arguments
         self,
         shot_callback=None,
         live_callback=None,  # pylint: disable=unused-argument
         diagnostic_callback=None,  # pylint: disable=unused-argument
         processing_callback=None,  # pylint: disable=unused-argument
         connection_callback=None,
+        *,
+        shot_started_callback=None,
     ):
         """Start the monitor and begin reading shots."""
         self._shot_callback = shot_callback
+        self._shot_started_callback = shot_started_callback
         self._connection_callback = connection_callback
         self._running = True
 
@@ -154,7 +158,11 @@ class GC2Monitor:
         """Read data from the GC2 device and feed it to the parser."""
         # The GC2 replays its last shot on connect; carrying the shot's message timestamps
         # across reconnects lets the parser recognise and drop that replay.
-        parser = GC2StreamParser(self._handle_shot_data, last_shot_tms=self._last_shot_tms)
+        parser = GC2StreamParser(
+            self._handle_shot_data,
+            last_shot_tms=self._last_shot_tms,
+            shot_started_callback=self._handle_shot_started,
+        )
         try:
             while self._running:
                 readable, _, _ = select.select([sock], [], [], GC2_READ_TIMEOUT_SECONDS)
@@ -188,6 +196,13 @@ class GC2Monitor:
     # ------------------------------------------------------------------
     # Shot handling
     # ------------------------------------------------------------------
+
+    def _handle_shot_started(self, timestamp: float):
+        if self._shot_started_callback:
+            try:
+                self._shot_started_callback(timestamp)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.exception("GC2 early shot callback failed")
 
     def _handle_shot_data(self, data: GC2ShotData):
         """Handle incoming shot data from the GC2 device."""
