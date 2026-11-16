@@ -452,4 +452,3 @@ def encode_set_strict_mode(strict: bool) -> bytes:
 
 def mph_to_ms(mph: float) -> float:
     return mph * MPH_TO_MS
-
