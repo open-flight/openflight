@@ -39,7 +39,7 @@ describe('SimShotBadges', () => {
     const partee: SimShotInfo = { ...gsproShot, target: 'partee', shot_number: 4 };
     const pureplay: SimShotInfo = { ...gsproShot, target: 'pureplay', shot_number: 5 };
     const html = renderToString(
-      <SimShotBadges latestSimShots={{ gspro: gsproShot, opengolfsim: ogs, partee, pureplay }} />,
+      <SimShotBadges latestSimShots={{ gspro: gsproShot, opengolfsim: ogs, partee, pureplay }} />
     );
     expect(html).toContain('Sent to GSPro');
     expect(html).toContain('Sent to OpenGolfSim');
