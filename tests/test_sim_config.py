@@ -51,6 +51,9 @@ def test_partee_default_port(tmp_path):
     p = _write(tmp_path, {"connectors": [{"type": "partee", "enabled": True}]})
     assert load_sim_config(config_path=p)[0].port == 921
 
+def test_pureplay_default_port(tmp_path):
+    p = _write(tmp_path, {"connectors": [{"type": "pureplay", "enabled": True}]})
+    assert load_sim_config(config_path=p)[0].port == 9760
 
 def test_explicit_port_overrides_default(tmp_path):
     p = _write(tmp_path, {"connectors": [

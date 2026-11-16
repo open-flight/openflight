@@ -22,6 +22,13 @@
       "host": "192.168.1.70",
       "port": 921,
       "device_id": "OpenFlight"
+    },
+    {
+      "type": "pureplay",
+      "enabled": false,
+      "host": "192.168.1.60",
+      "port": 9760,
+      "device_id": "OpenFlight"
     }
   ]
 }

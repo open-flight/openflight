@@ -12,7 +12,7 @@ Everything after the hardware works.
 
     Stream shots to [GSPro](simulator/gspro.md),
     [OpenGolfSim](simulator/opengolfsim.md), [PAR-TEE](simulator/partee.md),
-    E6, and Garmin.
+    [Pureplay](simulator/pureplay.md), E6, and Garmin.
 
 - :material-speedometer: **[Swing speed training](swing-speed.md)**
 
