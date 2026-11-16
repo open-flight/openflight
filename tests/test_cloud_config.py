@@ -1,6 +1,7 @@
 """Tests for the openflight-cloud config module."""
 
 import json
+import os
 import stat
 
 import pytest
@@ -39,6 +40,9 @@ class TestLoadConfig:
 
 
 class TestSaveConfig:
+    @pytest.mark.skipif(
+        os.name == "nt", reason="POSIX permission bits are not representable on Windows"
+    )
     def test_writes_file_with_0600_permissions(self, tmp_path):
         path = tmp_path / "nested" / "cloud.json"
         config = cfg.CloudConfig(device_token="tok", device_id="id")
