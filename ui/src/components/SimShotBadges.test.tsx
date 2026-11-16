@@ -44,3 +44,4 @@ describe('SimShotBadges', () => {
     expect(html).toContain('Sent to PAR-TEE');
     expect(html).toContain('Sent to Pureplay');
   });
+};
