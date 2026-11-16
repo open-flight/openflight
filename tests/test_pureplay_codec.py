@@ -55,9 +55,6 @@ def club(frame):
     return shot_id, mask, vals
 
 
-# --- outbound shots ----------------------------------------------------------
-
-
 def strict(codec):
     codec.parse_inbound(wire.encode_set_strict_mode(True))
     codec.drain_outbound()
@@ -150,9 +147,6 @@ def test_shot_ids_count_from_one_and_reset_on_new_link():
     assert ball(frames_of(codec.build_shot(make_shot()))[0])[0] == 1
 
 
-# --- connection ---------------------------------------------------------------
-
-
 def test_on_connect_sends_hello_with_device_name():
     codec = PureplayCodec(device_name="My Pi", firmware="1.2.3")
     (hello,) = frames_of(codec.on_connect_bytes())
@@ -169,9 +163,6 @@ def test_heartbeat_is_connected_ready_unknown_battery():
 def test_fields_for_target_omits_carry():
     fields = PureplayCodec().fields_for_target()
     assert "carry" not in fields and "ball_speed" in fields
-
-
-# --- inbound events and replies ------------------------------------------------
 
 
 def test_hello_ack_queues_ready_state():

@@ -93,8 +93,6 @@ class PureplayCodec:
         self._shot_id = 0
         self._strict = False
 
-    # --- optional transport hooks ------------------------------------------------
-
     @staticmethod
     def find_frame_end(buf: bytes):
         """Transport framer: index past the first complete frame, or None."""
@@ -106,8 +104,6 @@ class PureplayCodec:
             data = b"".join(self._outbound)
             self._outbound.clear()
         return data
-
-    # --- Codec interface ---------------------------------------------------------
 
     def on_connect_bytes(self) -> bytes:
         """Start a fresh link: reset per-link state and send Hello."""
@@ -188,8 +184,6 @@ class PureplayCodec:
                     "[pureplay] ignoring malformed 0x%02x frame: %s", received.msg_type, e
                 )
         return events
-
-    # --- inbound handling --------------------------------------------------------
 
     def _queue(self, data: bytes) -> None:
         with self._lock:

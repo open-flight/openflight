@@ -12,8 +12,6 @@ def h(text: str) -> bytes:
     return bytes.fromhex(text.replace("\n", " "))
 
 
-# --- Worked examples from the spec (section 10) ---------------------------
-
 BALL_DATA = h(
     "50 4C 01 00 10 22 00 01 00 00 00 7F 00 00 00 80 42 00 00 48 41 "
     "00 00 C0 BF 00 40 1C 45 00 20 19 45 00 00 96 C3 29 5C DF 40 0A 14 D6 31"
@@ -105,9 +103,6 @@ def test_encode_error_matches_spec():
     assert frame == ERROR_STRICT
 
 
-# --- Decoding --------------------------------------------------------------
-
-
 def test_decode_each_spec_frame():
     cases = [
         (HELLO, pp.MsgType.HELLO),
@@ -164,9 +159,6 @@ def test_truncated_frame_waits_for_more_data():
     assert len(frames) == 1 and frames[0].msg_type == pp.MsgType.BALL_DATA
 
 
-# --- Payload parsers -------------------------------------------------------
-
-
 def test_parse_hello_ack():
     frame = pp.FrameDecoder().feed(HELLO_ACK)[0]
     ack = pp.parse_hello_ack(frame.payload)
@@ -187,9 +179,6 @@ def test_parse_strict_mode_and_club_info():
 def test_parsers_reject_short_payloads(parser):
     with pytest.raises(pp.ProtocolError):
         parser(b"")
-
-
-# --- Validity mask behaviour ----------------------------------------------
 
 
 def test_ball_data_unmeasured_fields_are_zero_and_masked_off():
@@ -216,9 +205,6 @@ def test_nan_is_treated_as_not_measured():
     assert mask == pp.BALL_SPEED
 
 
-# --- Misc ------------------------------------------------------------------
-
-
 def test_heartbeat_battery_unknown_and_clamped():
     unknown = pp.FrameDecoder().feed(pp.encode_heartbeat())[0].payload
     assert unknown[2] == 0xFF
@@ -233,9 +219,6 @@ def test_mph_to_ms():
 def test_oversized_payload_rejected():
     with pytest.raises(pp.ProtocolError):
         pp.encode_frame(pp.MsgType.HELLO, b"x" * 70000)
-
-
-# --- Framer used by the transport (find_frame_end) --------------------------
 
 
 def test_find_frame_end_needs_complete_frame():
@@ -261,9 +244,6 @@ def test_find_frame_end_skips_false_start_with_bad_crc():
     bad = bytearray(PING)
     bad[-1] ^= 0xFF  # corrupt the CRC of what looks like a frame
     assert pp.find_frame_end(bytes(bad) + HELLO_ACK) == len(PING) + len(HELLO_ACK)
-
-
-# --- Stray "PL" in noise must not stall real frames --------------------------
 
 
 def test_stray_magic_claiming_huge_length_does_not_stall_framer():

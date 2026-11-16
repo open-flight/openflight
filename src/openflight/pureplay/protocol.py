@@ -8,9 +8,11 @@ and connects out to the Pureplay host over TCP (default port 9760).
 Units on the wire: speed in m/s, angles in degrees, spin in RPM, distance in
 metres, face impact point in millimetres. All multi-byte values are
 little-endian.
+
+Club byte: 0 Driver; 1-8 Wood2-9; 9-16 Hybrid2-9; 17-25 Iron1-9;
+26 PW, 27 GW, 28 SW, 29 LW; 30 Putter.
 """
-# The enums mirror the spec's message tables and the encoders take one argument
-# per wire field, so per-item docstrings and short argument lists add no value.
+
 # pylint: disable=missing-class-docstring,missing-function-docstring
 # pylint: disable=too-many-arguments,too-few-public-methods
 
@@ -31,13 +33,9 @@ MAX_PAYLOAD = 0xFFFF
 MPH_TO_MS = 0.44704
 
 
-# --------------------------------------------------------------------------
-# Enumerations (wire frozen, spec section 9)
-# --------------------------------------------------------------------------
-
-
 class MsgType(IntEnum):
-    # device -> host
+    """Device -> host types are 0x01-0x1F; host -> device types are 0x81-0x94."""
+
     HELLO = 0x01
     HEARTBEAT = 0x02
     STRICT_MODE_ACK = 0x04
@@ -45,7 +43,6 @@ class MsgType(IntEnum):
     CLUB_DATA = 0x11
     READY_STATE = 0x12
     ERROR = 0x1F
-    # host -> device
     HELLO_ACK = 0x81
     PING = 0x82
     SET_CLUB_INFO = 0x90
@@ -85,13 +82,9 @@ class ErrorCode(IntEnum):
     STRICT_MODE_REQUIRED = 2
 
 
-# Club byte: 0 Driver; 1-8 Wood2-9; 9-16 Hybrid2-9; 17-25 Iron1-9;
-# 26 PW, 27 GW, 28 SW, 29 LW; 30 Putter.
-
 DEVICE_CAP_BATTERY_POWERED = 1 << 4
 BATTERY_UNKNOWN = 0xFF
 
-# ValidMask bits
 BALL_SPEED, BALL_VLA, BALL_HLA, BALL_TOTAL_SPIN, BALL_BACK_SPIN, BALL_SIDE_SPIN, BALL_SPIN_AXIS = (
     1 << i for i in range(7)
 )
@@ -109,11 +102,6 @@ BALL_SPEED, BALL_VLA, BALL_HLA, BALL_TOTAL_SPIN, BALL_BACK_SPIN, BALL_SIDE_SPIN,
 
 class ProtocolError(ValueError):
     """Raised when a payload cannot be encoded or decoded."""
-
-
-# --------------------------------------------------------------------------
-# CRC32C (Castagnoli), reflected polynomial 0x82F63B78
-# --------------------------------------------------------------------------
 
 
 def _make_crc_table() -> tuple[int, ...]:
@@ -134,11 +122,6 @@ def crc32c(data: bytes) -> int:
     for byte in data:
         crc = _CRC_TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)
     return crc ^ 0xFFFFFFFF
-
-
-# --------------------------------------------------------------------------
-# Framing
-# --------------------------------------------------------------------------
 
 
 def encode_frame(msg_type: int, payload: bytes = b"") -> bytes:
@@ -239,11 +222,6 @@ def find_frame_end(buf: bytes) -> Optional[int]:
     return None if found is None else found[1]
 
 
-# --------------------------------------------------------------------------
-# Strings
-# --------------------------------------------------------------------------
-
-
 def pack_str(value: str) -> bytes:
     raw = value.encode("utf-8")
     if len(raw) > 255:
@@ -259,11 +237,6 @@ def unpack_str(payload: bytes, offset: int) -> tuple[str, int]:
     if end > len(payload):
         raise ProtocolError("truncated string")
     return payload[offset + 1 : end].decode("utf-8", errors="replace"), end
-
-
-# --------------------------------------------------------------------------
-# Device -> host messages
-# --------------------------------------------------------------------------
 
 
 def encode_hello(
@@ -397,11 +370,6 @@ def encode_club_data(
     return encode_frame(MsgType.CLUB_DATA, payload)
 
 
-# --------------------------------------------------------------------------
-# Host -> device messages (parsers) and test-side encoders
-# --------------------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class HelloAck:
     protocol_version: int
@@ -447,11 +415,6 @@ def encode_set_shot_context(distance_m: float) -> bytes:
 
 def encode_set_strict_mode(strict: bool) -> bytes:
     return encode_frame(MsgType.SET_STRICT_MODE, bytes([1 if strict else 0]))
-
-
-# --------------------------------------------------------------------------
-# Unit helpers
-# --------------------------------------------------------------------------
 
 
 def mph_to_ms(mph: float) -> float:
