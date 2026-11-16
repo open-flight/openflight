@@ -119,11 +119,13 @@ class PureplayCodec:
         return wire.encode_hello(self.device_name, self.firmware, battery_powered=False)
 
     def heartbeat_bytes(self) -> bytes:
+        """Heartbeat frame: connected, ready, battery unknown."""
         return wire.encode_heartbeat(
             wire.ConnectionState.CONNECTED, wire.ReadyState.READY, battery=None
         )
 
     def fields_for_target(self) -> List[str]:
+        """Logical fields shown in the UI's "Sent to" panel."""
         return list(_PUREPLAY_FIELDS)
 
     def build_shot(self, resolved) -> bytes:
@@ -193,6 +195,7 @@ class PureplayCodec:
         with self._lock:
             self._outbound.append(data)
 
+    # pylint: disable-next=too-many-return-statements
     def _handle(self, received: wire.Frame) -> List[InboundEvent]:
         msg_type, payload = received.msg_type, received.payload
 

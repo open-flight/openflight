@@ -9,6 +9,10 @@ Units on the wire: speed in m/s, angles in degrees, spin in RPM, distance in
 metres, face impact point in millimetres. All multi-byte values are
 little-endian.
 """
+# The enums mirror the spec's message tables and the encoders take one argument
+# per wire field, so per-item docstrings and short argument lists add no value.
+# pylint: disable=missing-class-docstring,missing-function-docstring
+# pylint: disable=too-many-arguments,too-few-public-methods
 
 from __future__ import annotations
 
