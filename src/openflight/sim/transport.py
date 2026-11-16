@@ -44,6 +44,14 @@ class Codec(Protocol):
     def on_connect_bytes(self) -> Optional[bytes]: ...
     def fields_for_target(self) -> List[str]: ...
 
+    # Optional hooks (looked up with getattr; JSON codecs need neither):
+    #   find_frame_end(buf: bytes) -> Optional[int]
+    #       Index past the first complete inbound frame, or None if more data is
+    #       needed. Replaces the default JSON-object framer for binary protocols.
+    #   drain_outbound() -> bytes
+    #       Bytes the codec queued while parsing (e.g. answers to a ping). Called
+    #       after each parse_inbound; the transport sends them.
+
 
 def find_json_end(buf: bytes) -> Optional[int]:
     """Index past the first complete top-level JSON object in buf, or None.
@@ -192,6 +200,19 @@ class TcpSimClient:
             except OSError as e:
                 logger.info("[%s] heartbeat send failed: %s", self._name, e)
 
+    def _send_codec_replies(self) -> None:
+        """Send any reply bytes the codec queued while parsing inbound frames."""
+        drain = getattr(self._codec, "drain_outbound", None)
+        if drain is None:
+            return
+        data = drain()
+        if not data:
+            return
+        try:
+            self.send_raw(data)
+        except OSError as e:
+            logger.info("[%s] reply send failed: %s", self._name, e)
+
     def _heartbeat_loop(self) -> None:
         interval = max(self._hb_interval, 0.05)
         while not self._stop_event.is_set():
@@ -307,6 +328,8 @@ class TcpSimClient:
 
     def _recv_loop(self) -> str:
         buffer = bytearray()
+        custom_framer = getattr(self._codec, "find_frame_end", None)
+        find_end = custom_framer or find_json_end
         while not self._stop_event.is_set():
             with self._sock_lock:
                 sock = self._sock
@@ -322,15 +345,17 @@ class TcpSimClient:
             if not data:
                 return "peer closed connection (EOF)"
             buffer.extend(data)
-            # Drain every complete JSON object currently in the buffer.
+            # Drain every complete frame currently in the buffer (JSON objects unless
+            # the codec supplies its own framer).
             while True:
-                end = find_json_end(bytes(buffer))
+                end = find_end(bytes(buffer))
                 if end is None:
                     break
                 chunk = bytes(buffer[:end])
                 del buffer[:end]
                 if _LOG_RAW_FRAMES:
-                    logger.info("[%s] raw ← %s", self._name, chunk.decode("utf-8", "replace"))
+                    shown = chunk.hex(" ") if custom_framer else chunk.decode("utf-8", "replace")
+                    logger.info("[%s] raw ← %s", self._name, shown)
                 try:
                     events = self._codec.parse_inbound(chunk)
                 except ValueError as e:
@@ -338,6 +363,7 @@ class TcpSimClient:
                     continue
                 for event in events:
                     self._dispatch(event)
+                self._send_codec_replies()
             # Drained all complete frames; if the incomplete remainder has grown
             # past the cap, the peer never closed a frame — drop it and resync.
             if len(buffer) > _MAX_FRAME_BYTES:

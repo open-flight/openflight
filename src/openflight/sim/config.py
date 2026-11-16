@@ -6,7 +6,8 @@ A single file lists every connector; the server streams to all that are
 A connector's ``type`` is the *product*: gspro (OpenConnect V1 on 921),
 opengolfsim (reached via its Developer API on 3111, which speaks OpenConnect),
 or partee (the PAR-TEE phone app, which listens for OpenConnect on 921).
-All ride the shared OpenConnect codec; they differ only in name + default port.
+Those three ride the shared OpenConnect codec; they differ only in name + default
+port. pureplay (the Pureplay app, Pureplay Connect on 9760) has its own binary codec.
 """
 
 import json
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = Path("config/sim.json")
 
-KNOWN_TYPES: Tuple[str, ...] = ("gspro", "opengolfsim", "partee")
+KNOWN_TYPES: Tuple[str, ...] = ("gspro", "opengolfsim", "partee", "pureplay")
 
 # Per-type defaults applied when a field is absent from the file.
 _DEFAULTS: Dict[str, dict] = {
@@ -37,6 +38,14 @@ _DEFAULTS: Dict[str, dict] = {
     },
     "partee": {
         "port": 921,
+        "units": "Yards",
+        "device_id": "OpenFlight",
+        "heartbeat_interval_s": 5.0,
+    },
+    # Pureplay Connect: device_id is sent as the device name; units is unused (the
+    # wire format is always metric).
+    "pureplay": {
+        "port": 9760,
         "units": "Yards",
         "device_id": "OpenFlight",
         "heartbeat_interval_s": 5.0,
