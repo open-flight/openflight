@@ -13,6 +13,7 @@
 #
 # Usage:
 #   ./scripts/setup/setup.sh                  # full interactive setup
+#   ./scripts/setup/setup.sh --ops-port <path> # use an explicit OPS243 device
 #   ./scripts/setup/setup.sh --deps-only      # install dependencies, skip hardware
 #   ./scripts/setup/setup.sh --non-interactive # no prompts (deps only)
 #
@@ -37,6 +38,7 @@ info() { echo -e "${BLUE}[OpenFlight]${NC} $1"; }
 
 INTERACTIVE=true
 DEPS_ONLY=false
+OPS_PORT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -48,6 +50,14 @@ while [[ $# -gt 0 ]]; do
         --deps-only)
             DEPS_ONLY=true
             shift
+            ;;
+        --ops-port)
+            if [ -z "${2:-}" ]; then
+                error "--ops-port requires a device path"
+                exit 1
+            fi
+            OPS_PORT="$2"
+            shift 2
             ;;
         --help|-h)
             awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "$0"
@@ -229,15 +239,19 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
     # --- OPS243-A rolling buffer flash config ---
     echo ""
     if confirm "Configure the OPS243-A radar now? (it must be plugged in)" "Y"; then
+        OPS_ARGS=()
+        if [ -n "$OPS_PORT" ]; then
+            OPS_ARGS=(--port "$OPS_PORT")
+        fi
         log "Saving rolling buffer mode to the radar's flash memory..."
-        if python scripts/hardware-test/test_rolling_buffer_persist.py --setup; then
+        if python scripts/hardware-test/test_rolling_buffer_persist.py --setup "${OPS_ARGS[@]}"; then
             echo ""
-            info "Now power cycle the radar: unplug its USB cable, wait 3 seconds,"
-            info "and plug it back in. (This works around a firmware bug — one time only.)"
-            read -r -p "Press Enter after plugging it back in... " _
+            info "Now power cycle the radar: disconnect its power, wait 3 seconds,"
+            info "and reconnect it. (This works around a firmware bug — one time only.)"
+            read -r -p "Press Enter after powering it back on... " _
             sleep 2
             log "Verifying (make a sharp sound near the sound detector when asked)..."
-            if python scripts/hardware-test/test_rolling_buffer_persist.py --test; then
+            if python scripts/hardware-test/test_rolling_buffer_persist.py --test "${OPS_ARGS[@]}"; then
                 log "OPS243-A configured ✓"
             else
                 warn "Verification failed. See docs/setup/raspberry-pi.md → Troubleshooting."
