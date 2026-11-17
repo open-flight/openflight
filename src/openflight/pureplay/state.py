@@ -52,9 +52,5 @@ def pureplay_code_to_club(code: int) -> ClubType:
 
 
 def pureplay_handedness(code: int) -> str:
-    """Pureplay handedness byte (0 right, 1 left) -> 'RH' / 'LH'.
-
-    ASSUMPTION: PlayerUpdate.handed uses the GSPro strings 'RH'/'LH'. Confirm against
-    openflight.sim.types before submitting.
-    """
+    """Pureplay handedness byte (0 right, 1 left) -> 'RH' / 'LH', as in PlayerUpdate.handed."""
     return "LH" if code == 1 else "RH"
