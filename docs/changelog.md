@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Security and scope](ios-ble.md#security-and-scope).
 
 ### Changed
+- **The interactive setup can configure an OPS243 on the Pi GPIO UART.**
+  Pass `--ops-port /dev/ttyAMA0` to `scripts/setup/setup.sh`; the selected
+  device is used for both rolling-buffer setup and post-power-cycle verification.
 - **The OPS sound-trigger hardware test defaults to the Pi GPIO UART.**
   `scripts/hardware-test/test_sound_trigger.py` now uses `/dev/ttyAMA0`
   when `--port` is omitted. For USB, pass the device explicitly, for example
