@@ -99,6 +99,69 @@ class SavedCameraCapture:
         return self.error is None
 
 
+class CaptureInbox:
+    """Saved captures waiting to be matched to OPS shots, oldest first.
+
+    Shared by the in-process runtime and the child-process proxy so both
+    match captures to shots the same way.
+    """
+
+    def __init__(self):
+        self._captures: list[SavedCameraCapture] = []
+        self._condition = threading.Condition()
+
+    def add(self, capture: SavedCameraCapture) -> None:
+        """Queue one saved capture and wake any waiting shot."""
+        with self._condition:
+            self._captures.append(capture)
+            self._condition.notify_all()
+
+    def pending(self) -> int:
+        """Number of captures not yet matched."""
+        with self._condition:
+            return len(self._captures)
+
+    def take(
+        self,
+        impact_timestamp: float | None,
+        *,
+        tolerance_s: float,
+        timeout_s: float,
+    ) -> SavedCameraCapture | None:
+        """Consume the capture matching the shot, discarding older unmatched ones.
+
+        With no timestamp, the oldest capture is taken. Waits up to
+        ``timeout_s`` for a capture that has not been saved yet.
+        """
+        deadline = time.monotonic() + timeout_s
+        with self._condition:
+            while True:
+                if impact_timestamp is None and self._captures:
+                    return self._captures.pop(0)
+
+                if impact_timestamp is not None:
+                    cutoff = impact_timestamp - tolerance_s
+                    while self._captures and self._captures[0].trigger_timestamp < cutoff:
+                        stale = self._captures.pop(0)
+                        logger.warning(
+                            "[CAMERA] Discarding unmatched capture #%d (edge %.3f, shot %.3f)",
+                            stale.sequence,
+                            stale.trigger_timestamp,
+                            impact_timestamp,
+                        )
+                    if (
+                        self._captures
+                        and abs(self._captures[0].trigger_timestamp - impact_timestamp)
+                        <= tolerance_s
+                    ):
+                        return self._captures.pop(0)
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                self._condition.wait(timeout=remaining)
+
+
 def parse_scaler_crop(value: str | None) -> tuple[int, int, int, int] | None:
     """Parse a Picamera2 ScalerCrop tuple."""
     if value is None:
@@ -164,8 +227,7 @@ class CameraCaptureRuntime:
         self._sequence = 0
         self._worker: threading.Thread | None = None
         self._ready: queue.Queue[TriggeredCapture | None] = queue.Queue()
-        self._captures: list[SavedCameraCapture] = []
-        self._condition = threading.Condition()
+        self._inbox = CaptureInbox()
         self._trigger_epochs: queue.Queue[float] = queue.Queue()
         self._trigger_auto_exposure: queue.Queue[dict] = queue.Queue()
         self._camera_control_lock = threading.Lock()
@@ -481,33 +543,11 @@ class CameraCaptureRuntime:
         timeout_s: float = 1.0,
     ) -> SavedCameraCapture | None:
         """Consume the saved capture nearest the OPS impact/trigger timestamp."""
-        deadline = time.monotonic() + timeout_s
-        with self._condition:
-            while True:
-                if impact_timestamp is None and self._captures:
-                    return self._captures.pop(0)
-
-                if impact_timestamp is not None:
-                    cutoff = impact_timestamp - self.settings.match_tolerance_s
-                    while self._captures and self._captures[0].trigger_timestamp < cutoff:
-                        stale = self._captures.pop(0)
-                        logger.warning(
-                            "[CAMERA] Discarding unmatched capture #%d (edge %.3f, shot %.3f)",
-                            stale.sequence,
-                            stale.trigger_timestamp,
-                            impact_timestamp,
-                        )
-                    if (
-                        self._captures
-                        and abs(self._captures[0].trigger_timestamp - impact_timestamp)
-                        <= self.settings.match_tolerance_s
-                    ):
-                        return self._captures.pop(0)
-
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    return None
-                self._condition.wait(timeout=remaining)
+        return self._inbox.take(
+            impact_timestamp,
+            tolerance_s=self.settings.match_tolerance_s,
+            timeout_s=timeout_s,
+        )
 
     def _start_gpio_trigger(self) -> None:
         button_factory = self._button_factory
@@ -732,9 +772,7 @@ class CameraCaptureRuntime:
                     metadata={},
                     error=str(exc),
                 )
-            with self._condition:
-                self._captures.append(saved)
-                self._condition.notify_all()
+            self._inbox.add(saved)
 
     def _save_capture(
         self,

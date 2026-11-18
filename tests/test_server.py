@@ -5091,3 +5091,100 @@ class TestBallisticCarryPrecedence:
         resolved = server_module.resolve_shot(forwarded[0], server_module.SimPlayerState())
         assert resolved.carry_yards == pytest.approx(shot.carry_spin_adjusted)
         assert resolved.carry_yards > 135.0
+
+
+class _RecordingCamera:
+    made = []
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.settings = kwargs["settings"]
+        _RecordingCamera.made.append(self)
+
+    def start(self):
+        pass
+
+
+def _init_camera(server, tmp_path, monkeypatch, **extra):
+    # init_camera_capture sets module globals; let monkeypatch restore them.
+    for name in ("camera_capture_runtime", "camera_capture_config", "camera_replay_manager",
+                 "camera_reference_ball_tracker", "camera_ball_flight_reference_tracker"):
+        monkeypatch.setattr(server, name, getattr(server, name))
+    return server.init_camera_capture(
+        output_dir=tmp_path, gpio_pin=17, width=640, height=100, fps=600.0, pre_ms=150.0,
+        post_ms=50.0, exposure_us=800, gain=8.0, stream="raw", rotate_180=True,
+        mirror_horizontal=False, roll_correction_deg=0.0, scaler_crop=None,
+        mount_height_m=0.102, lateral_offset_m=0.0, horizontal_offset_deg=0.0,
+        use_gpio_trigger=False, **extra,
+    )
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected_core"),
+    [({}, (2, 3)), ({"camera_cpu_core": 2}, 2), ({"camera_cpu_core": None}, None)],
+)
+def test_camera_capture_runs_in_its_own_pinned_process(monkeypatch, tmp_path, extra, expected_core):
+    import openflight.camera.process as process_module
+
+    _RecordingCamera.made.clear()
+    monkeypatch.setattr(process_module, "CameraCaptureProcess", _RecordingCamera)
+    assert _init_camera(server_module, tmp_path, monkeypatch, **extra)
+    (camera,) = _RecordingCamera.made
+    assert camera.kwargs["cpu_core"] == expected_core
+    assert server_module.camera_capture_runtime is camera
+
+
+def test_camera_capture_can_stay_in_process(monkeypatch, tmp_path):
+    import openflight.camera.capture_runtime as runtime_module
+
+    _RecordingCamera.made.clear()
+    monkeypatch.setattr(runtime_module, "CameraCaptureRuntime", _RecordingCamera)
+    assert _init_camera(server_module, tmp_path, monkeypatch, camera_in_process=True)
+    (camera,) = _RecordingCamera.made
+    assert "cpu_core" not in camera.kwargs
+
+
+class _StatusCamera:
+    def __init__(self, status):
+        self._status = status
+
+    def status(self):
+        return self._status
+
+
+def test_camera_startup_reports_ready_only_when_capture_is_running():
+    ready = server_module._camera_startup_report(_StatusCamera({"running": True, "restarts": 0}))
+    assert ready == ("ready", "High-speed camera connected")
+
+
+def test_camera_startup_reports_an_error_while_the_camera_restarts():
+    state, message = server_module._camera_startup_report(
+        _StatusCamera({"running": False, "restarting": True, "last_error": "start failed: no camera"})
+    )
+    assert state == "error"
+    assert "start failed: no camera" in message and "restarting automatically" in message
+
+
+def test_missing_capture_reason_names_a_restarting_camera():
+    restarting = _StatusCamera({"running": False, "restarting": True, "last_error": "exited (-11)"})
+    assert server_module._missing_camera_capture_reason(restarting) == (
+        "camera_process_restarting: exited (-11)"
+    )
+    running = _StatusCamera({"running": True, "restarting": False})
+    assert server_module._missing_camera_capture_reason(running) == "no_matching_camera_capture"
+    in_process = _StatusCamera({"running": True})  # the in-process runtime has no restart state
+    assert server_module._missing_camera_capture_reason(in_process) == "no_matching_camera_capture"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("3", 3),
+        ("2,3", (2, 3)),
+        ("-1", None),
+        ("", None),
+        ("2,-1", None),
+    ],
+)
+def test_camera_cpu_core_flag_accepts_one_or_several_cores(text, expected):
+    assert server_module._parse_cpu_cores(text) == expected
