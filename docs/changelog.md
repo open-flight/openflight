@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Security and scope](ios-ble.md#security-and-scope).
 
 ### Changed
+- **Per-shot compute is faster with unchanged results.** Ballistics, OPS243 FFT
+  windows and the multitaper fade search are batched or unrolled, and
+  `scripts/analysis/bench_compute.py` times the compute path on the current
+  machine.
 - **The interactive setup can configure an OPS243 on the Pi GPIO UART.**
   Pass `--ops-port /dev/ttyAMA0` to `scripts/setup/setup.sh`; the selected
   device is used for both rolling-buffer setup and post-power-cycle verification.
