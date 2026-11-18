@@ -1,14 +1,30 @@
-export type UnitSystem = 'imperial' | 'metric';
+/**
+ * Display unit presets. `mphMeters` is the teaching-pro mix: speeds stay in
+ * mph (the industry standard even in metric countries) while carry is shown
+ * in meters.
+ */
+export type UnitSystem = 'imperial' | 'metric' | 'mphMeters';
+
+type SpeedUnit = 'mph' | 'km/h';
+type DistanceUnit = 'yds' | 'm';
+
+const UNIT_SYSTEMS: Record<UnitSystem, { speed: SpeedUnit; distance: DistanceUnit }> = {
+  imperial: { speed: 'mph', distance: 'yds' },
+  metric: { speed: 'km/h', distance: 'm' },
+  mphMeters: { speed: 'mph', distance: 'm' },
+};
+
+export const UNIT_SYSTEM_IDS = Object.keys(UNIT_SYSTEMS) as UnitSystem[];
 
 const MPH_TO_KMH = 1.60934;
 const YARDS_TO_METERS = 0.9144;
-const IMPERIAL_SPEED_UNIT = 'mph';
-const METRIC_SPEED_UNIT = 'km/h';
-const IMPERIAL_DISTANCE_UNIT = 'yds';
-const METRIC_DISTANCE_UNIT = 'm';
+
+export function isUnitSystem(value: unknown): value is UnitSystem {
+  return typeof value === 'string' && Object.hasOwn(UNIT_SYSTEMS, value);
+}
 
 export function convertSpeedFromMph(speedMph: number, unitSystem: UnitSystem): number {
-  if (unitSystem === 'metric') {
+  if (getSpeedUnit(unitSystem) === 'km/h') {
     return speedMph * MPH_TO_KMH;
   }
 
@@ -16,7 +32,7 @@ export function convertSpeedFromMph(speedMph: number, unitSystem: UnitSystem): n
 }
 
 export function convertDistanceFromYards(distanceYards: number, unitSystem: UnitSystem): number {
-  if (unitSystem === 'metric') {
+  if (getDistanceUnit(unitSystem) === 'm') {
     return distanceYards * YARDS_TO_METERS;
   }
 
@@ -31,12 +47,12 @@ export function formatDistance(distanceYards: number, unitSystem: UnitSystem, di
   return convertDistanceFromYards(distanceYards, unitSystem).toFixed(digits);
 }
 
-export function getSpeedUnit(unitSystem: UnitSystem): string {
-  return unitSystem === 'metric' ? METRIC_SPEED_UNIT : IMPERIAL_SPEED_UNIT;
+export function getSpeedUnit(unitSystem: UnitSystem): SpeedUnit {
+  return UNIT_SYSTEMS[unitSystem].speed;
 }
 
-export function getDistanceUnit(unitSystem: UnitSystem): string {
-  return unitSystem === 'metric' ? METRIC_DISTANCE_UNIT : IMPERIAL_DISTANCE_UNIT;
+export function getDistanceUnit(unitSystem: UnitSystem): DistanceUnit {
+  return UNIT_SYSTEMS[unitSystem].distance;
 }
 
 export function getUnitsLabel(unitSystem: UnitSystem): string {

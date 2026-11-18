@@ -84,4 +84,11 @@ describe('PowerWarning', () => {
     expect(html).toContain('Battery critically low');
     expect(html).toContain('external power now');
   });
+
+  it.each(['low', 'critical'] as const)('warns against charging below freezing at the %s level', (level) => {
+    const html = renderToString(<PowerWarning level={level} percentage={level === 'low' ? 20 : 10} />);
+
+    expect(html).toContain('Do not charge the batteries below 0\u00a0°C (32\u00a0°F)');
+    expect(html).toContain('aria-describedby="power-warning-detail power-warning-cold"');
+  });
 });

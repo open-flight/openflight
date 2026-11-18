@@ -228,6 +228,12 @@
   line-height: 1.45;
 }
 
+.power-warning__content .power-warning__cold {
+  margin-top: var(--space-sm);
+  color: var(--color-warning);
+  font-size: 0.8125rem;
+}
+
 .power-warning button {
   grid-column: 1 / -1;
   min-height: 44px;

@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from openflight.clubs import ClubType
+from openflight.clubs.physics import get_club_physics
 from openflight.launch_monitor import Shot
 from openflight.rolling_buffer import (
     HardwareTriggeredCapture,
@@ -184,6 +185,17 @@ class TestEstimateCarryWithSpin:
 
         # Should be very close (club speed at optimal smash has minimal effect)
         assert abs(carry_no_club - carry_with_club) < 5
+
+    @pytest.mark.parametrize("smash_delta, carry_factor", [(0.0, 1.0), (-0.07, 0.958)])
+    def test_carry_adjustment_uses_shared_smash_reference(self, smash_delta, carry_factor):
+        club = ClubType.IRON_7
+        target = get_club_physics(club).optimal_smash
+        baseline = estimate_carry_with_spin(100, 6000, club)
+        adjusted = estimate_carry_with_spin(
+            100, 6000, club, club_speed_mph=100 / (target + smash_delta)
+        )
+
+        assert adjusted == pytest.approx(baseline * carry_factor)
 
     def test_carry_increases_with_ball_speed(self):
         """Higher ball speed should always increase carry."""

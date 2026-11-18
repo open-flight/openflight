@@ -182,6 +182,8 @@ export const en = {
   'power.critical': 'Battery critically low',
   'power.lowDetail': 'Connect OpenFlight to external power soon.',
   'power.criticalDetail': 'Connect OpenFlight to external power now.',
+  'power.coldCharging':
+    'Do not charge the batteries below 0\u00a0°C (32\u00a0°F). If OpenFlight is cold, let it warm up before connecting power.',
   'power.dismiss': 'Dismiss',
 
   'display.tvAria': 'TV display mode',
