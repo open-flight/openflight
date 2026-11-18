@@ -70,6 +70,12 @@ the RX column's middle and 1.5 mm to the TX1/TX3 side of its center line. The
 patches are printed on the board's top copper, so the antenna face is the PCB's
 front surface.
 
+![IWR6843LEVM antennas as mounted, TX above RX: the RX row centre (blue), the TX group centre (orange) and the antenna centre to measure to (green crosshair)](../assets/iwr6843levm-antenna-centre.png)
+
+*TI SWRU585 Figure 4-1 (© 2021 Texas Instruments), turned to the mounted
+orientation and annotated. The patch centres were located from the image; the
+green crosshair is the midpoint of the blue (RX) and orange (TX) centres.*
+
 On the current radar front (`Front-Radar-No-Fill`, the self-tapping/insert
 front in [openflight-enclosure#12](https://github.com/open-flight/openflight-enclosure/pull/12)),
 the enclosure CAD puts that point at:
