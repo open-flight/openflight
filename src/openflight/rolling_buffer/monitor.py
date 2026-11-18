@@ -138,7 +138,7 @@ def estimate_carry_with_spin(
     if club_speed_mph and club_speed_mph > 0:
         smash = ball_speed_mph / club_speed_mph
 
-        target_smash = get_club_physics(club).carry_smash_reference
+        target_smash = get_club_physics(club).optimal_smash
         smash_delta = target_smash - smash
 
         if smash_delta > 0:

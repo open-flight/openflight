@@ -180,7 +180,10 @@ sudo reboot
 
 It enables I2C, native Linux battery and charger devices, the Pi 5 EEPROM power
 settings required by Geekworm, and the Raspberry Pi taskbar compatibility
-package. It does not install automatic shutdown or charging-control services.
+package. It does not install charging control or the low-battery shutdown.
+`scripts/setup/setup.sh` offers the
+[low-battery shutdown](../build/battery.md#low-battery-shutdown) right after the
+UPS step; on its own, install it with `scripts/battery/install_battery_guard.sh`.
 
 Cell type, board-revision power limits, physical installation, every system
 change, and troubleshooting are documented in the
