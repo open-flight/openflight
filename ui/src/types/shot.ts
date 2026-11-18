@@ -175,7 +175,9 @@ export interface TriggerDiagnostic {
   iwr6843?: IWR6843Diagnostic;
 }
 
-export type IWR6843DiagnosticState = 'accepted' | 'rejected' | 'error';
+// no_onboard: the capture arrived (and, with --debug, its readback is saved) but the
+// firmware had no onboard result for this shot. Not an error, so no alert.
+export type IWR6843DiagnosticState = 'accepted' | 'rejected' | 'no_onboard' | 'error';
 
 export interface IWR6843Diagnostic {
   state: IWR6843DiagnosticState;

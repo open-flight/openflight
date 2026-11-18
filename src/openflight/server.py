@@ -3416,6 +3416,16 @@ def _fill_club_speed_from_onboard(shot: Shot, onboard) -> None:
 def _emit_onboard_trigger_status(shot: Shot, onboard, capture) -> None:
     """The trigger row's IWR state, from the board's result: the shot's only IWR source."""
     if onboard is None:
+        if capture.valid:
+            # The board had no RESULT packet ready, but the --debug readback
+            # arrived and is saved: the capture did not fail, only the
+            # onboard metrics are missing.
+            _emit_iwr6843_trigger_status(
+                shot,
+                state="no_onboard",
+                reason=f"no onboard result; --debug readback #{capture.sequence} saved",
+            )
+            return
         _emit_iwr6843_trigger_status(
             shot, state="error", reason=capture.error or "no onboard result"
         )

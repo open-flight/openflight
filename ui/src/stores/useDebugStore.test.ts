@@ -71,4 +71,18 @@ describe('useDebugStore IWR6843 diagnostics', () => {
     });
     expect(useDebugStore.getState().iwr6843ErrorActive).toBe(false);
   });
+
+  it('does not raise the TI alert when only the onboard result is missing', () => {
+    const store = useDebugStore.getState();
+    store.addTriggerDiagnostic(diagnostic);
+    store.updateTriggerDiagnostic({
+      timestamp: diagnostic.timestamp,
+      iwr6843: { state: 'no_onboard', reason: 'no onboard result; --debug readback #7 saved' },
+    });
+
+    const state = useDebugStore.getState();
+    expect(state.triggerDiagnostics[0].iwr6843?.state).toBe('no_onboard');
+    expect(state.iwr6843Alert).toBeNull();
+    expect(state.iwr6843ErrorActive).toBe(false);
+  });
 });
