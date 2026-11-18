@@ -18,6 +18,10 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install lgpio build dependencies
+        # lgpio publishes wheels only up to CPython 3.12; newer Pythons build
+        # it from source, which links against the system liblgpio.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends liblgpio-dev swig
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
