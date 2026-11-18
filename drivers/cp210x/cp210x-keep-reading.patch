@@ -1,0 +1,27 @@
+--- a/drivers/usb/serial/cp210x.c
++++ b/drivers/usb/serial/cp210x.c
+@@ -297,6 +297,15 @@
+ 	bool			rts;
+ };
+ 
++/*
++ * OpenFlight: never stop the bulk-in URBs. The IWR6843 UART has no flow control,
++ * so a throttled port loses data in the CP2105. The tty flip buffers (640 KB)
++ * hold the backlog until the reader catches up.
++ */
++static void cp210x_keep_reading(struct tty_struct *tty)
++{
++}
++
+ static struct usb_serial_driver cp210x_device = {
+ 	.driver = {
+ 		.owner =	THIS_MODULE,
+@@ -311,7 +320,7 @@
+ 	.break_ctl		= cp210x_break_ctl,
+ 	.set_termios		= cp210x_set_termios,
+ 	.tx_empty		= cp210x_tx_empty,
+-	.throttle		= usb_serial_generic_throttle,
++	.throttle		= cp210x_keep_reading,
+ 	.unthrottle		= usb_serial_generic_unthrottle,
+ 	.tiocmget		= cp210x_tiocmget,
+ 	.tiocmset		= cp210x_tiocmset,

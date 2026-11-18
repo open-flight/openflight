@@ -53,6 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **IWR6843 dumps no longer lose data when the Pi is busy.** An optional patched
+  `cp210x` driver keeps reading USB while the tty is throttled, so a late reader
+  no longer makes the CP2105 drop whole 256-byte blocks. Install it with
+  `scripts/setup/install_cp210x_keep_reading_driver.sh`; see
+  [IWR6843 Troubleshooting](iwr6843/troubleshooting.md).
 - **Simulator output tags estimated launch angles as estimated.** When the
   server fills in a launch angle before the sim fan-out, the resolver tagged
   it, and the carry built on it, as measured. It now reads the angle's source,
