@@ -30,3 +30,11 @@ def test_installer_is_valid_keeps_a_stock_backup_and_can_restore():
     assert "openflight-stock-" in text and "--restore" in text
     assert "depmod -a" in text
     assert "rmmod" not in text.replace("then: sudo rmmod cp210x", "")  # never unloads a live port
+
+
+def test_patch_has_no_context_lines_that_tie_it_to_one_kernel():
+    hunk_lines = PATCH.read_text().split("@@", 2)[2].splitlines()[1:]
+    context = [line for line in hunk_lines if line.startswith(" ")]
+    assert context == [" static struct usb_serial_driver cp210x_device = {"]
+    assert "--unidiff-zero" in INSTALLER.read_text()
+

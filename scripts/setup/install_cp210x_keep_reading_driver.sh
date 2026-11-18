@@ -51,7 +51,7 @@ fi
 rm -rf "$MODULE_ROOT"
 mkdir -p "$MODULE_DIR"
 nice -n 19 tar -xf "$source_tar" --wildcards --no-anchored -O 'drivers/usb/serial/cp210x.c' >"$MODULE_DIR/cp210x.c"
-(cd "$MODULE_ROOT" && git apply --check --recount "$PATCH_FILE" && git apply --recount "$PATCH_FILE")
+(cd "$MODULE_ROOT" && git apply --check --recount --unidiff-zero "$PATCH_FILE" && git apply --recount --unidiff-zero "$PATCH_FILE")
 echo 'obj-m += cp210x.o' >"$MODULE_DIR/Makefile"
 nice -n 19 make -C "$KERNEL_BUILD" M="$MODULE_DIR" modules
 built="$MODULE_DIR/cp210x.ko"
