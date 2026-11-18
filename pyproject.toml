@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
 ]
 
@@ -122,6 +123,13 @@ environments = [
     "sys_platform == 'linux'",
     "sys_platform == 'darwin'",
 ]
+# Prefer the distro interpreter over uv-managed ones. On the Pi the venv must
+# be built from /usr/bin/python3 so apt-installed Picamera2/libcamera stay
+# visible through --system-site-packages, and a uv-managed Python left behind
+# by the old 3.11 pin must not be picked instead (#326). macOS still works:
+# Apple's /usr/bin/python3 is older than 3.10, so uv falls back to Homebrew or
+# a downloaded Python.
+python-preference = "system"
 
 [tool.pylint.main]
 py-version = "3.10"
