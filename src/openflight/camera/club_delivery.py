@@ -104,6 +104,84 @@ def _image_scale(shape: tuple[int, ...]) -> float:
 
 
 @dataclass(frozen=True)
+class LensCalibration:
+    """Measured lens intrinsics (OpenCV k1,k2,p1,p2,k3) for the saved frame size.
+
+    When present on the geometry, pixel positions are undistorted with these
+    before any ray maths, instead of assuming a distortion-free lens centred on
+    the image with a focal length inferred from the teed ball's size.
+    """
+
+    fx: float
+    fy: float
+    cx: float
+    cy: float
+    dist: tuple[float, ...]
+
+    def normalized(self, points_px: np.ndarray) -> np.ndarray:
+        """Distorted pixels -> ideal normalized (x right, y down) coordinates."""
+        import cv2  # noqa: PLC0415  (camera builds only)
+
+        points = np.asarray(points_px, dtype=np.float64).reshape(-1, 1, 2)
+        camera_matrix = np.array(
+            [[self.fx, 0.0, self.cx], [0.0, self.fy, self.cy], [0.0, 0.0, 1.0]]
+        )
+        return cv2.undistortPoints(points, camera_matrix, np.asarray(self.dist)).reshape(-1, 2)
+
+
+def load_lens_calibration(
+    path,
+    *,
+    width: int,
+    height: int,
+    rotate_180: bool,
+    mirror_horizontal: bool = False,
+    scaler_crop=None,
+    sensor_window: tuple[float, float, float] | None = None,
+) -> LensCalibration | None:
+    """Load measured intrinsics and fit them to the capture.
+
+    The calibration is measured at the full 1280x800 field of view. Capture modes
+    that keep the full field (e.g. 640x400, binned) scale linearly. A custom
+    scaler crop or mirrored frames change the mapping, so those return None and
+    the caller falls back to the uncalibrated model.
+    """
+    import json  # noqa: PLC0415
+
+    if scaler_crop is not None or mirror_horizontal:
+        return None
+    data = json.loads(open(path, encoding="utf-8").read())
+    calib_w, calib_h = data["image_size"]
+    if sensor_window is not None:
+        # Windowed/subsampled sensor mode (e.g. the OpenFlight 320x200 high-speed
+        # mode): output pixel u samples full-res sensor x = x0 + step*u.
+        x0, y0, step = sensor_window
+        raw = np.asarray(data["raw_sensor"]["K"], dtype=float)
+        dist = [float(v) for v in data["raw_sensor"]["dist"]]
+        cx = (raw[0, 2] - x0) / step
+        cy = (raw[1, 2] - y0) / step
+        if rotate_180:
+            cx, cy = width - 1 - cx, height - 1 - cy
+            dist[2], dist[3] = -dist[2], -dist[3]
+        return LensCalibration(
+            fx=raw[0, 0] / step, fy=raw[1, 1] / step, cx=cx, cy=cy, dist=tuple(dist)
+        )
+    block = data["rotated_180" if rotate_180 else "raw_sensor"]
+    camera_matrix = np.asarray(block["K"], dtype=float)
+    scale_x = width / calib_w
+    scale_y = height / calib_h
+    if abs(scale_x - scale_y) > 1e-6:
+        return None  # aspect change means a crop, not a pure rescale
+    return LensCalibration(
+        fx=camera_matrix[0, 0] * scale_x,
+        fy=camera_matrix[1, 1] * scale_y,
+        cx=(camera_matrix[0, 2] + 0.5) * scale_x - 0.5,
+        cy=(camera_matrix[1, 2] + 0.5) * scale_y - 0.5,
+        dist=tuple(float(v) for v in block["dist"]),
+    )
+
+
+@dataclass(frozen=True)
 class CameraDeliveryGeometry:
     """Measured camera/radar geometry for rear-view club reconstruction."""
 
@@ -121,6 +199,7 @@ class CameraDeliveryGeometry:
     # positive in-to-out by restoring physical lateral orientation here.
     horizontal_pixel_sign: float = 1.0
     roll_correction_deg: float = 0.0
+    lens: LensCalibration | None = None
 
     @property
     def ball_forward_m(self) -> float:
@@ -225,6 +304,36 @@ class ReferenceBallTracker:
         return self._anchor()
 
 
+def _pixels_to_normalized(
+    points_px: np.ndarray, *, focal_px: float, geometry: CameraDeliveryGeometry
+) -> tuple[np.ndarray, np.ndarray]:
+    """Pixels -> (lateral, upward) normalized image coordinates, before de-roll.
+
+    Uses the measured lens model when the geometry carries one; otherwise the
+    legacy distortion-free model centred on the image with ``focal_px``.
+    """
+    points = np.asarray(points_px, dtype=float).reshape(-1, 2)
+    if geometry.lens is not None:
+        ideal = geometry.lens.normalized(points)
+        return geometry.horizontal_pixel_sign * ideal[:, 0], -ideal[:, 1]
+    image_x = (
+        geometry.horizontal_pixel_sign * (points[:, 0] - geometry.image_width_px / 2.0) / focal_px
+    )
+    image_z = -(points[:, 1] - geometry.image_height_px / 2.0) / focal_px
+    return image_x, image_z
+
+
+def _normalized_image_points(
+    points_px: np.ndarray,
+    *,
+    focal_px: float,
+    geometry: CameraDeliveryGeometry,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Pixels -> de-rolled normalized (lateral, upward) image coordinates."""
+    image_x, image_z = _pixels_to_normalized(points_px, focal_px=focal_px, geometry=geometry)
+    return deroll_normalized_offsets(image_x, image_z, geometry.roll_correction_deg)
+
+
 def _pixels_to_world(
     points_px: np.ndarray,
     radar_range_m: float,
@@ -246,10 +355,11 @@ def _pixels_to_world(
     focal_px = ball.diameter_px * camera_ball_range_m / geometry.ball_diameter_m
     if not math.isfinite(focal_px) or focal_px <= 0.0:
         raise ValueError("invalid camera focal scale from reference ball")
-    center_x = geometry.image_width_px / 2.0
-    center_y = geometry.image_height_px / 2.0
-    ball_x = geometry.horizontal_pixel_sign * (ball.x - center_x) / focal_px
-    ball_z = -(ball.y - center_y) / focal_px
+    ball_xs, ball_zs = _pixels_to_normalized(
+        np.asarray([[ball.x, ball.y]], dtype=float), focal_px=focal_px, geometry=geometry
+    )
+    ball_x = float(ball_xs[0])
+    ball_z = float(ball_zs[0])
     _ball_x, ball_z = deroll_normalized_offsets(
         ball_x,
         ball_z,
@@ -259,8 +369,7 @@ def _pixels_to_world(
         geometry.ball_height_m - geometry.camera_height_m,
         geometry.ball_forward_m,
     ) - math.atan2(ball_z, 1.0)
-    image_x = geometry.horizontal_pixel_sign * (points_px[:, 0] - center_x) / focal_px
-    image_z = -(points_px[:, 1] - center_y) / focal_px
+    image_x, image_z = _pixels_to_normalized(points_px, focal_px=focal_px, geometry=geometry)
     image_x, image_z = deroll_normalized_offsets(
         image_x,
         image_z,
@@ -642,17 +751,8 @@ def camera_ops_delivery_from_feature_pair(
     if not math.isfinite(focal_px) or focal_px <= 0.0:
         return None
 
-    center_x = geometry.image_width_px / 2.0
-    center_y = geometry.image_height_px / 2.0
-
     def normalized(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        image_x = geometry.horizontal_pixel_sign * (points[:, 0] - center_x) / focal_px
-        image_z = -(points[:, 1] - center_y) / focal_px
-        return deroll_normalized_offsets(
-            image_x,
-            image_z,
-            geometry.roll_correction_deg,
-        )
+        return _normalized_image_points(points, focal_px=focal_px, geometry=geometry)
 
     ball_x, ball_z = normalized(np.asarray([[ball.x, ball.y]], dtype=float))
     ball_x = float(ball_x[0])
