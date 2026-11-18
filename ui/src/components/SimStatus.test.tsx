@@ -19,7 +19,7 @@ describe('SimStatus', () => {
     expect(html).toContain('GSPro');
     expect(html).toContain('OpenGolfSim');
     expect(html).toContain('PAR-TEE');
-      expect(html).toContain('Pureplay');
+    expect(html).toContain('Pureplay');
     expect(html).toContain('sim-status__pill--ok'); // connected
     expect(html).toContain('sim-status__pill--warn'); // reconnecting
   });
