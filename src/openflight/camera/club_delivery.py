@@ -896,6 +896,71 @@ def _clubhead_feature_tracks(
     return np.stack((flat0[valid], flat1[valid], flat2[valid]), axis=1), head_thickness
 
 
+# Frame-to-frame illumination flicker: LED lighting and projectors pulse at
+# 100/120 Hz, and a ~1 ms exposure samples a different phase every frame. A mat
+# can swing from about 28 to 54 counts between frames, enough to hide the teed
+# ball's departure and to break background subtraction.
+FLICKER_REGION_TOP_FRAC = 0.75
+FLICKER_MIN_LEVEL = 4.0
+FLICKER_LEFTOVER_MAX_PCT = 5.0
+FLICKER_ROW_SMOOTH = 21
+
+
+def normalize_flicker(frames: np.ndarray) -> np.ndarray:
+    """Flicker-corrected frames: one gain per frame, or per row when that leaves flicker.
+
+    The scene can flicker on more than one schedule, such as room lights on
+    the mat and a projector screen above it. One gain per frame follows the
+    mat. When the top quarter still swings more than FLICKER_LEFTOVER_MAX_PCT,
+    each row is scaled on its own instead.
+    Returns uint8 frames of the same shape.
+    """
+    stack = np.asarray(frames)
+    by_frame = _normalize_flicker_by_frame(stack)
+    if stack.ndim != 3 or len(stack) < 2:
+        return by_frame
+    top = by_frame[:, : max(4, stack.shape[1] // 4)].mean(axis=(1, 2)).astype(float)
+    if float(np.mean(top)) < FLICKER_MIN_LEVEL:
+        return by_frame
+    leftover_pct = 100.0 * float(np.std(top)) / float(np.mean(top))
+    if leftover_pct <= FLICKER_LEFTOVER_MAX_PCT:
+        return by_frame
+    return _normalize_flicker_by_row(stack)
+
+
+def _normalize_flicker_by_frame(stack: np.ndarray) -> np.ndarray:
+    """Scale each frame so the bottom quarter (near mat) keeps a constant brightness.
+
+    The median ignores the few pixels a passing club covers. Frames whose
+    reference is too dark to measure are left unscaled.
+    """
+    if stack.ndim != 3 or len(stack) == 0:
+        return stack
+    top = int(round(stack.shape[1] * FLICKER_REGION_TOP_FRAC))
+    levels = np.median(stack[:, top:, :].reshape(len(stack), -1), axis=1).astype(float)
+    target = float(np.median(levels))
+    if target < FLICKER_MIN_LEVEL:
+        return stack
+    gains = np.where(levels >= FLICKER_MIN_LEVEL, target / np.maximum(levels, 1e-9), 1.0)
+    if np.allclose(gains, 1.0, atol=0.02):
+        return stack
+    scaled = stack.astype(np.float32) * gains[:, None, None].astype(np.float32)
+    return np.clip(np.rint(scaled), 0, 255).astype(np.uint8)
+
+
+def _normalize_flicker_by_row(stack: np.ndarray) -> np.ndarray:
+    """Scale each row of each frame to its usual brightness (gains smoothed over rows)."""
+    from scipy.ndimage import median_filter  # pylint: disable=import-outside-toplevel
+
+    levels = np.median(stack, axis=2).astype(float)  # [frame, row]
+    usual = np.median(levels, axis=0)  # [row]
+    measurable = (levels >= FLICKER_MIN_LEVEL) & (usual[None, :] >= FLICKER_MIN_LEVEL)
+    gains = np.where(measurable, usual[None, :] / np.maximum(levels, 1e-9), 1.0)
+    gains = median_filter(gains, size=(1, FLICKER_ROW_SMOOTH), mode="nearest")
+    scaled = stack.astype(np.float32) * gains[:, :, None].astype(np.float32)
+    return np.clip(np.rint(scaled), 0, 255).astype(np.uint8)
+
+
 def estimate_chained_delivery(
     frames: np.ndarray,
     host_timestamp_ns: np.ndarray,
@@ -916,6 +981,7 @@ def estimate_chained_delivery(
     if timestamps_ns.shape != (len(frames),):
         return ChainedDelivery(status="rejected_invalid_timing")
 
+    frames = normalize_flicker(frames)
     background = np.median(frames[:15], axis=0).astype(np.uint8)
     scene_p995, _ball_threshold, bright_now, dark_bg = _adaptive_thresholds(background)
     if scene_p995 < SCENE_P995_MIN:

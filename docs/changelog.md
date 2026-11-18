@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Electron Kiosk Shell](electron-kiosk-shell.md#browser-local-state-breaking-on-first-electron-launch).
 
 ### Fixed
+- **Camera analysis handles flickering lights.** Club analysis removes frame-to-frame
+  lighting flicker first, by frame or by row, and the startup lighting check uses
+  the brightest phase across several frames instead of one random frame.
 - **Simulator output tags estimated launch angles as estimated.** When the
   server fills in a launch angle before the sim fan-out, the resolver tagged
   it, and the carry built on it, as measured. It now reads the angle's source,

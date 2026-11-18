@@ -40,6 +40,8 @@ CameraCaptureStream = Literal["raw", "main-y"]
 RASPBERRY_PI_DIST_PACKAGES = Path("/usr/lib/python3/dist-packages")
 OV9281_VERTICAL_OFFSET_PATH = Path("/sys/module/ov9282/parameters/strip_y_offset")
 AUTO_EXPOSURE_STARTUP_SETTLE_S = 0.3
+AUTO_EXPOSURE_SAMPLE_FRAMES = 8
+AUTO_EXPOSURE_SAMPLE_WINDOW_S = 0.06
 
 
 def vertical_crop_limits(width: int, height: int) -> dict[str, int] | None:
@@ -571,6 +573,29 @@ class CameraCaptureRuntime:
             if self._auto_exposure_stop.wait(AUTO_EXPOSURE_STARTUP_SETTLE_S):
                 return
 
+    def _flicker_robust_sample(self) -> np.ndarray:
+        """Per-pixel maximum over a few consecutive frames for the lighting check.
+
+        LED lights and projectors pulse at 100/120 Hz; with ~1 ms exposures each
+        frame catches a different phase, so judging one frame made the check pass or fail by luck. Taking the
+        brightest phase per pixel over ~1.5 flicker cycles judges the light that is
+        actually available; club analysis cancels the flicker separately.
+        """
+        images = []
+        last_id = None
+        deadline = time.monotonic() + AUTO_EXPOSURE_SAMPLE_WINDOW_S
+        while len(images) < AUTO_EXPOSURE_SAMPLE_FRAMES and time.monotonic() < deadline:
+            frame = self._ring.latest_frame
+            if frame is not None and id(frame) != last_id:
+                images.append(np.asarray(frame.image))
+                last_id = id(frame)
+            time.sleep(0.002)
+        if not images:
+            return np.asarray([])
+        if len(images) == 1:
+            return images[0]
+        return np.max(np.stack(images), axis=0)
+
     def _run_auto_exposure_cycle(self) -> AutoExposureDecision | None:
         """Measure one stable frame and apply the policy's requested control step."""
         with self._trigger_exposure_lock:
@@ -579,10 +604,7 @@ class CameraCaptureRuntime:
                     self._auto_exposure_capture_deferred = True
                 return None
 
-            frame = self._ring.latest_frame
-            observation = measure_exposure(
-                frame.image if frame is not None else np.asarray([]),
-            )
+            observation = measure_exposure(self._flicker_robust_sample())
             decision = self._auto_exposure_policy.evaluate(
                 observation,
                 exposure_us=self.settings.exposure_us,
