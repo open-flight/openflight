@@ -26,7 +26,7 @@ describe('SimShotBadges', () => {
     expect(html).toContain('2 measured / 1 estimated');
   });
 
- it('renders a card per connected simulator', () => {
+  it('renders a card per connected simulator', () => {
     const ogs: SimShotInfo = {
       target: 'opengolfsim',
       shot_number: 3,
