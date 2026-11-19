@@ -7,11 +7,13 @@
 #   - OPS243-A rolling buffer flash config
 #   - K-LD7 device naming + FTDI low-latency rules
 #   - Optional battery-provider telemetry
+#   - BlueZ config for the BLE phone app (no pairing prompts)
 #   - Auto-start on boot (systemd service)
 #   - Desktop shortcut
 #
 # Usage:
 #   ./scripts/setup/setup.sh                  # full interactive setup
+#   ./scripts/setup/setup.sh --ops-port <path> # use an explicit OPS243 device
 #   ./scripts/setup/setup.sh --deps-only      # install dependencies, skip hardware
 #   ./scripts/setup/setup.sh --non-interactive # no prompts (deps only)
 #
@@ -36,6 +38,7 @@ info() { echo -e "${BLUE}[OpenFlight]${NC} $1"; }
 
 INTERACTIVE=true
 DEPS_ONLY=false
+OPS_PORT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -47,6 +50,14 @@ while [[ $# -gt 0 ]]; do
         --deps-only)
             DEPS_ONLY=true
             shift
+            ;;
+        --ops-port)
+            if [ -z "${2:-}" ]; then
+                error "--ops-port requires a device path"
+                exit 1
+            fi
+            OPS_PORT="$2"
+            shift 2
             ;;
         --help|-h)
             awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "$0"
@@ -174,9 +185,9 @@ log "Activated virtual environment"
 # Install Python dependencies
 log "Installing Python dependencies..."
 if command -v uv &> /dev/null; then
-    uv pip install -e ".[ui,analysis]"
+    uv pip install -e ".[ui,analysis,ble]"
 else
-    pip install -e ".[ui,analysis]"
+    pip install -e ".[ui,analysis,ble]"
 fi
 # Camera dependencies are disabled for the radar-only production path.
 # If camera support returns, re-enable the optional camera extra in
@@ -228,22 +239,26 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
     # --- OPS243-A rolling buffer flash config ---
     echo ""
     if confirm "Configure the OPS243-A radar now? (it must be plugged in)" "Y"; then
+        OPS_ARGS=()
+        if [ -n "$OPS_PORT" ]; then
+            OPS_ARGS=(--port "$OPS_PORT")
+        fi
         log "Saving rolling buffer mode to the radar's flash memory..."
-        if python scripts/hardware-test/test_rolling_buffer_persist.py --setup; then
+        if python scripts/hardware-test/test_rolling_buffer_persist.py --setup "${OPS_ARGS[@]}"; then
             echo ""
-            info "Now power cycle the radar: unplug its USB cable, wait 3 seconds,"
-            info "and plug it back in. (This works around a firmware bug — one time only.)"
-            read -r -p "Press Enter after plugging it back in... " _
+            info "Now power cycle the radar: disconnect its power, wait 3 seconds,"
+            info "and reconnect it. (This works around a firmware bug — one time only.)"
+            read -r -p "Press Enter after powering it back on... " _
             sleep 2
             log "Verifying (make a sharp sound near the sound detector when asked)..."
-            if python scripts/hardware-test/test_rolling_buffer_persist.py --test; then
+            if python scripts/hardware-test/test_rolling_buffer_persist.py --test "${OPS_ARGS[@]}"; then
                 log "OPS243-A configured ✓"
             else
-                warn "Verification failed. See docs/raspberry-pi-setup.md → Radar Setup."
+                warn "Verification failed. See docs/setup/raspberry-pi.md → Troubleshooting."
             fi
         else
             warn "Radar configuration failed — is the OPS243-A plugged in?"
-            warn "You can re-run this script, or see docs/raspberry-pi-setup.md."
+            warn "You can re-run this script, or see docs/setup/raspberry-pi.md."
         fi
     else
         info "Skipped. Run later with:"
@@ -261,11 +276,34 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
     # --- Geekworm X1202/X1206 power telemetry ---
     echo ""
     if confirm "Do you have a Geekworm X1202 or X1206 UPS to set up?" "N"; then
-        "$PROJECT_DIR/scripts/battery/geekworm/setup.sh"
-        info "Reboot before verifying Geekworm telemetry with:"
-        info "    ./scripts/battery/geekworm/setup.sh --verify"
+        # Not fatal: the I2C and battery overlays are written before the
+        # taskbar package, so a panel failure must not skip the shutdown offer.
+        if "$PROJECT_DIR/scripts/battery/geekworm/setup.sh"; then
+            info "Reboot before verifying Geekworm telemetry with:"
+            info "    ./scripts/battery/geekworm/setup.sh --verify"
+        else
+            warn "Geekworm setup did not finish. Fix the error above, then rerun:"
+            warn "    ./scripts/battery/geekworm/setup.sh"
+        fi
+        # The guard waits quietly until the battery driver loads after reboot.
+        if confirm "Power the Pi off automatically when the UPS battery runs low? (the cells are unprotected)" "Y"; then
+            "$PROJECT_DIR/scripts/battery/install_battery_guard.sh" \
+                || warn "Low-battery shutdown install failed. Rerun: ./scripts/battery/install_battery_guard.sh"
+        else
+            info "Skipped. Run later with: ./scripts/battery/install_battery_guard.sh"
+        fi
     else
         info "Skipped. Run later with: ./scripts/battery/geekworm/setup.sh"
+    fi
+
+    # --- Bluetooth (BLE phone app) ---
+    echo ""
+    if "$SCRIPT_DIR/configure_bluetooth.sh" --check > /dev/null 2>&1; then
+        log "Bluetooth already configured for the phone app ✓"
+    elif confirm "Configure Bluetooth for the iPhone app? (stops repeated pairing prompts; restarts bluetooth)" "Y"; then
+        "$SCRIPT_DIR/configure_bluetooth.sh" || warn "Bluetooth configuration failed. See docs/ios-ble.md → Troubleshooting."
+    else
+        info "Skipped. Run later with: ./scripts/setup/configure_bluetooth.sh"
     fi
 
     # --- Auto-start service ---
@@ -280,7 +318,7 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         log "Service installed and enabled ✓ (starts on next boot)"
         info "Manage it with: sudo systemctl {start|stop|status} openflight"
     else
-        info "Skipped. See docs/raspberry-pi-setup.md → Auto-Start on Boot."
+        info "Skipped. See docs/setup/raspberry-pi.md → Auto-Start on Boot."
     fi
 
     # --- Desktop shortcut ---
@@ -327,7 +365,7 @@ if [ "$PLATFORM" == "pi" ] && [ "$DEPS_ONLY" == "false" ] && [ "$INTERACTIVE" ==
         info "Check sync state any time with: openflight-cloud status"
     else
         info "Skipped. Enable later by re-running this script, or see"
-        info "    docs/cloud-sync.md"
+        info "    docs/using/cloud-sync.md"
     fi
 elif [ "$PLATFORM" == "pi" ]; then
     info "Skipping hardware setup ($([ "$INTERACTIVE" == "false" ] && echo "non-interactive" || echo "--deps-only"))."
@@ -356,6 +394,6 @@ echo "    openflight-cloud link                   # pair this Pi with FlightWeb"
 echo "    openflight-cloud status                 # linked? queued? parked?"
 echo "    openflight-cloud push --dry-run         # see exactly what would upload"
 echo ""
-log "For details and troubleshooting, see docs/raspberry-pi-setup.md"
-log "For cloud sync details, see docs/cloud-sync.md"
+log "For details and troubleshooting, see docs/setup/raspberry-pi.md"
+log "For cloud sync details, see docs/using/cloud-sync.md"
 echo ""

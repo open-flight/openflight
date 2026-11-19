@@ -15,7 +15,7 @@ Thank you for your interest in contributing to OpenFlight! This document provide
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/jewbetcha/openflight.git
+   git clone https://github.com/open-flight/openflight.git
    cd openflight
    ```
 
@@ -107,7 +107,7 @@ uv run pytest tests/ --cov=src/openflight --cov-report=html
 
 ### Reporting Issues
 
-Use the [issue templates](https://github.com/jewbetcha/openflight/issues/new/choose) to file bugs, request features, or get help with hardware setup. Check existing issues before creating new ones.
+Use the [issue templates](https://github.com/open-flight/openflight/issues/new/choose) to file bugs, request features, or get help with hardware setup. Check existing issues before creating new ones.
 
 ### Pull Request Requirements
 
@@ -138,6 +138,9 @@ will fail if:
 - source code under `src/openflight/` or `ui/src/` changes without any accompanying
   test changes — add the `no-tests-needed` label (and explain why in the description)
   for the rare PR where tests genuinely don't apply;
+- UI code under `ui/src/` changes but the description contains no images — add
+  screenshots of the change (drag and drop them into the description), or add the
+  `no-screenshots-needed` label (and explain why) if the change has no visible effect;
 - the PR title doesn't follow the conventional format
   `<type>(optional scope): <description>` (allowed types: `feat`, `fix`, `docs`,
   `refactor`, `test`, `chore`, `perf`, `build`, `ci`, `style`, `revert`), e.g.
@@ -166,7 +169,7 @@ will fail if:
 6. **Update documentation** if needed
    - Update README.md for user-facing changes
    - Update relevant docs in `docs/`
-   - Add entry to `docs/CHANGELOG.md` under `[Unreleased]`
+   - Add entry to `docs/changelog.md` under `[Unreleased]`
 
 7. **Submit a pull request** and fill out the PR template — including the automated
    tests, manual testing, and "why it was required" sections
@@ -237,7 +240,7 @@ The `MockLaunchMonitor` class simulates realistic shot data based on TrackMan av
 
 ## Questions?
 
-- Use the [issue templates](https://github.com/jewbetcha/openflight/issues/new/choose) for bugs, features, or hardware help
+- Use the [issue templates](https://github.com/open-flight/openflight/issues/new/choose) for bugs, features, or hardware help
 - Check existing issues before creating new ones
 - Be respectful and constructive in discussions
 

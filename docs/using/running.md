@@ -77,6 +77,12 @@ No hardware at all. Simulated shots for UI work and software checks.
 scripts/start-kiosk.sh --mock
 ```
 
+`--mock-enrichment-ms MS` makes mock shots behave as if IWR6843/camera
+hardware took `MS` milliseconds: each shot arrives provisional, then final
+with horizontal launch, club path and spin axis. `--battery mock` adds a
+simulated battery. See
+[simulating hardware](../ios-ble.md#simulating-hardware-on-a-pi-without-it).
+
 ## Frequently used flags
 
 | Flag | Effect |

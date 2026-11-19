@@ -230,7 +230,7 @@ SEN-14262 GND  → Pi GND (shared with OPS243-A)
 
 A through-hole resistor must be soldered into **R17** on the SEN-14262 to reduce preamp gain at 3.3V (47kΩ recommended, lower for noisy environments).
 
-See [docs/sound-trigger-wiring.md](docs/build/sound-trigger.md) for full instructions.
+See [docs/build/sound-trigger.md](docs/build/sound-trigger.md) for full instructions.
 
 **Trigger Latency:**
 | Trigger | Latency | Description |

@@ -85,7 +85,7 @@ export function PowerWarning({ level, percentage }: { level: WarningLevel; perce
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="power-warning-title"
-        aria-describedby="power-warning-detail"
+        aria-describedby="power-warning-detail power-warning-cold"
       >
         <div className="power-warning__battery" aria-hidden="true">
           {`${roundedPercentage}%`}
@@ -93,6 +93,9 @@ export function PowerWarning({ level, percentage }: { level: WarningLevel; perce
         <div className="power-warning__content">
           <h2 id="power-warning-title">{critical ? t('power.critical') : t('power.low')}</h2>
           <p id="power-warning-detail">{critical ? t('power.criticalDetail') : t('power.lowDetail')}</p>
+          <p id="power-warning-cold" className="power-warning__cold">
+            {t('power.coldCharging')}
+          </p>
         </div>
         <button type="button" onClick={() => setDismissed(true)} autoFocus>
           {t('power.dismiss')}

@@ -91,4 +91,4 @@ means different things depending on which subsystem produced it.
 ## Still stuck
 
 Collect a session log and the diagnostic output, then open an issue at
-[github.com/jewbetcha/openflight/issues](https://github.com/jewbetcha/openflight/issues).
+[github.com/open-flight/openflight/issues](https://github.com/open-flight/openflight/issues).

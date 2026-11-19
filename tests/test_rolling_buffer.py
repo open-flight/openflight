@@ -11,8 +11,10 @@ import numpy as np
 import pytest
 
 from openflight.clubs import ClubType
+from openflight.clubs.physics import get_club_physics
 from openflight.launch_monitor import Shot
 from openflight.rolling_buffer import (
+    HardwareTriggeredCapture,
     ImpactEstimate,
     IQCapture,
     ProcessedCapture,
@@ -183,6 +185,17 @@ class TestEstimateCarryWithSpin:
 
         # Should be very close (club speed at optimal smash has minimal effect)
         assert abs(carry_no_club - carry_with_club) < 5
+
+    @pytest.mark.parametrize("smash_delta, carry_factor", [(0.0, 1.0), (-0.07, 0.958)])
+    def test_carry_adjustment_uses_shared_smash_reference(self, smash_delta, carry_factor):
+        club = ClubType.IRON_7
+        target = get_club_physics(club).optimal_smash
+        baseline = estimate_carry_with_spin(100, 6000, club)
+        adjusted = estimate_carry_with_spin(
+            100, 6000, club, club_speed_mph=100 / (target + smash_delta)
+        )
+
+        assert adjusted == pytest.approx(baseline * carry_factor)
 
     def test_carry_increases_with_ball_speed(self):
         """Higher ball speed should always increase carry."""
@@ -528,6 +541,159 @@ class TestTriggerFactory:
         """Factory should raise error for unknown trigger type."""
         with pytest.raises(ValueError):
             create_trigger("invalid_type")
+
+    def test_create_hardware_trigger_with_opt_in_defaults(self):
+        """The new hardware strategy is registered without changing the factory default."""
+        trigger = create_trigger("hardware")
+
+        assert isinstance(trigger, HardwareTriggeredCapture)
+        assert trigger.trigger_threshold_mph == 25.0
+        assert trigger.trigger_magnitude == 25
+        assert trigger.pre_trigger_segments == 6
+        assert trigger.sample_rate_ksps == 30
+        assert isinstance(create_trigger(), SoundTrigger)
+
+    def test_monitor_configures_hardware_trigger_on_connect(self):
+        """Hardware mode delegates its board setup to the OPS243 driver."""
+        from openflight.rolling_buffer.monitor import RollingBufferMonitor
+
+        monitor = RollingBufferMonitor(
+            trigger_type="hardware",
+            trigger_threshold_mph=31,
+            trigger_magnitude=55,
+            pre_trigger_segments=20,
+        )
+        monitor.radar = MagicMock()
+
+        assert monitor.connect() is True
+
+        monitor.radar.configure_for_internal_speed_trigger.assert_called_once_with(
+            trigger_threshold_mph=31,
+            pre_trigger_segments=20,
+            trigger_magnitude=55,
+            sample_rate_ksps=30,
+        )
+
+    def test_hardware_trigger_requires_30_ksps(self):
+        """The tested internal-trigger waveform is only valid at 30 ksps."""
+        with pytest.raises(ValueError, match="30 ksps"):
+            create_trigger("hardware", sample_rate_ksps=25)
+
+
+class TestHardwareTriggeredCapture:
+    """Acceptance and false-trigger behavior for board-triggered captures."""
+
+    @staticmethod
+    def _capture():
+        return IQCapture(
+            sample_time=0.0,
+            trigger_time=0.1,
+            i_samples=[2048],
+            q_samples=[2048],
+        )
+
+    def test_accepts_ball_capture_and_rearms_after_parsing(self):
+        """A valid board dump is parsed before re-arm and returned."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = '{"Q": [1]}'
+        radar.last_hardware_trigger_first_byte_timestamp = 12345.678
+        processor = MagicMock()
+        capture = self._capture()
+        processor.parse_capture.return_value = capture
+        processor.process_standard.return_value = SpeedTimeline(
+            readings=[SpeedReading(100.0, 900.0, 68.0, "outbound")],
+            sample_rate_hz=937.5,
+        )
+
+        trigger = HardwareTriggeredCapture()
+        result = trigger.wait_for_trigger(radar, processor, timeout=1.0)
+
+        assert result is capture
+        processor.parse_capture.assert_called_once_with(
+            '{"Q": [1]}',
+            first_byte_timestamp=12345.678,
+        )
+        radar.rearm_internal_speed_trigger.assert_called_once_with(30)
+
+    def test_rejects_false_trigger_but_still_rearms(self):
+        """A board trigger with no qualifying outbound ball speed is discarded."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = '{"Q": [1]}'
+        processor = MagicMock()
+        processor.parse_capture.return_value = self._capture()
+        processor.process_standard.return_value = SpeedTimeline([], 937.5)
+
+        trigger = HardwareTriggeredCapture()
+
+        assert trigger.wait_for_trigger(radar, processor, timeout=1.0) is None
+        radar.rearm_internal_speed_trigger.assert_called_once_with(30)
+        assert trigger.drain_diagnostics()[0]["reason"] == "no_ball_speed"
+
+    def test_rearms_after_malformed_dump(self):
+        """Malformed board output cannot leave the internal trigger idle."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = "not-json"
+        processor = MagicMock()
+        processor.parse_capture.return_value = None
+
+        trigger = HardwareTriggeredCapture()
+
+        assert trigger.wait_for_trigger(radar, processor, timeout=1.0) is None
+        radar.rearm_internal_speed_trigger.assert_called_once_with(30)
+        assert trigger.drain_diagnostics()[0]["reason"] == "parse_failed"
+
+    def test_retains_valid_capture_when_rearm_reports_busy_radar(self):
+        """A re-arm failure is recoverable and does not discard the received shot."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = '{"Q": [1]}'
+        radar.rearm_internal_speed_trigger.return_value = False
+        processor = MagicMock()
+        capture = self._capture()
+        processor.parse_capture.return_value = capture
+        processor.process_standard.return_value = SpeedTimeline(
+            readings=[SpeedReading(100.0, 900.0, 68.0, "outbound")],
+            sample_rate_hz=937.5,
+        )
+
+        assert HardwareTriggeredCapture().wait_for_trigger(radar, processor) is capture
+
+    def test_waits_without_discarding_input_and_detects_orphaned_dumps(self):
+        """The board may already be dumping when the wait starts."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = ""
+        radar.last_hardware_trigger_orphaned_dump = False
+
+        HardwareTriggeredCapture().wait_for_trigger(radar, MagicMock(), timeout=7.0)
+
+        radar.wait_for_hardware_trigger.assert_called_once_with(
+            timeout=7.0,
+            discard_pending_input=False,
+            detect_orphaned_dump=True,
+        )
+
+    def test_idle_timeout_does_not_rearm(self):
+        """A quiet timeout leaves the armed board alone so no shot is missed."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = ""
+        radar.last_hardware_trigger_orphaned_dump = False
+
+        trigger = HardwareTriggeredCapture()
+
+        assert trigger.wait_for_trigger(radar, MagicMock(), timeout=1.0) is None
+        radar.rearm_internal_speed_trigger.assert_not_called()
+        assert trigger.drain_diagnostics() == []
+
+    def test_orphaned_dump_rearms_idle_board(self):
+        """A dump that lost its head still leaves the board idle; re-arm it."""
+        radar = MagicMock()
+        radar.wait_for_hardware_trigger.return_value = ""
+        radar.last_hardware_trigger_orphaned_dump = True
+
+        trigger = HardwareTriggeredCapture()
+
+        assert trigger.wait_for_trigger(radar, MagicMock(), timeout=1.0) is None
+        radar.rearm_internal_speed_trigger.assert_called_once_with(30)
+        assert trigger.drain_diagnostics()[0]["reason"] == "orphaned_dump"
 
 
 class TestSoundTriggerTimestampPropagation:
@@ -1129,6 +1295,32 @@ class TestRollingBufferMonitorSpinPlausibility:
         assert shot is not None
         assert shot.impact_timestamp == pytest.approx(1715000000.123)
         assert shot.impact_timestamp_kld7 == pytest.approx(1715000000.115)
+
+
+class TestProcessedCaptureSmashFactor:
+    """ProcessedCapture.smash_factor must share Shot's physical max."""
+
+    @staticmethod
+    def _processed(ball: float, club) -> ProcessedCapture:
+        return ProcessedCapture(
+            timeline=SpeedTimeline(readings=[], sample_rate_hz=937.5),
+            ball_speed_mph=ball,
+            ball_timestamp_ms=68.0,
+            club_speed_mph=club,
+        )
+
+    def test_none_above_max(self):
+        assert self._processed(160.0, 90.0).smash_factor is None
+
+    def test_exactly_max_unchanged(self):
+        assert self._processed(150.0, 100.0).smash_factor == 1.5
+
+    def test_below_max_unchanged(self):
+        assert self._processed(140.0, 100.0).smash_factor == pytest.approx(1.4)
+
+    def test_none_without_club_speed(self):
+        assert self._processed(140.0, None).smash_factor is None
+        assert self._processed(140.0, 0.0).smash_factor is None
 
 
 class TestRollingBufferShotIdentity:

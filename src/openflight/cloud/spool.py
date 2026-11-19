@@ -8,6 +8,12 @@ crashes with no database:
 - ``<session>.jsonl.state`` — JSON attempt counter + last error for in-flight
   retries; removed on success.
 
+With raw uploads on, the ``.pushed`` marker also carries the session's raw
+capture queue (``captures_pending`` / ``captures_parked``): each shot's L3 dump
+uploads after the session itself, so a pushed session may still have dumps
+waiting. Keeping that queue in the marker means the (large) session file is
+never re-read just to find its dumps.
+
 Originals are never moved or modified.
 """
 
@@ -126,12 +132,25 @@ def in_cooldown(path: Path, now: Optional[float] = None) -> bool:
     return until is not None and now < until
 
 
-def mark_pushed(path: Path, session_id: str, shot_count: Optional[int]) -> None:
-    """Mark a session as successfully uploaded and clear retry state."""
-    _write_json(
-        _sidecar(path, PUSHED_SUFFIX),
-        {"session_id": session_id, "shot_count": shot_count, "pushed_at": _now()},
-    )
+def mark_pushed(
+    path: Path,
+    session_id: str,
+    shot_count: Optional[int],
+    captures: Optional[List[Dict[str, Any]]] = None,
+) -> None:
+    """Mark a session as successfully uploaded and clear retry state.
+
+    ``captures`` (raw mode) queues the session's capture files for upload.
+    """
+    marker: Dict[str, Any] = {
+        "session_id": session_id,
+        "shot_count": shot_count,
+        "pushed_at": _now(),
+    }
+    if captures:
+        marker["captures_pending"] = [dict(c, attempts=0) for c in captures]
+        marker["captures_parked"] = []
+    _write_json(_sidecar(path, PUSHED_SUFFIX), marker)
     state_path = _sidecar(path, STATE_SUFFIX)
     if state_path.exists():
         state_path.unlink()
@@ -170,15 +189,43 @@ def clear_markers(path: Path, include_pushed: bool = False) -> List[str]:
     return cleared
 
 
+def read_pushed(path: Path) -> Dict[str, Any]:
+    """The ``.pushed`` marker contents ({} if absent or unreadable)."""
+    try:
+        data = json.loads(_sidecar(path, PUSHED_SUFFIX).read_text())
+    except (json.JSONDecodeError, ValueError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def pending_captures(path: Path) -> List[Dict[str, Any]]:
+    """Capture files still waiting to upload for a pushed session."""
+    return list(read_pushed(path).get("captures_pending") or [])
+
+
+def save_capture_queue(
+    path: Path, pending: List[Dict[str, Any]], newly_parked: List[Dict[str, Any]]
+) -> None:
+    """Rewrite a pushed session's capture queue after an upload pass."""
+    marker = read_pushed(path)
+    if not marker:
+        return
+    marker["captures_pending"] = pending
+    marker["captures_parked"] = list(marker.get("captures_parked") or []) + newly_parked
+    _write_json(_sidecar(path, PUSHED_SUFFIX), marker)
+
+
 def summarize(log_dir: Path) -> Dict[str, int]:
     """Count pushed / parked / pending sessions for ``status``."""
     files = session_files(log_dir)
     pushed = sum(1 for p in files if is_pushed(p))
     parked = sum(1 for p in files if is_parked(p))
     pending = sum(1 for p in files if not is_pushed(p) and not is_parked(p))
+    captures_pending = sum(len(pending_captures(p)) for p in files if is_pushed(p))
     return {
         "total": len(files),
         "pushed": pushed,
         "parked": parked,
         "pending": pending,
+        "captures_pending": captures_pending,
     }

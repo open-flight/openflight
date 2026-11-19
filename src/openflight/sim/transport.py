@@ -267,12 +267,13 @@ class TcpSimClient:
         attempt = 0
         ever_connected = False
         while not self._stop_event.is_set():
+            reconnect_reason = ""
             self._set_state(ConnectionState.CONNECTING)
             if self._try_connect():
                 attempt = 0
                 ever_connected = True
                 self._set_state(ConnectionState.CONNECTED)
-                self._recv_loop()
+                reconnect_reason = self._recv_loop()
                 self._close_socket()
                 if self._stop_event.is_set():
                     break
@@ -291,6 +292,7 @@ class TcpSimClient:
                 backoff_state,
                 attempt=attempt + 1,
                 next_retry_in_s=wait,
+                message=reconnect_reason,
             )
             attempt += 1
             self._stop_event.wait(timeout=wait)
@@ -303,22 +305,22 @@ class TcpSimClient:
         except Exception:  # pylint: disable=broad-except
             logger.exception("[%s] on_inbound raised", self._name)
 
-    def _recv_loop(self) -> None:
+    def _recv_loop(self) -> str:
         buffer = bytearray()
         while not self._stop_event.is_set():
             with self._sock_lock:
                 sock = self._sock
             if sock is None:
-                return
+                return "local socket unavailable"
             sock.settimeout(0.2)
             try:
                 data = sock.recv(4096)
             except socket.timeout:
                 continue
-            except OSError:
-                return
+            except OSError as error:
+                return f"receive failed: {type(error).__name__}: {error}"
             if not data:
-                return
+                return "peer closed connection (EOF)"
             buffer.extend(data)
             # Drain every complete JSON object currently in the buffer.
             while True:
@@ -345,3 +347,4 @@ class TcpSimClient:
                     _MAX_FRAME_BYTES,
                 )
                 buffer.clear()
+        return "client stopped"

@@ -47,3 +47,13 @@ def test_camera_extra_installs_portable_image_processing_dependency():
 
     assert any(_requirement_name(dep) == "opencv-python-headless" for dep in camera_dependencies)
     assert not any(_requirement_name(dep) == "picamera2" for dep in camera_dependencies)
+
+
+def test_ble_dependency_is_optional():
+    """Non-Pi contributors should not need BlueZ dependencies unless BLE is enabled."""
+    metadata = _pyproject()
+    dependencies = metadata["project"]["dependencies"]
+    ble_dependencies = metadata["project"]["optional-dependencies"]["ble"]
+
+    assert not any(_requirement_name(dep) == "bless" for dep in dependencies)
+    assert any(_requirement_name(dep) == "bless" for dep in ble_dependencies)

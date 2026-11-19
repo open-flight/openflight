@@ -25,6 +25,9 @@ The product promise "raw radar data never leaves your Pi" is enforced *here*,
 in this client. (The server does filter *manual web uploads* as defense in
 depth, but that path is irrelevant to the Pi.)
 
+The one exception is the explicit per-device raw opt-in (§4b), which uploads
+raw radar data and IWR6843 L3 dumps for radar testing.
+
 ---
 
 ## 1. Endpoint + transport
@@ -187,6 +190,66 @@ so anything you keep here is what gets stored.
 
 ---
 
+## 4b. Opt-in raw uploads (radar testing)
+
+A device whose owner runs `openflight-cloud raw on` (config `"upload_raw": true`)
+opts out of the §4 strip so raw radar data can be collected for testing. It is
+off by default; nothing changes for devices that haven't opted in.
+
+**Session body.** Same endpoint, same caps. Instead of the allowlist, keep every
+entry type except `kld7_buffer` (deprecated hardware, ~860 KB per line — it
+would blow the body caps). Raw lines such as `rolling_buffer_capture` (~52 KB)
+exceed the 32 KB per-line cap, so raw mode uses a 1 MB per-line guard instead.
+The server stores the blob verbatim; its 32 KB cap only limits which lines it
+parses into shots. The manifest says so:
+
+```json
+{"type":"upload_manifest","format_version":1,"client_version":"…",
+ "device_id":"<id>","filtered":false,"raw":true,"kept_entry_types":[...]}
+```
+
+**IWR6843 L3 dumps.** Each shot's dump is a separate binary file (~550–760 KB)
+referenced by an `iwr6843_capture` entry in the session log (`shot_number` +
+`capture_path`). After the session PUT succeeds, upload each one:
+
+```
+PUT /v1/sessions/{session_id}/captures/iwr6843/{shot_number}
+Authorization: Bearer of_device_<…>
+Content-Type: application/octet-stream
+X-Capture-Filename: iwr6843_20260929_100500_000_001.l3dump   (optional, provenance)
+
+<raw .l3dump bytes>
+```
+
+The server matches the dump to the shot by `shot_number`, the same number as the
+session's `shot_detected` entry. Rate limit: **1200 / hour per device**.
+
+| Code | Body | Meaning | Client action |
+|---|---|---|---|
+| `201` | `{session_id, kind, shot_number, shot_matched}` | stored | dequeue |
+| `200` | same | duplicate | dequeue |
+| `401` | `{reason}` | bad/revoked token | stop; flag re-link |
+| `404` | `{reason:"session_not_found"}` | session not stored (yet) | retry later |
+| `413` | `{reason:"capture_too_large"}` | > 8 MB | park the capture |
+| `422` | `{reason}` | `invalid_session_id` \| `unknown_capture_kind` \| `invalid_shot_number` \| `invalid_capture` (no `ILD1` magic) | park the capture |
+| `429` | `{reason:"rate_limited"}` + `Retry-After` | rate limited | back off |
+| `5xx` | — | server trouble | retry |
+
+`shot_matched: false` means no `shot_detected` row had that `shot_number`. The
+capture is still stored, just not linked to a shot.
+
+The client keeps the queue in the session's `.pushed` marker
+(`captures_pending` / `captures_parked`), so a pushed session can still have
+dumps waiting, and the big session file is never re-read to find them. The
+OpenFlight server saves dumps to disk whenever raw uploads are on (not only
+under `--debug`).
+
+Sessions dedupe by id. A session that already uploaded filtered is **not**
+replaced by a later raw upload, so turn raw on *before* the sessions you want
+collected.
+
+---
+
 ## 5. The uploader mechanism (spool-and-retry)
 
 - **The session directory is the queue.** A session counts as pushed when a
@@ -247,6 +310,8 @@ so anything you keep here is what gets stored.
 | Caps | 20 MB gzipped, 64 MB inflated, 32 KB per line |
 | Allowlist (keep) | session_start, session_end, shot_detected, trigger_event, session_error (+ upload_manifest) |
 | Health | `GET /v1/health` → `200 {"status":"ok"}` |
+| Raw opt-in (§4b) | all types except `kld7_buffer`; 1 MB per-line guard; manifest `"raw":true` |
+| Capture upload | `PUT /v1/sessions/{id}/captures/iwr6843/{shot_number}`, ≤ 8 MB, `ILD1` magic, 1200 / hour per device |
 
 ---
 

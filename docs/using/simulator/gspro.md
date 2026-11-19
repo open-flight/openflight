@@ -4,7 +4,7 @@ OpenFlight streams shots into [GSPro](https://gsprogolf.com/) using the
 **OpenConnect V1** API — the de-facto open standard for launch-monitor → sim
 integrations.
 
-See the connector architecture in [README.md](https://github.com/jewbetcha/openflight/blob/main/README.md). This page covers
+See the connector architecture in [README.md](https://github.com/open-flight/openflight/blob/main/README.md). This page covers
 requirements and setup specific to GSPro.
 
 ## Requirements

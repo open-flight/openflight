@@ -8,9 +8,9 @@ body:
         Need help getting your hardware working? Please describe your setup and what you've tried so far.
 
         Before opening an issue, check:
-        - [Raspberry Pi setup guide](https://github.com/jewbetcha/openflight/blob/main/docs/raspberry-pi-setup.md)
-        - [Sound trigger wiring guide](https://github.com/jewbetcha/openflight/blob/main/docs/sound-trigger-wiring.md)
-        - [K-LD7 troubleshooting](https://github.com/jewbetcha/openflight/blob/main/docs/kld7-troubleshooting.md) (deprecated hardware)
+        - [Raspberry Pi setup guide](https://github.com/open-flight/openflight/blob/main/docs/setup/raspberry-pi.md)
+        - [Sound trigger wiring guide](https://github.com/open-flight/openflight/blob/main/docs/build/sound-trigger.md)
+        - [K-LD7 troubleshooting](https://github.com/open-flight/openflight/blob/main/docs/legacy/troubleshooting.md) (deprecated hardware)
 
   - type: textarea
     id: description

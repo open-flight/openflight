@@ -11,8 +11,8 @@ site_author = "OpenFlight contributors"
 
 copyright = "Copyright &copy; 2026 OpenFlight contributors &middot; AGPL-3.0"
 
-repo_url = "https://github.com/jewbetcha/openflight"
-repo_name = "jewbetcha/openflight"
+repo_url = "https://github.com/open-flight/openflight"
+repo_name = "open-flight/openflight"
 edit_uri = "edit/main/docs/"
 
 nav = [
@@ -71,6 +71,7 @@ nav = [
     "using/cloud-sync.md",
     "using/battery.md",
     "using/observability.md",
+    "ios-ble.md",
   ] },
 
   { "How it works" = [
@@ -230,7 +231,7 @@ toggle.name = "Switch to system preference"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/jewbetcha/openflight"
+link = "https://github.com/open-flight/openflight"
 name = "OpenFlight on GitHub"
 
 [[project.extra.social]]

@@ -27,7 +27,7 @@ Usage:
         --output session_logs/spin_dechirp_replay_test2.csv
 
 Full reference (requirements, pipeline, baseline results, next steps):
-docs/spin-dechirp-replay.md
+docs/development/spin-replay.md
 """
 
 from __future__ import annotations

@@ -8,7 +8,7 @@ The canonical OpenFlight interface palette. Use these tokens when adding or
 changing UI, rather than introducing new values.
 
 Referenced from
-[`CONTRIBUTING.md`](https://github.com/jewbetcha/openflight/blob/main/CONTRIBUTING.md).
+[`CONTRIBUTING.md`](https://github.com/open-flight/openflight/blob/main/CONTRIBUTING.md).
 
 
 ## Backgrounds

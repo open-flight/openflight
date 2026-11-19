@@ -3,6 +3,7 @@
 openflight-cloud link              # one-time device pairing
 openflight-cloud push [--dry-run]  # filter + upload anything unpushed
 openflight-cloud status            # linked? queued? parked? last error?
+openflight-cloud raw on|off        # opt in/out of raw radar + L3 dump uploads
 """
 
 import argparse
@@ -12,24 +13,27 @@ from typing import List, Optional
 from ..session_logger import SessionLogger
 from . import commands
 from .client import CloudClient
-from .config import CONFIG_PATH, CloudConfig, load_config
+from .config import CONFIG_PATH, CloudConfig, load_config, save_config
 
 DEFAULT_LOG_DIR = SessionLogger.DEFAULT_LOG_DIR
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    # Shared options usable either before or after the subcommand.
+    # Shared options usable either before or after the subcommand. Defaults
+    # are suppressed here and supplied by main(), because argparse copies a
+    # subparser's defaults over the parent namespace, which would discard a
+    # value given before the subcommand.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
         "--config",
         type=Path,
-        default=CONFIG_PATH,
+        default=argparse.SUPPRESS,
         help=f"Path to cloud config (default: {CONFIG_PATH}).",
     )
     common.add_argument(
         "--log-dir",
         type=Path,
-        default=DEFAULT_LOG_DIR,
+        default=argparse.SUPPRESS,
         help=f"Session log directory (default: {DEFAULT_LOG_DIR}).",
     )
 
@@ -65,6 +69,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("status", parents=[common], help="Show link state, queue, and parked sessions.")
+
+    raw = sub.add_parser(
+        "raw",
+        parents=[common],
+        help="Opt in/out of uploading raw radar data and IWR6843 L3 dumps (for testing).",
+    )
+    raw.add_argument("state", choices=["on", "off"])
     return parser
 
 
@@ -75,7 +86,8 @@ def _client(config: CloudConfig) -> CloudClient:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    defaults = argparse.Namespace(config=CONFIG_PATH, log_dir=DEFAULT_LOG_DIR)
+    args = parser.parse_args(argv, namespace=defaults)
 
     if not args.command:
         parser.print_help()
@@ -102,6 +114,19 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.command == "status":
         commands.cmd_status(config, args.log_dir, _client(config))
+        return 0
+
+    if args.command == "raw":
+        config.upload_raw = args.state == "on"
+        save_config(config, args.config)
+        if config.upload_raw:
+            print(
+                "Raw uploads ON: all unpushed sessions upload unfiltered (raw radar data included) "
+                "and each shot's IWR6843 L3 dump uploads too. The OpenFlight server saves "
+                "L3 dumps to disk while this is on (restart it to apply)."
+            )
+        else:
+            print("Raw uploads OFF: sessions upload filtered shot summaries only.")
         return 0
 
     parser.print_help()

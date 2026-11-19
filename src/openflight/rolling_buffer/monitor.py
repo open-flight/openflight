@@ -138,7 +138,7 @@ def estimate_carry_with_spin(
     if club_speed_mph and club_speed_mph > 0:
         smash = ball_speed_mph / club_speed_mph
 
-        target_smash = get_club_physics(club).carry_smash_reference
+        target_smash = get_club_physics(club).optimal_smash
         smash_delta = target_smash - smash
 
         if smash_delta > 0:
@@ -225,16 +225,30 @@ class RollingBufferMonitor:
         """
         Connect to radar and configure based on trigger type.
 
-        Sound uses the persisted rolling-buffer configuration. Speed handles
-        its own mode transition when a qualifying speed is detected.
+        Sound uses the persisted rolling-buffer configuration. The opt-in
+        hardware trigger configures the OPS243 internal speed trigger. Speed
+        handles its own mode transition when a qualifying speed is detected.
 
         Returns:
             True if successful
         """
         self.radar.connect()
 
+        if self.trigger_type == "hardware":
+            self.radar.configure_for_internal_speed_trigger(
+                trigger_threshold_mph=self.trigger.trigger_threshold_mph,
+                pre_trigger_segments=self.trigger.pre_trigger_segments,
+                trigger_magnitude=self.trigger.trigger_magnitude,
+                sample_rate_ksps=self.sample_rate_ksps,
+            )
+            logger.info(
+                "[MONITOR] Internal hardware trigger configured (threshold %.1f, S#%d, SM%d)",
+                self.trigger.trigger_threshold_mph,
+                self.trigger.pre_trigger_segments,
+                self.trigger.trigger_magnitude,
+            )
         # Speed trigger handles its own configuration (starts in speed mode).
-        if self.trigger_type != "speed":
+        elif self.trigger_type != "speed":
             pre_trigger_segments = getattr(self.trigger, "pre_trigger_segments", 12)
             self.radar.prepare_persisted_rolling_buffer(
                 pre_trigger_segments=pre_trigger_segments,
@@ -328,6 +342,44 @@ class RollingBufferMonitor:
             else:
                 self._capture_thread = None
         logger.info("[MONITOR] Rolling buffer monitor stopped")
+
+    def reinitialize_radar(self) -> None:
+        """Manually restore persisted OPS rolling-buffer settings without a power cycle.
+
+        Never write to the serial port while the capture thread may be reading
+        or writing.  In particular, a timed-out join is NOT a safe handoff.
+        """
+        if self.trigger_type != "sound":
+            raise RuntimeError("Manual reinitialisation supports sound-trigger mode only")
+        if not self._running:
+            raise RuntimeError("Capture monitor is not running")
+
+        callbacks = (
+            self._shot_callback,
+            self._live_callback,
+            self._diagnostic_callback,
+            self._processing_callback,
+        )
+        self.stop()
+        if self._capture_thread is not None and self._capture_thread.is_alive():
+            raise RuntimeError("Capture thread did not stop; radar was not reconfigured")
+
+        # The firmware's HOST_INT mode can break if switched via GS/GC.
+        # Use only the same volatile preparation that sound-mode startup uses.
+        pre_trigger_segments = getattr(self.trigger, "pre_trigger_segments", 16)
+        logger.warning("[MONITOR] Manual OPS reinitialisation: preparing persisted rolling buffer")
+        self.radar.prepare_persisted_rolling_buffer(
+            pre_trigger_segments=pre_trigger_segments,
+            sample_rate_ksps=self.sample_rate_ksps,
+        )
+        self.trigger.reset()
+        self.start(
+            shot_callback=callbacks[0],
+            live_callback=callbacks[1],
+            diagnostic_callback=callbacks[2],
+            processing_callback=callbacks[3],
+        )
+        logger.warning("[MONITOR] Manual OPS reinitialisation commands completed; trigger not yet verified")
 
     def _notify_processing(self, state: str) -> None:
         """Report shot-processing lifecycle without letting UI errors break capture."""

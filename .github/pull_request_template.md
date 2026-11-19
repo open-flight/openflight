@@ -30,6 +30,11 @@ Every PR must describe the manual testing a human performed. Be specific:
 - What did you observe? Include numbers/screenshots where relevant.
 - What edge cases did you exercise by hand?
 
+If this PR changes the UI (ui/src/), you MUST include screenshots of the
+change (drag and drop images here). The PR Checks workflow fails without
+them. For UI changes with no visible effect, add the "no-screenshots-needed"
+label and explain why.
+
 "Tests pass" is not manual testing — describe what YOU verified by hand.
 -->
 

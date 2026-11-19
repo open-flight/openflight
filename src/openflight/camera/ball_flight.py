@@ -17,6 +17,8 @@ import numpy as np
 from openflight.camera.club_motion import (
     BALL_DIAMETER_MM,
     ReferenceBall,
+    detect_impact_frame,
+    detect_impact_reference_ball,
     detect_reference_ball,
 )
 from openflight.camera.geometry import deroll_normalized_offsets
@@ -90,6 +92,13 @@ class CameraBallEstimate:
     first_frame: int | None = None
     last_frame: int | None = None
     depth_source: str | None = None
+    median_residual_px: float | None = None
+    median_horizontal_residual_px: float | None = None
+    median_vertical_residual_px: float | None = None
+    calibration_span_deg: float | None = None
+    jackknife_mad_deg: float | None = None
+    profile_span_deg: float | None = None
+    impact_delay_ms: float | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +126,16 @@ class _PathEstimate:
     n_points: int
     first_frame: int
     last_frame: int
+
+
+@dataclass(frozen=True)
+class _HorizontalFit:
+    horizontal_deg: float
+    median_residual_px: float
+    median_horizontal_residual_px: float
+    median_vertical_residual_px: float
+    profile_span_deg: float
+    impact_delay_ms: float
 
 
 def _camera_model(
@@ -309,6 +328,337 @@ def _pixel_paths(
     viable = [path for path in all_paths if len(path) >= 4]
     viable.sort(key=_rough_path_score, reverse=True)
     return viable[:120]
+
+
+def _clean_launch_path(
+    path: list[tuple[int, BallCandidate]],
+    frame_indices: list[int],
+) -> dict[int, BallCandidate]:
+    points = [(frame_indices[relative], candidate) for relative, candidate in path]
+    for _ in range(2):
+        if len(points) < 4:
+            break
+        slopes_x = []
+        slopes_y = []
+        for first_index, (first_frame, first) in enumerate(points):
+            for second_frame, second in points[first_index + 1 :]:
+                delta = second_frame - first_frame
+                if delta > 0:
+                    slopes_x.append((second.x - first.x) / delta)
+                    slopes_y.append((second.y - first.y) / delta)
+        velocity_x = statistics.median(slopes_x)
+        velocity_y = statistics.median(slopes_y)
+        intercept_x = statistics.median(
+            candidate.x - velocity_x * frame for frame, candidate in points
+        )
+        intercept_y = statistics.median(
+            candidate.y - velocity_y * frame for frame, candidate in points
+        )
+        residuals = [
+            math.hypot(
+                candidate.x - (intercept_x + velocity_x * frame),
+                candidate.y - (intercept_y + velocity_y * frame),
+            )
+            for frame, candidate in points
+        ]
+        kept = [point for point, residual in zip(points, residuals) if residual <= 6.0]
+        if len(kept) == len(points) or len(kept) < 4:
+            break
+        points = kept
+
+    result = dict(points)
+    for (first_frame, first), (second_frame, second) in zip(points, points[1:]):
+        if second_frame - first_frame != 2:
+            continue
+        result[first_frame + 1] = BallCandidate(
+            x=(first.x + second.x) / 2.0,
+            y=(first.y + second.y) / 2.0,
+            area=round((first.area + second.area) / 2.0),
+            width=round((first.width + second.width) / 2.0),
+            height=round((first.height + second.height) / 2.0),
+            fill=(first.fill + second.fill) / 2.0,
+            circularity=(first.circularity + second.circularity) / 2.0,
+            mean_intensity=(first.mean_intensity + second.mean_intensity) / 2.0,
+        )
+    return result
+
+
+def _track_launch_ball(
+    frames: np.ndarray,
+    *,
+    trigger_frame: int,
+    reference_ball: ReferenceBall,
+) -> dict[int, BallCandidate]:
+    background = np.median(frames[: min(20, len(frames))], axis=0).astype(np.uint8)
+    frame_indices = list(range(trigger_frame, min(len(frames), trigger_frame + 15)))
+    nodes = [
+        _candidates(
+            frames[frame],
+            background,
+            reference_ball,
+            bright_threshold=130,
+            difference_threshold=18,
+            min_area=10,
+        )
+        for frame in frame_indices
+    ]
+    options = []
+    for path in _pixel_paths(nodes, reference_ball):
+        cleaned = _clean_launch_path(path, frame_indices)
+        if len(cleaned) < 4:
+            continue
+        ordered = sorted(cleaned.items())
+        if ordered[0][1].y - ordered[-1][1].y < 20.0:
+            continue
+        options.append((_rough_path_score(path), cleaned))
+    return max(options, key=lambda item: item[0])[1] if options else {}
+
+
+def _project_world_points(
+    points: np.ndarray,
+    *,
+    model: tuple[float, float, np.ndarray],
+    geometry: CameraBallGeometry,
+) -> np.ndarray:
+    focal_px, pitch, _radar_from_camera = model
+    vectors = points - geometry.camera_origin
+    camera_forward = math.cos(pitch) * vectors[..., 1] + math.sin(pitch) * vectors[..., 2]
+    camera_vertical = -math.sin(pitch) * vectors[..., 1] + math.cos(pitch) * vectors[..., 2]
+    horizontal = vectors[..., 0] / camera_forward
+    vertical = camera_vertical / camera_forward
+    roll = math.radians(geometry.roll_correction_deg)
+    raw_horizontal = math.cos(roll) * horizontal - math.sin(roll) * vertical
+    raw_vertical = math.sin(roll) * horizontal + math.cos(roll) * vertical
+    return np.stack(
+        (
+            geometry.image_width_px / 2.0
+            + focal_px * raw_horizontal / geometry.horizontal_pixel_sign,
+            geometry.image_height_px / 2.0 - focal_px * raw_vertical,
+        ),
+        axis=-1,
+    )
+
+
+def _fit_horizontal_launch(  # pylint: disable=too-many-arguments
+    track: dict[int, BallCandidate],
+    timestamps_ns: np.ndarray,
+    *,
+    impact_frame: int,
+    reference_ball: ReferenceBall,
+    geometry: CameraBallGeometry,
+    speed_mph: float,
+    vertical_deg: float,
+) -> _HorizontalFit | None:
+    ordered = sorted(track.items())
+    if len(ordered) < 4:
+        return None
+    frames = np.asarray([frame for frame, _candidate in ordered], dtype=int)
+    observed = np.asarray([[candidate.x, candidate.y] for _frame, candidate in ordered])
+    elapsed = (timestamps_ns[frames].astype(np.int64) - int(timestamps_ns[impact_frame])) / 1e9
+    if np.any(elapsed <= 0.0):
+        return None
+
+    model = _camera_model(reference_ball, geometry)
+    tee = np.array([0.0, geometry.ball_forward_m, geometry.ball_height_m])
+    projected_tee = _project_world_points(tee[None, :], model=model, geometry=geometry)[0]
+    image_alignment = np.array([reference_ball.x, reference_ball.y]) - projected_tee
+    speed_ms = speed_mph / MPH_PER_MS
+    vertical = math.radians(vertical_deg)
+    target_angles = np.linspace(-20.0, 20.0, 801)
+    camera_angles = np.radians(target_angles - geometry.horizontal_offset_deg)
+    velocities = speed_ms * np.stack(
+        (
+            math.cos(vertical) * np.sin(camera_angles),
+            math.cos(vertical) * np.cos(camera_angles),
+            np.full_like(camera_angles, math.sin(vertical)),
+        ),
+        axis=-1,
+    )
+    median_interval = float(np.median(np.diff(timestamps_ns.astype(np.int64))) / 1e9)
+    max_impact_delay = min(
+        0.015,
+        max(0.0, float(elapsed[0]) - max(median_interval * 0.5, 0.0005)),
+    )
+    best: tuple[float, int, float, np.ndarray] | None = None
+    profile = np.full(len(target_angles), np.inf)
+    for impact_delay in np.linspace(0.0, max_impact_delay, 31):
+        times = elapsed - impact_delay
+        if np.any(times <= 0.0):
+            continue
+        positions = tee + velocities[:, None, :] * times[None, :, None]
+        positions[..., 2] -= 4.903325 * times[None, :] ** 2
+        projected = _project_world_points(positions, model=model, geometry=geometry)
+        projected += image_alignment
+        residual = projected - observed
+        distance = np.sqrt(residual[..., 0] ** 2 + 0.25 * residual[..., 1] ** 2)
+        losses = np.median(distance, axis=1)
+        profile = np.minimum(profile, losses)
+        angle_index = int(np.argmin(losses))
+        candidate = (float(losses[angle_index]), angle_index, impact_delay, residual[angle_index])
+        if best is None:
+            best = candidate
+        elif candidate[0] < best[0]:
+            best = candidate
+    if best is None:
+        return None
+    loss, angle_index, impact_delay, residual = best
+    supported_angles = target_angles[profile <= loss + 0.5]
+    profile_span = (
+        float(supported_angles[-1] - supported_angles[0]) if len(supported_angles) else 40.0
+    )
+    return _HorizontalFit(
+        horizontal_deg=float(target_angles[angle_index]),
+        median_residual_px=float(np.median(np.linalg.norm(residual, axis=1))),
+        median_horizontal_residual_px=float(np.median(np.abs(residual[:, 0]))),
+        median_vertical_residual_px=float(np.median(np.abs(residual[:, 1]))),
+        profile_span_deg=profile_span,
+        impact_delay_ms=impact_delay * 1000.0,
+    )
+
+
+def _scaled_reference_ball(ball: ReferenceBall, scale: float) -> ReferenceBall:
+    return ReferenceBall(
+        x=ball.x,
+        y=ball.y,
+        diameter_px=ball.diameter_px * scale,
+        area_px=max(1, round(ball.area_px * scale * scale)),
+    )
+
+
+# pylint: disable-next=too-many-locals,too-many-arguments,too-many-return-statements,too-many-branches
+def estimate_horizontal_launch(
+    frames: np.ndarray,
+    timestamps_ns: np.ndarray,
+    *,
+    trigger_ns: int,
+    geometry: CameraBallGeometry,
+    ops_ball_speed_mph: float | None,
+    vertical_deg: float | None,
+    vertical_source: str | None,
+    reference_ball: ReferenceBall | None = None,
+) -> CameraBallEstimate:
+    """Estimate horizontal launch using tracked centroids and measured vertical launch."""
+    if frames.ndim != 3 or len(frames) < 4 or len(timestamps_ns) != len(frames):
+        return CameraBallEstimate("rejected_invalid_camera_frames")
+    if vertical_source != "radar":
+        return CameraBallEstimate("withheld_vertical_not_radar")
+    if vertical_deg is None or not 18.0 <= vertical_deg <= 55.0:
+        return CameraBallEstimate("withheld_vertical_out_of_bounds")
+    if ops_ball_speed_mph is None or not 35.0 <= ops_ball_speed_mph <= 130.0:
+        return CameraBallEstimate("withheld_ball_speed_out_of_bounds")
+
+    timestamps = np.asarray(timestamps_ns, dtype=np.int64)
+    if timestamps.shape != (len(frames),):
+        return CameraBallEstimate("rejected_invalid_camera_timing")
+    trigger_frame = int(np.argmin(np.abs(timestamps - trigger_ns)))
+    ball = reference_ball
+    if ball is None:
+        try:
+            ball = detect_impact_reference_ball(frames, trigger_frame_index=trigger_frame)
+        except ValueError:
+            return CameraBallEstimate("withheld_reference_ball_not_found")
+    if not 9.0 <= ball.diameter_px <= 30.0:
+        return CameraBallEstimate("withheld_reference_ball_out_of_bounds")
+    impact_frame = detect_impact_frame(
+        frames,
+        ball,
+        trigger_frame_index=trigger_frame,
+    )
+    if impact_frame is None:
+        return CameraBallEstimate("withheld_impact_not_found")
+    track = _track_launch_ball(
+        frames,
+        trigger_frame=trigger_frame,
+        reference_ball=ball,
+    )
+    support = len(track)
+    if support < 6:
+        return CameraBallEstimate("withheld_insufficient_track", support=support, n_points=support)
+
+    def fit(
+        *,
+        selected_track: dict[int, BallCandidate] | None = None,
+        selected_ball: ReferenceBall | None = None,
+        speed: float | None = None,
+        vertical: float | None = None,
+    ) -> _HorizontalFit | None:
+        return _fit_horizontal_launch(
+            track if selected_track is None else selected_track,
+            timestamps,
+            impact_frame=impact_frame,
+            reference_ball=ball if selected_ball is None else selected_ball,
+            geometry=geometry,
+            speed_mph=ops_ball_speed_mph if speed is None else speed,
+            vertical_deg=vertical_deg if vertical is None else vertical,
+        )
+
+    base = fit()
+    if base is None:
+        return CameraBallEstimate("withheld_fit_failed", support=support, n_points=support)
+    sensitivity_fits = [
+        fit(selected_ball=_scaled_reference_ball(ball, scale)) for scale in (0.925, 1.075)
+    ]
+    sensitivity_fits.extend(
+        fit(speed=speed, vertical=vertical)
+        for speed, vertical in (
+            (ops_ball_speed_mph, vertical_deg - 1.5),
+            (ops_ball_speed_mph, vertical_deg + 1.5),
+            (ops_ball_speed_mph - 2.0, vertical_deg),
+            (ops_ball_speed_mph + 2.0, vertical_deg),
+        )
+    )
+    sensitivity_angles = [
+        candidate.horizontal_deg for candidate in sensitivity_fits if candidate is not None
+    ]
+    calibration_span = (
+        max([base.horizontal_deg, *sensitivity_angles])
+        - min([base.horizontal_deg, *sensitivity_angles])
+        if len(sensitivity_angles) == len(sensitivity_fits)
+        else math.inf
+    )
+    jackknife_angles = []
+    for omitted in track:
+        candidate = fit(
+            selected_track={frame: point for frame, point in track.items() if frame != omitted}
+        )
+        if candidate is not None:
+            jackknife_angles.append(candidate.horizontal_deg)
+    jackknife_mad = (
+        float(np.median(np.abs(np.asarray(jackknife_angles) - np.median(jackknife_angles))))
+        if len(jackknife_angles) == support
+        else math.inf
+    )
+    gates = (
+        (abs(base.horizontal_deg) <= 15.0, "angle_out_of_bounds"),
+        (base.median_horizontal_residual_px <= 1.5, "horizontal_residual"),
+        (base.median_vertical_residual_px <= 6.0, "vertical_residual"),
+        (calibration_span <= 2.0, "calibration_sensitivity"),
+        (jackknife_mad <= 0.5, "jackknife_instability"),
+        (base.profile_span_deg <= 3.0, "weak_identifiability"),
+    )
+    failure = next((reason for passed, reason in gates if not passed), None)
+    ordered_frames = sorted(track)
+    return CameraBallEstimate(
+        status=(
+            "accepted_horizontal_only_experimental" if failure is None else f"withheld_{failure}"
+        ),
+        confidence_tier="experimental" if failure is None else "withheld",
+        horizontal_deg=base.horizontal_deg if failure is None else None,
+        vertical_deg=vertical_deg,
+        support=support,
+        support_pct=min(100.0, 100.0 * support / 15.0),
+        n_points=support,
+        first_frame=ordered_frames[0],
+        last_frame=ordered_frames[-1],
+        depth_source="ops_speed_iwr_vertical",
+        median_residual_px=base.median_residual_px,
+        median_horizontal_residual_px=base.median_horizontal_residual_px,
+        median_vertical_residual_px=base.median_vertical_residual_px,
+        calibration_span_deg=calibration_span,
+        jackknife_mad_deg=jackknife_mad,
+        profile_span_deg=base.profile_span_deg,
+        impact_delay_ms=base.impact_delay_ms,
+    )
 
 
 def _robust_velocity(times: np.ndarray, positions: np.ndarray) -> tuple[np.ndarray, float]:
@@ -680,5 +1030,6 @@ __all__ = [
     "CameraBallGeometry",
     "HorizontalFusionDecision",
     "estimate_camera_ball_flight",
+    "estimate_horizontal_launch",
     "select_camera_assisted_horizontal",
 ]

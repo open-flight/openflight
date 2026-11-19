@@ -296,6 +296,41 @@ def test_server_publishes_high_speed_camera_status_without_blocking_ops(
     assert states["ops"] == "ready"
 
 
+def test_camera_shot_analysis_enables_capture_and_replaces_legacy_analysis(tmp_path, monkeypatch):
+    from openflight import server
+
+    status_path = tmp_path / "status.json"
+    init_calls = []
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "openflight-server",
+            "--no-logging",
+            "--camera-shot-analysis",
+            "--startup-status-file",
+            str(status_path),
+        ],
+    )
+    monkeypatch.setattr(server, "init_session_logger", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        server,
+        "init_camera_capture",
+        lambda **kwargs: init_calls.append(kwargs) or True,
+    )
+    monkeypatch.setattr(server, "start_monitor", lambda **_kwargs: None)
+    monkeypatch.setattr(server.socketio, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(server, "_cleanup_hardware_for_shutdown", lambda: None)
+
+    server.main()
+
+    assert len(init_calls) == 1
+    assert init_calls[0]["shot_analysis_enabled"] is True
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    states = {component["id"]: component["state"] for component in payload["components"]}
+    assert states["camera"] == "ready"
+
+
 def test_server_publishes_ops_failure_and_cleans_up(tmp_path, monkeypatch):
     from openflight import server
 

@@ -3,7 +3,7 @@ import type { CameraCaptureSettings } from '../stores/useCameraStore';
 import type { Shot } from '../types/shot';
 import { computeSwingSpeedStats, getSwingSpeedMph, isSwingSpeedShot } from '../types/shot';
 import { useUnitPreference } from '../state/useUnitPreference';
-import { formatDistance, formatSpeed, getDistanceUnit, getSpeedUnit } from '../utils/units';
+import { formatDistance, formatSpeed, getDistanceUnit, getSpeedUnit, type UnitSystem } from '../utils/units';
 import { getServerOrigin } from '../utils/serverOrigin';
 import { MetricCard } from './ui/MetricCard';
 import { getHtmlLang, type MessageKey } from '../i18n';
@@ -52,7 +52,7 @@ function experimentalStatus(status: string | null | undefined): string {
   return `experimental · ${status.replace(/^rejected_/, 'rejected: ').replaceAll('_', ' ')}`;
 }
 
-function buildMetrics(shot: Shot | null, unitSystem: 'imperial' | 'metric', t: Translate): DisplayMetric[] {
+function buildMetrics(shot: Shot | null, unitSystem: UnitSystem, t: Translate): DisplayMetric[] {
   if (!shot) {
     return [
       { label: t('display.ballSpeed'), value: '--', unit: getSpeedUnit(unitSystem) },

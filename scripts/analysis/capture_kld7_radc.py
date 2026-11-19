@@ -25,7 +25,7 @@ Usage:
 K-LD7 port selection:
     1. --port <path>        explicit override
     2. /dev/kld7_<orient>   udev symlink (deterministic — set up by
-                            docs/raspberry-pi-setup.md)
+                            docs/setup/raspberry-pi.md)
     3. FTDI/CP210x scan     non-deterministic with two radars plugged in;
                             a warning is printed in this case.
 
@@ -106,7 +106,7 @@ def find_kld7_port(orientation: str) -> tuple[str | None, str]:
 
     Strategy (deterministic first):
       1. /dev/kld7_<orientation> udev symlink — preferred, identifies the
-         physical radar by FTDI serial number (see docs/raspberry-pi-setup.md).
+         physical radar by FTDI serial number (see docs/setup/raspberry-pi.md).
       2. Fall back to FTDI/CP210x VID + description scan. This finds *a*
          K-LD7 but cannot tell vertical from horizontal when both are
          plugged in, so we return a warning the caller should surface.

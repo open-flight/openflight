@@ -6,7 +6,7 @@ listens on the phone's Wi-Fi address (TCP **921** by default), so the `partee`
 connector reuses the same shared codec as GSPro, pointed at the phone and
 reported as "PAR-TEE".
 
-See the connector architecture in [README.md](https://github.com/jewbetcha/openflight/blob/main/README.md). This page covers
+See the connector architecture in [README.md](https://github.com/open-flight/openflight/blob/main/README.md). This page covers
 setup specific to PAR-TEE.
 
 ## Requirements

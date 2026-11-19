@@ -2,7 +2,7 @@ name: PR Checks
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   pr-description:
@@ -59,13 +59,68 @@ jobs:
               }
             }
 
+            const failures = [];
             if (missing.length > 0) {
-              core.setFailed(
+              failures.push(
                 "The following PR sections are empty and must be filled in:\n" +
                   missing.map((h) => `  - "${h}"`).join("\n") +
                   "\n\nEvery PR must explain why it was required, describe its " +
                   "automated tests, and describe the manual (human) testing performed."
               );
+            }
+
+            // PRs that change the UI must include at least one image
+            // (screenshot) of the change. Escape hatch: the
+            // "no-screenshots-needed" label, for UI changes with no visible
+            // effect (e.g. pure refactors).
+            const labels = (context.payload.pull_request.labels || []).map(
+              (l) => l.name
+            );
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            const isUiSource = (f) =>
+              /^ui\/src\//.test(f) &&
+              !/^ui\/tests\//.test(f) &&
+              !/\.(test|spec)\.[jt]sx?$/.test(f);
+            const uiChanged = files
+              .filter((f) => f.status !== "removed")
+              .some((f) => isUiSource(f.filename));
+
+            // Images that aren't inside HTML comments: markdown images,
+            // <img> tags, or GitHub attachment URLs (drag-and-drop uploads).
+            const visibleBody = body.replace(/<!--[\s\S]*?-->/g, "");
+            const hasImage =
+              /!\[[^\]]*\]\(\s*\S+[^)]*\)/.test(visibleBody) ||
+              /<img\b[^>]*\bsrc\s*=\s*["']?[^"'\s>]+/i.test(visibleBody) ||
+              /https:\/\/github\.com\/user-attachments\/assets\/[\w-]+/.test(
+                visibleBody
+              ) ||
+              /https:\/\/(private-)?user-images\.githubusercontent\.com\//.test(
+                visibleBody
+              );
+
+            if (!uiChanged) {
+              core.info("No UI changes detected; screenshot check skipped.");
+            } else if (labels.includes("no-screenshots-needed")) {
+              core.info('Screenshot check skipped: "no-screenshots-needed" label is present.');
+            } else if (!hasImage) {
+              failures.push(
+                "This PR changes the UI (ui/src/) but the description contains no " +
+                  "images.\n\nAdd screenshots of the UI changes (drag and drop them " +
+                  'into the "Manual (human) testing" section). If the change has no ' +
+                  'visible effect, add the "no-screenshots-needed" label and explain ' +
+                  "why in the PR description."
+              );
+            } else {
+              core.info("UI changes are accompanied by images in the description.");
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(failures.join("\n\n"));
             } else {
               core.info("All required PR sections contain content.");
             }

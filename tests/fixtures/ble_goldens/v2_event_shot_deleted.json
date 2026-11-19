@@ -1,0 +1,22 @@
+{
+  "name": "v2_event_shot_deleted",
+  "description": "shot_deleted notify: a shot was deleted (over Wi-Fi/Socket.IO); key is its timestamp.",
+  "direction": "server_to_client",
+  "characteristic": "7BA96E63-12C2-4CE0-BB84-3513C7FD1474",
+  "schema_version": 2,
+  "sequence": 9,
+  "message": {
+    "schema_version": 2,
+    "type": "shot_deleted",
+    "timestamp": "2026-09-25T14:03:07.412345"
+  },
+  "payload_hex": "7b22736368656d615f76657273696f6e223a322c2274696d657374616d70223a22323032362d30392d32355431343a30333a30372e343132333435222c2274797065223a2273686f745f64656c65746564227d",
+  "frames_hex": [
+    "01000900067b22736368656d615f76657273696f",
+    "01000901066e223a322c2274696d657374616d70",
+    "0100090206223a22323032362d30392d32355431",
+    "0100090306343a30333a30372e34313233343522",
+    "01000904062c2274797065223a2273686f745f64",
+    "0100090506656c65746564227d"
+  ]
+}

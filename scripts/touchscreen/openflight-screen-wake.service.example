@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenFlight Touchscreen Double-Tap Wake
+After=systemd-udev-settle.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /REPLACE_WITH_OPENFLIGHT_PATH/scripts/touchscreen/screen_wake.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

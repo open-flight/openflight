@@ -204,7 +204,7 @@ if [ "$ok" == "true" ]; then
     show_mapping
 else
     err "Device names did not appear. Re-run the wizard, or see the manual"
-    err "steps in docs/raspberry-pi-setup.md (K-LD7 Angle Radar Setup)."
+    err "steps in docs/setup/raspberry-pi.md (K-LD7 Device Names)."
     exit 1
 fi
 

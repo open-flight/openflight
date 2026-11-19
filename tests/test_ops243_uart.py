@@ -111,6 +111,21 @@ class TestUartPortDetection:
                 radar.connect()
         assert "ttyAMA0" in str(exc.value)
 
+    def test_missing_radar_error_does_not_name_a_caller_specific_flag(self):
+        """The driver cannot know which CLI invoked it (issue #270).
+
+        start-kiosk.sh takes --radar-port but the hardware-test scripts take
+        --port, so naming either flag misleads half the callers. The hint must
+        stay tool-neutral.
+        """
+        radar = OPS243Radar()
+        with patch.object(OPS243Radar, "find_radar_ports", return_value=[]):
+            with pytest.raises(ConnectionError) as exc:
+                radar.connect()
+        message = str(exc.value)
+        assert "--radar-port" not in message
+        assert "--port" not in message
+
 
 class TestBaudNegotiation:
     def test_already_at_target_needs_no_switch(self):

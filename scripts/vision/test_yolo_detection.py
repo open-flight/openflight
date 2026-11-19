@@ -33,14 +33,14 @@ try:
     YOLO_AVAILABLE = True
 except ImportError:
     YOLO_AVAILABLE = False
-    print("ultralytics is not installed; see docs/yolo-performance-tuning.md")
+    print("ultralytics is not installed; see docs/development/camera-yolo.md")
 
 try:
     import cv2
     CV2_AVAILABLE = True
 except ImportError:
     CV2_AVAILABLE = False
-    print("OpenCV is not installed; see docs/yolo-performance-tuning.md")
+    print("OpenCV is not installed; see docs/development/camera-yolo.md")
 
 try:
     from picamera2 import Picamera2
@@ -81,7 +81,7 @@ def main():
 
     if not YOLO_AVAILABLE or not CV2_AVAILABLE:
         print("Camera experiment dependencies are missing.")
-        print("See docs/yolo-performance-tuning.md for setup guidance.")
+        print("See docs/development/camera-yolo.md for setup guidance.")
         return 1
 
     print("=" * 50)

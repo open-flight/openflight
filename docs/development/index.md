@@ -26,9 +26,15 @@ is not part of the production path.
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](https://github.com/jewbetcha/openflight/blob/main/CONTRIBUTING.md)
+See [`CONTRIBUTING.md`](https://github.com/open-flight/openflight/blob/main/CONTRIBUTING.md)
 in the repository for development setup, code quality standards, and the pull
 request process.
+
+!!! info "Testers wanted: IWR6843 self-trigger firmware"
+
+    Experimental IWR6843 firmware that triggers on the shot by itself needs
+    testing on real OpenFlight rigs. If you have a working build with an
+    IWR6843, say so on the [OpenFlight Discord](https://discord.gg/w8hhG4WVMN).
 
 Quick reference:
 

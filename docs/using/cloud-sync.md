@@ -9,7 +9,8 @@ on the Pi.
 > are sent. Raw I/Q captures, rolling-buffer dumps, and per-reading detections
 > stay local. The server stores exactly what the Pi sends — so the filter is
 > enforced here, on the device. Run `openflight-cloud push --dry-run` any time
-> to see precisely what would be uploaded.
+> to see precisely what would be uploaded. The one exception is the explicit
+> [raw upload opt-in](#raw-uploads-radar-testing) for radar testing.
 
 ## Quick start
 
@@ -19,6 +20,7 @@ openflight-cloud status            # linked? queued? parked? last error?
 openflight-cloud push --dry-run    # show exactly which entries would upload
 openflight-cloud push              # filter + upload anything not yet pushed
 openflight-cloud push --retry      # also re-attempt parked/failed sessions
+openflight-cloud raw on|off        # opt in/out of raw radar + L3 dump uploads
 ```
 
 `scripts/setup/setup.sh` offers to enable cloud sync and link the Pi for you
@@ -107,7 +109,8 @@ a bearer credential — keep it secret):
   "endpoint": "https://flightweb.fly.dev",
   "device_token": "of_device_…",
   "device_id": "…",
-  "enabled": true
+  "enabled": true,
+  "upload_raw": false
 }
 ```
 
@@ -115,6 +118,31 @@ a bearer credential — keep it secret):
 - Set `"enabled": false` (or delete the file) to turn the uploader into a no-op
   without unlinking.
 - `endpoint` is configurable in case the production domain moves.
+
+## Raw uploads (radar testing)
+
+Raw uploads are off by default. To help test the radar, opt this Pi in:
+
+```bash
+openflight-cloud raw on     # then restart the OpenFlight server
+openflight-cloud raw off    # back to filtered shot summaries only
+```
+
+While raw uploads are on:
+
+- Sessions upload **unfiltered**: raw radar entries such as
+  `rolling_buffer_capture` are included. `kld7_buffer` (deprecated hardware) is
+  still dropped.
+- The server saves each shot's **IWR6843 L3 dump** to
+  `<session-log-dir>/iwr6843/` (normally only done under `--debug`). After a
+  session uploads, its dumps upload one by one. FlightWeb matches each dump to
+  its shot by `shot_number`.
+- `status` shows `Raw upload: on` and how many dump files are still queued.
+  `push --dry-run` lists the dumps that would upload and their total size
+  (roughly 0.5–0.75 MB per shot).
+
+Sessions dedupe by id, so a session that already uploaded filtered won't be
+replaced. Turn raw on *before* the sessions you want collected.
 
 ## systemd units
 

@@ -16,7 +16,7 @@
   Related projects:
   <a href="https://github.com/open-flight/openflight-enclosure">Enclosure</a>
   &middot;
-  <a href="https://github.com/open-flight/openflight-mobile">Mobile App</a>
+  <a href="https://github.com/open-flight/openflight-mobile-kmp">Mobile App</a>
 </p>
 
 > [!WARNING]
@@ -73,7 +73,7 @@ See the **[Parts List](docs/get-started/parts.md)** for everything you need with
 
 ### 2. Wire it up
 
-Follow the **[Sound Trigger Wiring Guide](docs/build/sound-trigger.md)** to connect the SEN-14262 to the OPS243-A. The (deprecated) K-LD7 modules connect via USB — no wiring needed.
+Follow the **[Sound Trigger Wiring Guide](docs/build/sound-trigger.md)** to connect the SEN-14262 to the OPS243-A. The (deprecated) K-LD7 modules connect via USB — no wiring needed. The OPS243 also has an opt-in internal speed-trigger path, which requires OPS243-A firmware v1.3.2 or newer in the 1.3 release train; see the **[Internal Hardware Trigger Guide](docs/hardware-trigger.md)**.
 
 **Adding the IWR6843 angle radar?** The Pi cannot power both radars over USB, so
 the OPS243 moves to the Pi's GPIO UART header while the TI board takes the USB
@@ -92,7 +92,7 @@ instead; see the operator guide's Option B.
 Flash Raspberry Pi OS (64-bit), plug in the radars, then run the interactive setup:
 
 ```bash
-git clone https://github.com/jewbetcha/openflight.git
+git clone https://github.com/open-flight/openflight.git
 cd openflight
 ./scripts/setup/setup.sh
 ```
@@ -313,6 +313,7 @@ Areas of interest:
 
 - **Better spin detection**: A dechirped Doppler-sideband estimator is in development (`scripts/analysis/replay_spin_dechirp.py`) — help validating it against launch-monitor truth data is especially welcome
 - **Mobile app**: Bluetooth connection to phone
+- **IWR6843 self-trigger testers**: Experimental IWR6843 firmware that triggers on the shot by itself needs testing on real OpenFlight rigs. If you have a working build with an IWR6843, say so on [Discord](https://discord.gg/w8hhG4WVMN)
 
 ### Running Tests
 
@@ -337,7 +338,7 @@ Build it locally with `make docs` (serves at `localhost:8000`).
 - **[LIS3DH Inclinometer Setup](docs/build/inclinometer.md)**: Add enclosure-level compensation to IWR6843 tilt
 - **[OPS243 USB → GPIO UART Migration](docs/build/ops243-uart.md)** — Required before adding the IWR6843
 - **[IWR6843 Firmware Developer Guide](docs/development/firmware.md)** — Build the firmware from source (not needed to flash the prebuilt image)
-- **[Enclosure & Case](docs/build/enclosure.md)** — The printed IARC v3 case
+- **[Enclosure & Case](https://github.com/open-flight/openflight-enclosure)** — The printed case, in its own repository
 - **[Hardware Diagnostic](docs/setup/raspberry-pi.md)** — Pi setup, auto-start, and troubleshooting
 - **[Simulator Connectors](docs/using/simulator/index.md)** — Stream shots to GSPro, OpenGolfSim, PAR-TEE, and others
 - **[Cloud Sync](docs/using/cloud-sync.md)** — Push filtered sessions to FlightWeb

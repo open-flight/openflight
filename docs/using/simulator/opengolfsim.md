@@ -5,7 +5,7 @@ built-in **Developer API** (TCP **3111**), which speaks the **OpenConnect V1**
 protocol — so the `opengolfsim` connector reuses the same shared codec as GSPro,
 just pointed at OGS and reported as "OpenGolfSim".
 
-See the connector architecture in [README.md](https://github.com/jewbetcha/openflight/blob/main/README.md). This page covers
+See the connector architecture in [README.md](https://github.com/open-flight/openflight/blob/main/README.md). This page covers
 setup specific to OpenGolfSim.
 
 ## Requirements
