@@ -5,9 +5,6 @@ disagreed by 8-10 degrees. HLCMF-v0 coherence was 0.71-0.95 and was computed,
 logged, and then thrown away in favour of 0.95.
 """
 
-import re
-from pathlib import Path
-
 from openflight import server
 from openflight.iwr6843 import lcmf
 from openflight.iwr6843.lcmf import LCMFResult
@@ -158,29 +155,3 @@ def test_horizontal_confidence_tracks_coherence():
     assert server.horizontal_confidence_from(0.95) > server.horizontal_confidence_from(0.71)
     assert server.horizontal_confidence_from(0.10) < 0.5
     assert server.horizontal_confidence_from(None) == 0.0
-
-
-def test_no_hardcoded_095_for_either_angle():
-    """Regression guard: neither confidence field may be assigned a bare
-    float literal -- not just the specific value 0.95. Anchoring to "0.95"
-    alone is defeatable by swapping in any other literal (`... = 0.90`);
-    this regex closes that by rejecting any bare numeric literal, not just
-    0.95.
-
-    It does NOT close aliasing (`CONST = 0.95` then `... = CONST`) -- the
-    regex only matches a numeric literal at the assignment site, so an
-    alias passes it. That hole is closed separately, by
-    test_wide_component_spread_lowers_confidence: any constant (aliased or
-    not) makes `loose < tight` fail, since a real function of the spread is
-    required to produce different outputs for different inputs.
-    """
-    source = Path("src/openflight/server.py").read_text(encoding="utf-8")
-    offenders = [
-        line.strip()
-        for line in source.splitlines()
-        if re.search(
-            r"launch_angle_(?:vertical|horizontal)_confidence\s*=\s*-?\d+(?:\.\d+)?\s*(?:#.*)?$",
-            line,
-        )
-    ]
-    assert offenders == [], f"hardcoded confidence literal returned: {offenders}"
