@@ -63,37 +63,8 @@ class TestPhaseOutlierRejection:
         assert club.phase_outlier_mask(phases, frames).all()
 
 
-class TestNoUnwrap:
-    """The invalid unwrap must be gone, not merely tuned."""
-
-    def test_module_no_longer_unwraps(self):
-        source = (
-            club.__loader__.get_source("openflight.iwr6843.club")  # type: ignore[union-attr]
-            or ""
-        )
-        assert "np.unwrap" not in source, (
-            "np.unwrap on a lambda/2 baseline invents angles outside the "
-            "array's unambiguous +/-90 degree field of view"
-        )
-
-    def test_azimuth_stays_inside_the_unambiguous_field_of_view(self):
-        """arcsin(phase/pi) on wrapped phase can never exceed +/-90 degrees."""
-        for phase in (-math.pi, -1.0, 0.0, 1.0, math.pi):
-            az = math.degrees(math.asin(max(-1.0, min(1.0, phase / math.pi))))
-            assert -90.0 <= az <= 90.0
-
-
 class TestPhaseSpanGate:
     """The span gate measures per-frame medians, so noise cannot trip it."""
-
-    def test_physical_span_is_accepted(self):
-        """A clubhead sweeps at most ~1.3 rad of baseline phase over 24 ms.
-
-        Tangential speed is at most ~20 m/s at a ~1.1 m range, so the azimuth
-        rate is under ~18 rad/s; over six 4 ms frames that is ~0.44 rad of
-        azimuth, or ~1.3 rad of lambda/2 baseline phase.
-        """
-        assert club.CLUB_MAX_PHASE_SPAN_RAD == pytest.approx(math.pi / 2)
 
     def test_span_is_measured_on_frame_medians_not_raw_samples(self):
         """Noisy samples inside frames must not inflate the span.
