@@ -18,6 +18,11 @@ entirely — 5V from a header pin instead of a port, and data over the J3 UART.
 The total draw from the power supply is unchanged; what you gain is escaping
 the per-port USB current limit and the shared controller.
 
+UART is also less overhead than USB. The radar's bytes go straight from its
+UART to the Pi's, with no USB enumeration, no CDC-ACM serial driver and no USB
+host controller in between. That leaves the USB stack to the IWR6843, which
+streams far more data.
+
 Do this migration on its own and validate it. Adding the TI radar at the same
 time makes any failure ambiguous.
 
