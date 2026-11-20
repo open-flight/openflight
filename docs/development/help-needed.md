@@ -22,7 +22,14 @@ branch and needs testing on real OpenFlight rigs. If you have a working build
 with an IWR6843, say so on Discord.
 
 **Test it on the new radar mount.** Print the
-[new radar front](#print-the-new-radar-front) first. It gives you access to
+[new radar front](#print-the-new-radar-front) first. It is in Cormac's draft
+enclosure PR,
+[openflight-enclosure#12](https://github.com/open-flight/openflight-enclosure/pull/12):
+print
+[`Front-Radar-No-Fill.stl`](https://github.com/Cormac131/openflight-enclosure/blob/feat/self-tapping/stls/radar/experimental/Front-Radar-No-Fill.stl),
+and the full CAD model is
+[`Open-Flight-Monitor-3.step`](https://github.com/Cormac131/openflight-enclosure/blob/feat/self-tapping/step/Open-Flight-Monitor-3.step)
+on the same branch. It gives you access to
 the IWR's SOP switches for reflashing, and it puts the IWR antenna array in
 line with the camera. Self-trigger results from that mount carry forward,
 because it is the preferred mount for new builds. Results from the old front
