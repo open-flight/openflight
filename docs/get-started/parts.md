@@ -314,10 +314,6 @@ has the current price.
 | **TI IWR6843LEVM** | measured launch angle and direction, and club path | $172 | **~$717** |
 | 2× K-LD7 + FTDI adapters | the same, but **deprecated** — not for new builds | $140 | — |
 
-The board is the whole cost here. Its micro-USB cable comes in the kit and
-its one `GATE` → BCM17 jumper comes out of the sound-trigger pack, so neither
-is charged separately.
-
 ### 3. Optional
 
 Independent of each other; add the ones you want.
