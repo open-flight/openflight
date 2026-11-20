@@ -71,4 +71,4 @@ only if every non-skipped check passed.
 
 - [Rolling buffer setup](rolling-buffer.md) — what check 3 verifies
 - [Troubleshooting index](../troubleshooting/index.md) — routing by symptom
-- [OPS243 → GPIO UART](../build/ops243-uart.md) — what checks 1 and 2 cover
+- [Connecting the OPS243 to the Pi](../build/ops243-uart.md) — what checks 1 and 2 cover

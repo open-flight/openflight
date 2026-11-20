@@ -13,6 +13,7 @@ when vendor URLs move.
 | --- | --- |
 | [OPS243 datasheet](../radar/OPS-DS-003-01_OPS243-Datasheet.pdf) | Electrical specs, J3 pinout, operating modes |
 | [AN-010-AD: API interface](../radar/AN-010-AD_API_Interface.pdf) | Serial command set. Note that enumerating USB disables UART reporting — the cause of a common wiring false alarm. |
+| [AN-013-G: Code update](../radar/AN-013-G_Code-Update.pdf) | Updating the radar firmware: J-Link + XMCFlasher on `J2`, or from firmware 1.3.3, Memtool over the `J3` UART. See [OPS243 firmware updates](ops243-firmware-history.md). |
 | [AN-027-A: Rolling buffer](<../radar/AN-027-A_Rolling Buffer.pdf>) | Rolling-buffer mode, `HOST_INT` behaviour, dump format |
 | [Sports ball detection](../radar/OmniPreSense_Sports_Ball_Detect_2507.pdf) | Vendor application note for ball-speed use |
 

@@ -57,7 +57,7 @@ work.
 3. **[Raspberry Pi setup](setup/raspberry-pi.md)** — through the one-time
    rolling-buffer flash-persist step. Confirm you can capture with the OPS243
    alone before adding anything else.
-4. **[Move the OPS243 to the Pi GPIO UART](build/ops243-uart.md)** —
+4. **[Connect the OPS243 to the Pi](build/ops243-uart.md)** (GPIO UART) —
    required before the IWR6843, which needs the USB bus.
 5. **[IWR6843 operator guide](iwr6843/index.md)** — wire, flash, mount, aim,
    and measure the geometry.

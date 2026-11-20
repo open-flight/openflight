@@ -7,6 +7,7 @@ is current — OmniPreSense revises these in place under new revision letters.
 | File | Rev | Date | Source |
 |---|---|---|---|
 | [`AN-010-AD_API_Interface.pdf`](AN-010-AD_API_Interface.pdf) | AD | Oct 2025 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2025/10/AN-010-AD_API_Interface.pdf) |
+| [`AN-013-G_Code-Update.pdf`](AN-013-G_Code-Update.pdf) | G | Nov 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-G_Code-Update.pdf) |
 | [`AN-027-A_Rolling Buffer.pdf`](<AN-027-A_Rolling Buffer.pdf>) | A | Jun 2025 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2025/06/AN-027-A_Rolling-Buffer-1.pdf) |
 | [`AN-029-A_OPS243-for-Sports.pdf`](AN-029-A_OPS243-for-Sports.pdf) | A | Jun 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/06/AN-029-A_OPS243-for-Sports_260621.pdf) |
 | [`OmniPreSense_Sports_Ball_Detect_2507.pdf`](OmniPreSense_Sports_Ball_Detect_2507.pdf) | — | Jul 2025 | Vendor slide deck, not published on the site |

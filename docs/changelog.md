@@ -26,8 +26,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the calibration JSON. This is the first BLE command that writes persisted
   configuration; see
   [Security and scope](ios-ble.md#security-and-scope).
+- **Help Needed page** listing the testing and development work that would help
+  most: the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
+  OPS243 firmware updates, newer OPS firmware features, camera sensor fusion,
+  the mobile app, and azimuth calibration; see
+  [Help Needed](development/help-needed.md).
+- **AN-013-G** (OmniPreSense code update, rev G, November 2026) checked into
+  `docs/radar/`, with a history page on the OPS243 internal trigger and
+  firmware updates; see
+  [OPS243 internal trigger and firmware updates](reference/ops243-firmware-history.md).
 
 ### Changed
+- **Parts list: the Raspberry Pi Touch Display 2 is the core display.** Its
+  200 mm DSI ribbon and the female/male header jumpers are listed with it. The
+  cheaper Hosyond 7" DSI panel is the alternative, with the screen front to print
+  for each and their dimensions. The micro-USB cable row is gone (the IWR6843LEVM
+  kit includes one), as are the internal-trigger programmer and the filament
+  estimate. The IWR6843LEVM is now $172.
+- **"Moving the OPS243 from USB to the Pi GPIO UART" is now "Connecting the
+  OPS243 to the Pi"**, with a note at the top for builds still on USB.
 - **The OPS sound-trigger hardware test defaults to the Pi GPIO UART.**
   `scripts/hardware-test/test_sound_trigger.py` now uses `/dev/ttyAMA0`
   when `--port` is omitted. For USB, pass the device explicitly, for example
