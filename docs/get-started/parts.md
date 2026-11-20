@@ -36,6 +36,11 @@ Hardware components for building the OpenFlight golf launch monitor.
 > screen front. It needs a micro-HDMI cable for video plus two USB cables for
 > touch and power, all of which have to be routed inside the case. A single
 > DSI ribbon is simpler.
+>
+> **With any screen that is not DSI, you are on your own for the software.**
+> Making sure its drivers work, that touch responds, and that the display
+> rotation, resolution and backlight are right is up to you. OpenFlight's setup
+> and kiosk are only tested with the DSI panels above.
 
 <details markdown="1">
 <summary>Display and screen-front dimensions</summary>
