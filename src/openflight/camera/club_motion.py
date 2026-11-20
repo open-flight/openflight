@@ -52,15 +52,6 @@ class ImagePlaneMotion:
     interval_ms: float
 
 
-@dataclass(frozen=True)
-class ShaftTrack:
-    """Bright-shaft endpoint track leading into impact."""
-
-    points: tuple[ImagePoint, ...]
-    confidence: float
-    reason: str
-
-
 def detect_reference_ball(
     frames: np.ndarray,
     *,
@@ -321,106 +312,6 @@ def detect_impact_frame(  # pylint: disable=too-many-arguments
     if trigger_frame_index is not None:
         return None
     return int(indexes[-1])
-
-
-def _shaft_candidates(
-    frame: np.ndarray,
-    background: np.ndarray,
-    ball: ReferenceBall,
-    *,
-    bright_threshold: int,
-    difference_threshold: int,
-) -> list[tuple[float, float, float]]:
-    """Return Hough shaft endpoints as (score, x, y)."""
-    try:
-        import cv2
-    except ImportError as exc:  # pragma: no cover - depends on optional analysis extra
-        raise RuntimeError(
-            "camera club tracking needs the analysis extra: uv run --extra analysis ..."
-        ) from exc
-
-    background_u8 = background.astype(np.uint8)
-    difference = cv2.absdiff(frame, background_u8)
-    mask = ((frame > bright_threshold) & (difference > difference_threshold)).astype(np.uint8)
-    mask *= 255
-    height, width = frame.shape
-    mask[: max(10, height // 20)] = 0
-    mask[min(height, int(height * 0.7)) :] = 0
-    mask[:, : max(10, int(width * 0.15))] = 0
-    mask[:, min(width, int(width * 0.85)) :] = 0
-
-    lines = cv2.HoughLinesP(
-        mask,
-        1,
-        np.pi / 360,
-        threshold=25,
-        minLineLength=25,
-        maxLineGap=12,
-    )
-    if lines is None:
-        return []
-
-    candidates: list[tuple[float, float, float]] = []
-    for x1, y1, x2, y2 in np.asarray(lines).reshape(-1, 4):
-        dx = float(x2 - x1)
-        dy = float(y2 - y1)
-        length = math.hypot(dx, dy)
-        verticality = abs(dy) / (abs(dx) + 1.0)
-        if verticality < 0.7:
-            continue
-        distance1 = math.hypot(x1 - ball.x, y1 - ball.y)
-        distance2 = math.hypot(x2 - ball.x, y2 - ball.y)
-        endpoint_x, endpoint_y, distance = (
-            (float(x1), float(y1), distance1)
-            if distance1 < distance2
-            else (float(x2), float(y2), distance2)
-        )
-        if distance > max(frame.shape) * 0.35:
-            continue
-        candidates.append((distance - length * 0.08, endpoint_x, endpoint_y))
-    return candidates
-
-
-def track_bright_shaft_endpoint(
-    frames: np.ndarray,
-    *,
-    trigger_frame_index: int,
-    ball: ReferenceBall,
-    frames_before_trigger: int = 4,
-    bright_threshold: int = 145,
-    difference_threshold: int = 25,
-) -> ShaftTrack:
-    """Track the lower endpoint of the bright shaft before the trigger frame."""
-    if frames.ndim != 3:
-        raise ValueError("frames must have shape (n, height, width)")
-    first = trigger_frame_index - frames_before_trigger
-    if first < 0 or trigger_frame_index > len(frames):
-        raise ValueError("trigger frame does not leave the requested pre-impact window")
-
-    background = np.median(frames[: min(20, len(frames))], axis=0)
-    points: list[ImagePoint] = []
-    for frame_index in range(first, trigger_frame_index):
-        candidates = _shaft_candidates(
-            frames[frame_index],
-            background,
-            ball,
-            bright_threshold=bright_threshold,
-            difference_threshold=difference_threshold,
-        )
-        if not candidates:
-            continue
-        _, x, y = min(candidates, key=lambda candidate: candidate[0])
-        points.append(ImagePoint(frame_index=frame_index, x=x, y=y))
-
-    if len(points) < 2:
-        return ShaftTrack(tuple(points), 0.0, "insufficient_shaft_endpoints")
-
-    distances = np.asarray([math.hypot(point.x - ball.x, point.y - ball.y) for point in points])
-    decreasing_fraction = float(np.mean(np.diff(distances) < 0)) if len(points) > 1 else 0.0
-    coverage = len(points) / frames_before_trigger
-    confidence = min(1.0, 0.65 * coverage + 0.35 * decreasing_fraction)
-    reason = "ok" if len(points) == frames_before_trigger else "partial_preimpact_track"
-    return ShaftTrack(tuple(points), confidence, reason)
 
 
 def image_plane_motion(

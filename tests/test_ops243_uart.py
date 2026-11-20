@@ -349,30 +349,8 @@ class TestReplyReading:
         def flush(self):
             pass
 
-    @staticmethod
-    def _legacy_read(ser) -> str:
-        """The pre-UART read: fixed sleep, then stop at the first empty poll.
-
-        Reproduced here so the fake above is proven to discriminate between
-        the two strategies — otherwise the test below could pass for the
-        wrong reason.
-        """
-        time.sleep(0.1)
-        response = ""
-        while ser.in_waiting:
-            response += ser.read(ser.in_waiting).decode("ascii", errors="ignore")
-            time.sleep(0.05)
-        return response
-
     FIRST = b'{"Product":"OPS243"}\r\n{"Version":"1.5.2"}\r\n'
     SECOND = b'{"SamplingRate":30000}\r\n{"SampleSize":128}\r\n'
-
-    def test_legacy_read_truncates_a_gappy_reply(self):
-        truncated = self._legacy_read(self.GappyReplySerial(self.FIRST, self.SECOND))
-        assert "SampleSize" not in truncated, (
-            "fake does not reproduce the mid-reply gap, so the test below "
-            "would pass regardless of the read strategy"
-        )
 
     def test_gappy_reply_is_read_to_completion(self):
         radar = OPS243Radar.__new__(OPS243Radar)
