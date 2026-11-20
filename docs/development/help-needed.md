@@ -21,6 +21,14 @@ microphone in the loop. It lives on the
 branch and needs testing on real OpenFlight rigs. If you have a working build
 with an IWR6843, say so on Discord.
 
+**Test it on the new radar mount.** Print the
+[new radar front](#print-the-new-radar-front) first. It gives you access to
+the IWR's SOP switches for reflashing, and it puts the IWR antenna array in
+line with the camera. Self-trigger results from that mount carry forward,
+because it is the preferred mount for new builds. Results from the old front
+are not directly comparable: the antenna sits somewhere else, so the geometry
+and the trigger zone differ.
+
 If the self-trigger holds up, the SEN-14262, its `R17` resistor, its wiring
 and its slot in the camera strip all go. That saves parts, and it removes the
 build step people find hardest, so the whole build gets simpler.
@@ -101,20 +109,27 @@ ball-speed or spin accuracy, and whether the setting persists.
 
 ## Print the new radar front
 
-If you want to help with the camera, sensor fusion or the IWR6843 setup,
-print the radar front from Cormac's draft enclosure PR,
-[openflight-enclosure#12](https://github.com/open-flight/openflight-enclosure/pull/12).
-**It is meant to be the radar mount from now on**, so testing on it now
-means your results carry forward. Use
+**This is the preferred radar mount to print for new builds**, and the one to
+use if you want to help with the IWR6843 self-trigger, the camera, sensor
+fusion or the IWR6843 setup. It comes from Cormac's draft enclosure PR,
+[openflight-enclosure#12](https://github.com/open-flight/openflight-enclosure/pull/12),
+and is meant to be the radar mount from now on, so testing on it now means
+your results carry forward. Use
 [`Front-Radar-No-Fill.stl`](https://github.com/Cormac131/openflight-enclosure/blob/feat/self-tapping/stls/radar/experimental/Front-Radar-No-Fill.stl)
 from the `feat/self-tapping` branch for heat-set inserts, or
 `Front-Radar-No-Fill-Self-Tapping.stl` next to it for screws only.
 
-It moves the IWR6843 inward and makes the board's **SOP (boot-mode) switches on
-S1** easier to reach, so you can reflash the IWR without taking the case apart.
-That matters while the IWR firmware is still changing. More revisions to the
-enclosure are coming, so feedback on fit, access and print quality goes on
-that PR.
+It moves the IWR6843 inward, which does two things:
+
+- **It puts the IWR antenna array in line with the camera.** The radar and the
+  camera then look at the ball from nearly the same place, and that alignment
+  is what makes radar-and-camera fusion work possible.
+- **It makes the board's SOP (boot-mode) switches on S1 easier to reach**, so
+  you can reflash the IWR without taking the case apart. That matters while
+  the IWR firmware is still changing.
+
+More revisions to the enclosure are coming, so feedback on fit, access and
+print quality goes on that PR.
 
 ## Radome tests
 
