@@ -74,6 +74,12 @@ See [sound-trigger-wiring.md](../build/sound-trigger.md) for detailed instructio
 > used to update older sensors used to be listed here. None of that is needed
 > to build OpenFlight. How it evolved is now in
 > [OPS243 internal trigger and firmware updates](../reference/ops243-firmware-history.md).
+>
+> **The goal is to not need the sound trigger at all.** The plan is for the
+> IWR6843 to detect the shot itself and trigger the capture, so a future build
+> drops the SEN-14262 and its wiring. That self-trigger is still being tested;
+> see [Help needed](../development/help-needed.md#test-the-iwr6843-self-trigger).
+> Until it is ready, buy the sound trigger above.
 
 ## Angle Radar (TI IWR6843) — CURRENT
 
