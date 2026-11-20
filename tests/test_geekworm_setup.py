@@ -153,3 +153,100 @@ def test_main_setup_offers_geekworm_provisioning():
 
     assert 'confirm "Do you have a Geekworm X1202 or X1206 UPS to set up?"' in setup
     assert '"$PROJECT_DIR/scripts/battery/geekworm/setup.sh"' in setup
+
+
+def _ups_setup_block() -> str:
+    """The UPS step of scripts/setup/setup.sh, from its marker to the next step."""
+    setup = MAIN_SETUP_SCRIPT.read_text(encoding="utf-8")
+    start = setup.index("# --- Geekworm X1202/X1206 power telemetry ---")
+    end = setup.index("# --- Bluetooth", start)
+    return setup[start:end]
+
+
+def _run_ups_step(
+    tmp_path: Path, answers: list[str], geekworm_exit: int = 0, guard_exit: int = 0
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """Run the UPS step under set -e with stubbed scripts and scripted answers."""
+    calls = tmp_path / "calls.log"
+    battery_dir = tmp_path / "scripts" / "battery"
+    (battery_dir / "geekworm").mkdir(parents=True)
+    stubs = {
+        battery_dir / "geekworm" / "setup.sh": ("geekworm", geekworm_exit),
+        battery_dir / "install_battery_guard.sh": ("guard", guard_exit),
+    }
+    for path, (name, exit_code) in stubs.items():
+        path.write_text(
+            f'#!/bin/bash\necho {name} >> "{calls.as_posix()}"\nexit {exit_code}\n',
+            encoding="ascii",
+        )
+        path.chmod(0o755)
+
+    harness = f"""\
+set -e
+PROJECT_DIR="{tmp_path.as_posix()}"
+ANSWERS=({" ".join(answers)})
+confirm() {{
+    local answer="${{ANSWERS[0]}}"
+    ANSWERS=("${{ANSWERS[@]:1}}")
+    echo "asked: $1 -> $answer"
+    [[ "$answer" == "y" ]]
+}}
+info() {{ echo "info: $1"; }}
+warn() {{ echo "warn: $1"; }}
+{_ups_setup_block()}
+echo "setup continued"
+"""
+    result = subprocess.run(["bash", "-c", harness], check=False, capture_output=True, text=True)
+    logged = calls.read_text(encoding="ascii").split() if calls.exists() else []
+    return result, logged
+
+
+def test_ups_step_installs_low_battery_shutdown_when_accepted(tmp_path):
+    result, calls = _run_ups_step(tmp_path, ["y", "y"])
+
+    assert result.returncode == 0, result.stderr
+    assert calls == ["geekworm", "guard"]
+    assert "Power the Pi off automatically when the UPS battery runs low?" in result.stdout
+    assert "setup continued" in result.stdout
+
+
+def test_ups_step_skips_low_battery_shutdown_when_declined(tmp_path):
+    result, calls = _run_ups_step(tmp_path, ["y", "n"])
+
+    assert result.returncode == 0, result.stderr
+    assert calls == ["geekworm"]
+    assert "Run later with: ./scripts/battery/install_battery_guard.sh" in result.stdout
+
+
+def test_ups_step_asks_nothing_more_without_a_ups(tmp_path):
+    result, calls = _run_ups_step(tmp_path, ["n"])
+
+    assert result.returncode == 0, result.stderr
+    assert not calls
+    assert "runs low" not in result.stdout
+
+
+def test_ups_step_still_offers_shutdown_when_geekworm_setup_fails(tmp_path):
+    # A failed taskbar package (issue #318) must not end the run or skip the guard.
+    result, calls = _run_ups_step(tmp_path, ["y", "y"], geekworm_exit=1)
+
+    assert result.returncode == 0, result.stderr
+    assert calls == ["geekworm", "guard"]
+    assert "warn: Geekworm setup did not finish." in result.stdout
+    assert "Reboot before verifying" not in result.stdout
+    assert "setup continued" in result.stdout
+
+
+def test_ups_step_warns_and_continues_when_guard_install_fails(tmp_path):
+    result, calls = _run_ups_step(tmp_path, ["y", "y"], guard_exit=1)
+
+    assert result.returncode == 0, result.stderr
+    assert calls == ["geekworm", "guard"]
+    assert "warn: Low-battery shutdown install failed." in result.stdout
+    assert "setup continued" in result.stdout
+
+
+def test_ups_step_defaults_low_battery_shutdown_to_yes():
+    block = _ups_setup_block()
+
+    assert 'battery runs low? (the cells are unprotected)" "Y"' in block

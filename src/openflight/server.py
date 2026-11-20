@@ -1971,7 +1971,6 @@ def log_debug_reading(reading: SpeedReading):
 
 def on_live_reading(reading: SpeedReading):
     """Callback for live radar readings - used in debug mode."""
-    # Log ALL readings first (before filtering) so we can debug direction issues
     if debug_mode:
         log_debug_reading(reading)
 
@@ -1986,12 +1985,6 @@ def on_live_reading(reading: SpeedReading):
                 "filtered": reading.direction != Direction.OUTBOUND,
             },
         )
-
-    # Filter out inbound readings for shot detection
-    # Note: shot filtering happens in launch_monitor.py but we also filter here
-    # for any UI purposes that need only outbound readings
-    if reading.direction != Direction.OUTBOUND:
-        return
 
 
 def _get_trigger_status() -> dict:

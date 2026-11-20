@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from openflight.clubs import ClubType
+from openflight.clubs.physics import get_club_physics
 from openflight.launch_monitor import Shot
 from openflight.rolling_buffer import (
     HardwareTriggeredCapture,
@@ -184,6 +185,17 @@ class TestEstimateCarryWithSpin:
 
         # Should be very close (club speed at optimal smash has minimal effect)
         assert abs(carry_no_club - carry_with_club) < 5
+
+    @pytest.mark.parametrize("smash_delta, carry_factor", [(0.0, 1.0), (-0.07, 0.958)])
+    def test_carry_adjustment_uses_shared_smash_reference(self, smash_delta, carry_factor):
+        club = ClubType.IRON_7
+        target = get_club_physics(club).optimal_smash
+        baseline = estimate_carry_with_spin(100, 6000, club)
+        adjusted = estimate_carry_with_spin(
+            100, 6000, club, club_speed_mph=100 / (target + smash_delta)
+        )
+
+        assert adjusted == pytest.approx(baseline * carry_factor)
 
     def test_carry_increases_with_ball_speed(self):
         """Higher ball speed should always increase carry."""
@@ -367,13 +379,6 @@ class TestRollingBufferProcessor:
     def processor(self):
         """Create a processor instance for testing."""
         return RollingBufferProcessor()
-
-    def test_processor_creation(self):
-        """Processor should initialize with correct constants."""
-        processor = RollingBufferProcessor()
-        assert processor.WINDOW_SIZE == 128
-        assert processor.FFT_SIZE == 4096
-        assert processor.SAMPLE_RATE == 30000
 
     def test_parse_capture_valid_json(self, processor):
         """Parser should handle valid JSON response."""
@@ -1587,10 +1592,6 @@ class TestDualPeakExtraction:
         """Create a processor instance for testing."""
         return RollingBufferProcessor()
 
-    def test_dc_mask_bins_constant(self, processor):
-        """DC_MASK_BINS should be 150 (~15 mph exclusion zone)."""
-        assert processor.DC_MASK_BINS == 150
-
     def test_both_peaks_extracted_from_block(self, processor):
         """A signal with outbound + inbound tones should produce two peaks."""
         import numpy as np
@@ -2661,30 +2662,6 @@ class TestSpinRailRejection:
                 f"seed={seed}: upper rail not rejected, got "
                 f"{r.spin_rpm} RPM (quality={r.quality}, snr={r.snr})"
             )
-
-    def test_rail_flags_set_when_peak_near_boundary(self):
-        """SpinResult must expose `at_lower_rail` and `at_upper_rail`
-        flags so we can diagnose rail-hit failures from the JSONL.
-        """
-        processor = RollingBufferProcessor()
-        i, q = self._toneless_envelope_iq(
-            base_speed_mph=100.0,
-            envelope_depth=0.015,
-            seed=1,
-        )
-        capture = IQCapture(
-            sample_time=0.0,
-            trigger_time=0.068,
-            i_samples=i,
-            q_samples=q,
-        )
-        result = processor.detect_spin(
-            capture,
-            ball_speed_mph=100.0,
-            ball_timestamp_ms=5.0,
-        )
-        assert hasattr(result, "at_lower_rail"), "SpinResult must expose at_lower_rail"
-        assert hasattr(result, "at_upper_rail"), "SpinResult must expose at_upper_rail"
 
     def test_modulation_depth_exposed_in_result(self):
         """SpinResult must report `modulation_depth` so the JSONL

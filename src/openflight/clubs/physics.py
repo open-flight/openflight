@@ -19,11 +19,10 @@ class ClubPhysics:
     launch relative to that speed: slower shots launch higher, faster shots lower.
     typical_spin_rpm holds the TrackMan PGA Tour spin averages used by ballistics
     as a fallback when measured spin is missing or has low confidence.
-    optimal_smash is the optimal ball_speed / club_speed ratio for launch estimation.
+    optimal_smash is the shared ball_speed / club_speed reference for launch
+    estimation and the carry table adjustment.
     optimal_spin_multiplier scales the speed-dependent driver spin baseline for
     each club; irons and wedges need more spin. UNKNOWN keeps the baseline (1.0).
-    carry_smash_reference preserves the legacy carry model's separate smash target;
-    its differences from optimal_smash are retained pending calibration review.
     """
 
     nominal_loft_deg: float
@@ -33,7 +32,6 @@ class ClubPhysics:
     typical_spin_rpm: float
     optimal_smash: float
     optimal_spin_multiplier: float
-    carry_smash_reference: float
 
 
 @dataclass(frozen=True)
@@ -78,27 +76,27 @@ class ShotSimulationDefaults:
 
 CLUB_PHYSICS: Mapping[ClubType, ClubPhysics] = MappingProxyType(
     {
-        ClubType.DRIVER: ClubPhysics(10.5, 11.0, 143, 0.15, 2700, 1.48, 1.0, 1.48),
-        ClubType.WOOD_3: ClubPhysics(15.0, 12.5, 135, 0.18, 3500, 1.44, 1.15, 1.44),
-        ClubType.WOOD_5: ClubPhysics(18.0, 14.0, 128, 0.20, 4200, 1.42, 1.25, 1.42),
-        ClubType.WOOD_7: ClubPhysics(21.0, 15.5, 122, 0.20, 4800, 1.42, 1.32, 1.41),
-        ClubType.HYBRID_3: ClubPhysics(19.0, 13.5, 123, 0.22, 4400, 1.39, 1.45, 1.39),
-        ClubType.HYBRID_5: ClubPhysics(22.0, 15.0, 118, 0.22, 4900, 1.38, 1.55, 1.37),
-        ClubType.HYBRID_7: ClubPhysics(25.0, 16.5, 112, 0.25, 5300, 1.37, 1.65, 1.35),
-        ClubType.HYBRID_9: ClubPhysics(28.0, 18.0, 106, 0.25, 5800, 1.36, 1.75, 1.33),
-        ClubType.IRON_2: ClubPhysics(18.0, 13.0, 120, 0.25, 4000, 1.37, 1.5, 1.36),
-        ClubType.IRON_3: ClubPhysics(21.0, 14.5, 118, 0.25, 4500, 1.36, 1.6, 1.35),
-        ClubType.IRON_4: ClubPhysics(24.0, 16.0, 114, 0.28, 5000, 1.35, 1.8, 1.33),
-        ClubType.IRON_5: ClubPhysics(27.0, 17.5, 110, 0.28, 5400, 1.35, 2.0, 1.31),
-        ClubType.IRON_6: ClubPhysics(30.5, 19.0, 105, 0.30, 6000, 1.34, 2.2, 1.29),
-        ClubType.IRON_7: ClubPhysics(34.0, 20.5, 100, 0.30, 6500, 1.34, 2.5, 1.27),
-        ClubType.IRON_8: ClubPhysics(38.0, 23.0, 94, 0.30, 7500, 1.33, 2.8, 1.25),
-        ClubType.IRON_9: ClubPhysics(42.0, 25.5, 88, 0.30, 8500, 1.33, 3.2, 1.23),
-        ClubType.PW: ClubPhysics(46.0, 28.0, 82, 0.30, 9000, 1.25, 3.6, 1.21),
-        ClubType.GW: ClubPhysics(50.0, 30.0, 76, 0.30, 9500, 1.23, 4.1, 1.19),
-        ClubType.SW: ClubPhysics(54.0, 32.0, 73, 0.30, 10000, 1.22, 4.3, 1.18),
-        ClubType.LW: ClubPhysics(58.0, 35.0, 70, 0.30, 10500, 1.20, 4.6, 1.17),
-        ClubType.UNKNOWN: ClubPhysics(34.0, 18.0, 120, 0.25, 5000, 1.35, 1.0, 1.35),
+        ClubType.DRIVER: ClubPhysics(10.5, 11.0, 143, 0.15, 2700, 1.48, 1.0),
+        ClubType.WOOD_3: ClubPhysics(15.0, 12.5, 135, 0.18, 3500, 1.44, 1.15),
+        ClubType.WOOD_5: ClubPhysics(18.0, 14.0, 128, 0.20, 4200, 1.42, 1.25),
+        ClubType.WOOD_7: ClubPhysics(21.0, 15.5, 122, 0.20, 4800, 1.42, 1.32),
+        ClubType.HYBRID_3: ClubPhysics(19.0, 13.5, 123, 0.22, 4400, 1.39, 1.45),
+        ClubType.HYBRID_5: ClubPhysics(22.0, 15.0, 118, 0.22, 4900, 1.38, 1.55),
+        ClubType.HYBRID_7: ClubPhysics(25.0, 16.5, 112, 0.25, 5300, 1.37, 1.65),
+        ClubType.HYBRID_9: ClubPhysics(28.0, 18.0, 106, 0.25, 5800, 1.36, 1.75),
+        ClubType.IRON_2: ClubPhysics(18.0, 13.0, 120, 0.25, 4000, 1.37, 1.5),
+        ClubType.IRON_3: ClubPhysics(21.0, 14.5, 118, 0.25, 4500, 1.36, 1.6),
+        ClubType.IRON_4: ClubPhysics(24.0, 16.0, 114, 0.28, 5000, 1.35, 1.8),
+        ClubType.IRON_5: ClubPhysics(27.0, 17.5, 110, 0.28, 5400, 1.35, 2.0),
+        ClubType.IRON_6: ClubPhysics(30.5, 19.0, 105, 0.30, 6000, 1.34, 2.2),
+        ClubType.IRON_7: ClubPhysics(34.0, 20.5, 100, 0.30, 6500, 1.34, 2.5),
+        ClubType.IRON_8: ClubPhysics(38.0, 23.0, 94, 0.30, 7500, 1.33, 2.8),
+        ClubType.IRON_9: ClubPhysics(42.0, 25.5, 88, 0.30, 8500, 1.33, 3.2),
+        ClubType.PW: ClubPhysics(46.0, 28.0, 82, 0.30, 9000, 1.25, 3.6),
+        ClubType.GW: ClubPhysics(50.0, 30.0, 76, 0.30, 9500, 1.23, 4.1),
+        ClubType.SW: ClubPhysics(54.0, 32.0, 73, 0.30, 10000, 1.22, 4.3),
+        ClubType.LW: ClubPhysics(58.0, 35.0, 70, 0.30, 10500, 1.20, 4.6),
+        ClubType.UNKNOWN: ClubPhysics(34.0, 18.0, 120, 0.25, 5000, 1.35, 1.0),
     }
 )
 
