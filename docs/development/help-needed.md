@@ -6,10 +6,11 @@ icon: lucide/hand-helping
 
 Work where an extra pair of hands, or an extra rig, makes the biggest
 difference. Most of it is testing on real hardware rather than writing code.
-Say what you are picking up on the
-[OpenFlight Discord](https://discord.gg/w8hhG4WVMN) or in
+The more tests we run, the better, and the same test run on several rigs is
+worth more than one run. Say what you are picking up and how you are running it
+on the [OpenFlight Discord](https://discord.gg/w8hhG4WVMN) or in
 [GitHub Discussions](https://github.com/open-flight/openflight/discussions), so
-two people don't run the same test.
+we can compare results and help each other.
 
 ## Test the IWR6843 self-trigger
 
