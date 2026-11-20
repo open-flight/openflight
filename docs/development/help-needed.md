@@ -31,6 +31,17 @@ measures speed, so anything moving fast enough in its beam can fire it. The
 IWR also sees range and angle, so it can tell a ball leaving the tee from
 other motion.
 
+**Once the azimuth is calibrated, the self-trigger could use a corridor.**
+The trigger currently watches a range around the tee, so anything at that
+distance can fire it: a practice swing, or someone moving beside the ball at
+the same distance from the radar. With a calibrated azimuth zero (see
+[Azimuth calibration](#azimuth-calibration-and-the-radar-workbench)), the IWR
+knows where its target line is. It could then fire only on motion inside a
+narrow corridor along that line, and ignore the same motion off to the side.
+In theory that means fewer false triggers. Testing it needs the azimuth
+calibration first, then sessions with deliberate practice swings and walking
+beside the ball, counted with and without the corridor.
+
 Useful to report: missed shots, false triggers (and what caused them),
 indoor versus outdoor, club types, and how it compares with the sound trigger
 on the same session.
