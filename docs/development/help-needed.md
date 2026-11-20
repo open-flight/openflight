@@ -164,7 +164,10 @@ real rig. Report issues in that repository.
 
 ## Azimuth calibration and the radar workbench
 
-The IWR6843 azimuth calibration (can-target runs over 94 positions) and the
+The IWR6843 azimuth calibration (a can-target hallway trial on 2026-11-18 put
+the azimuth zero about 4–5° off;
+[release with photos and captures](https://github.com/HuggeK/OpenFlight-Radar-Workbench/releases/tag/can-azimuth-2026-11-18-trial),
+[method](https://github.com/HuggeK/OpenFlight-Radar-Workbench/issues/2)) and the
 [OpenFlight Radar Workbench](https://github.com/Robinante/OpenFlight-Radar-Workbench)
 used to analyse the captures are being discussed in
 [Discussion #371](https://github.com/open-flight/openflight/discussions/371).
