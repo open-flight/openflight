@@ -69,31 +69,43 @@ Cortex target cable that fits `J2` in the box. That is about four times the
 sound trigger's $18, and it is a one-off tool rather than a part of the
 monitor. It is no longer listed: most builders do not need it.
 
-## Firmware 1.3.3 and a UART bootloader
+## Firmware 1.3.3 and updating over the UART
 
-OmniPreSense's code-update note was revised to
-**[AN-013-G](../radar/AN-013-G_Code-Update.pdf)** on 2026-11-06
-([source](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-G_Code-Update.pdf)).
-It adds a second update method. From **firmware 1.3.3**, the sensor can be put
-into boot mode with the `B1` API command and reflashed over the **UART on
-`J3`**, using Infineon's free Memtool and a 3.3 V USB-to-UART cable. AN-013-G
-wires that cable to `J3` pin 9 (power), pin 10 (ground), pin 7 (TxD) and pin 6
-(RxD) at 19,200 baud. Those are the same four pins OpenFlight's
-[GPIO UART connection](../build/ops243-uart.md) already runs to the Pi.
+OmniPreSense's code-update note was revised twice in November 2026.
+**AN-013-G** (2026-11-06) added a second update method: reflashing over the
+**UART on `J3`** with Infineon's free Memtool and a 3.3 V USB-to-UART cable,
+for sensors that already run **firmware 1.3.3**.
+**[AN-013-H](../radar/AN-013-H_Code-Update.pdf)** (2026-11-17,
+[source](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-H_Code-Update.pdf))
+extends that to **older code**: a sensor earlier than 1.3.3 can be brought to
+1.3.3 or later the same way, with no programmer.
+
+AN-013-H wires the cable to `J3` pin 9 (power), pin 10 (ground), pin 7 (TxD)
+and pin 6 (RxD), at 19,200 baud. Those are the same four pins OpenFlight's
+[GPIO UART connection](../build/ops243-uart.md) already runs to the Pi. The
+only difference between old and new code is how the sensor gets into boot
+mode:
+
+- **1.3.3 or later:** send `B1`, then the reset command `P!`. The sensor
+  answers `{"BootMode" : "ASC_BSL"}`.
+- **Older than 1.3.3:** `B1` does not exist yet. With the sensor powered, hold
+  a wire from `J2` pin 2 to ground (for example the metal around a mounting
+  hole), then remove and reapply power. The processor comes up in boot mode,
+  and the green heartbeat LED stays off. The `J2` pins are close together, so
+  you need a thin jumper wire; the UART jumpers do not fit.
+
+Then Memtool opens the new code file, connects, and flashes it. Power-cycle
+afterwards and check the version with `?V`.
 
 What that means for OpenFlight:
 
-- **A sensor that already has 1.3.3** never needs a programmer again. Later
-  updates go over the UART. Sensors shipping now should come with 1.3.3; check
-  `?V` on arrival.
-- **A sensor older than 1.3.3** has no UART bootloader, so its first update
-  still goes over `J2`. PR
-  [#320](https://github.com/open-flight/openflight/pull/320), still in review
-  at the time of writing, documents doing it with a Raspberry Pi Debug Probe
-  (about $30) and OpenOCD from the Pi. It is tested on one XMC4500 rev AC board
-  and not yet confirmed by OmniPreSense.
+- **No sensor needs a programmer any more**, by AN-013-H. The J-Link route and
+  the Raspberry Pi Debug Probe route in
+  [PR #320](https://github.com/open-flight/openflight/pull/320) remain options,
+  but the grounding method needs only a thin wire and the UART connection a
+  build already has.
+- **Sensors shipping now should come with 1.3.3**; check `?V` on arrival.
 - **The goal is to update the OPS with only the Pi.** Memtool is a desktop
   tool, but the radar is already wired to the Pi's UART in an OpenFlight build.
-  A Pi-side updater for 1.3.3 sensors would need nothing extra to buy. Making
-  the first upgrade of an older sensor just as cheap is listed under
+  A Pi-side updater would need nothing extra to buy. That is listed under
   [Help needed](../development/help-needed.md#make-updating-older-ops243s-almost-free).

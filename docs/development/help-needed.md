@@ -63,23 +63,27 @@ specific A/B runs that are wanted most.
 
 ## Make updating older OPS243s almost free
 
-Firmware 1.3.3 adds a UART bootloader. From 1.3.3 on, the radar can be updated
-over the same `J3` wires OpenFlight already runs to the Pi
-([AN-013-G](../radar/AN-013-G_Code-Update.pdf)), and sensors shipping now
-should come with it. Sensors on older firmware have no bootloader. Their first
-update still needs a programmer on the `J2` header: a SEGGER J-Link (about $76),
-or the Raspberry Pi Debug Probe route in
-[PR #320](https://github.com/open-flight/openflight/pull/320) (about $30).
+Updating the OPS243 firmware no longer needs a programmer.
+OmniPreSense's [AN-013-H](../radar/AN-013-H_Code-Update.pdf) (November 2026)
+updates any sensor over the same `J3` UART wires OpenFlight already runs to the
+Pi. A sensor on 1.3.3 or later enters boot mode with the `B1` command. An older
+sensor enters it when you hold `J2` pin 2 to ground while power-cycling it, so
+even a sensor that shipped before 1.3.3 can be brought up to date with a thin
+wire. Sensors shipping now should come with 1.3.3. The J-Link and the Raspberry
+Pi Debug Probe route in
+[PR #320](https://github.com/open-flight/openflight/pull/320) still work, but
+they are no longer the only way.
 
 What would help:
 
-- **A Pi-only updater for 1.3.3 sensors**, doing what Memtool does over the
-  Pi's UART, so later updates need nothing extra.
-- **A cheaper first upgrade for older sensors.** That could be a second
-  confirmed board for the Debug Probe route, or a way to drive `J2` straight
-  from the Pi's GPIO pins.
-- **Reports**: which firmware your sensor arrived with (`?V`), and which
-  processor it reports (`?P`).
+- **Try the grounding method on an OpenFlight build** and report it: your
+  sensor's starting firmware (`?V`) and processor (`?P`), whether it entered
+  boot mode, and whether factory settings and saved settings survived.
+- **A Pi-only updater**, doing what Memtool does over the Pi's UART. Memtool
+  is a desktop tool; with the radar already wired to the Pi, an updater on the
+  Pi would make updates free for everyone.
+- **A clear write-up for the `J2` pin 2 step**: which thin wire fits, and where
+  to ground it on the OpenFlight radar front without taking the radar out.
 
 Background is in
 [OPS243 internal trigger and firmware updates](../reference/ops243-firmware-history.md).
@@ -87,7 +91,8 @@ Background is in
 ## Test what newer OPS243 firmware gives us
 
 Newer OPS243-A firmware is worth testing for features, not just fixes. The
-first one to test is the **transmit-frequency shift**: AN-010's `T=n` command
+first one to test is the **transmit-frequency shift**: the `T=n` command in
+[AN-010-AF](../radar/AN-010-AF_API_Interface.pdf)
 moves the carrier within the 24.0-24.25 GHz band (`?F` reads it back). In a
 multi-bay setup, another launch monitor that happens to sit on the OPS243's
 default 24.125 GHz could interfere with it. We want to validate whether
@@ -173,6 +178,28 @@ companion app. It connects to the OpenFlight server and shows live shot data,
 and the goal is a complete standalone interface so the Pi can run headless
 without the kiosk screen. It needs testers on both iOS and Android against a
 real rig. Report issues in that repository.
+
+## Make the software better
+
+The hardware is only half of it. A train of open pull requests improves how
+OpenFlight is used day to day, and they need review and testing on real
+kiosks:
+
+- [#284](https://github.com/open-flight/openflight/pull/284): each profile
+  hides the clubs it doesn't carry.
+- [#343](https://github.com/open-flight/openflight/pull/343): custom clubs,
+  with several of the same type allowed.
+- [#329](https://github.com/open-flight/openflight/pull/329): browsing past
+  sessions, with camera replay.
+- [#239](https://github.com/open-flight/openflight/pull/239): first-run kiosk
+  setup and persisted live view modes.
+
+They touch the same data: profiles, clubs, sessions and settings. Today much of
+that is written to flat JSON files, so each feature brings its own file and
+format. **Moving data and settings to SQLite** would give them one store to
+share, with real queries for history and safer writes. Help with designing that
+storage, migrating the existing files, and reviewing the PRs against it is very
+welcome.
 
 ## Azimuth calibration and the radar workbench
 

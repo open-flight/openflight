@@ -38,8 +38,8 @@ request process.
 
     Testing the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
     OPS243 firmware updates, newer OPS firmware features, the new radar front,
-    radome tests, automatic setup measurement, camera sensor fusion and the
-    mobile app: see
+    radome tests, automatic setup measurement, camera sensor fusion, the
+    mobile app and the software (SQLite storage): see
     **[Help Needed](help-needed.md)**.
 
 Quick reference:

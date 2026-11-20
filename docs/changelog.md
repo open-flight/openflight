@@ -34,10 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   most: the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
   OPS243 firmware updates, newer OPS firmware features, the new radar front,
   radome tests, automatic setup measurement, camera sensor fusion, the mobile
-  app, and azimuth calibration; see
+  app, the software (SQLite storage and the open profile, club and history
+  PRs), and azimuth calibration; see
   [Help Needed](development/help-needed.md).
-- **AN-013-G** (OmniPreSense code update, rev G, November 2026) checked into
-  `docs/radar/`, with a history page on the OPS243 internal trigger and
+- **Current OmniPreSense notes checked into `docs/radar/`:** AN-010-AF (API,
+  September 2026), AN-013-H (code update, November 2026, which adds a UART
+  update for firmware older than 1.3.3) and AN-027-C (rolling buffer,
+  September 2026). The older AN-010-AD and AN-027-A stay, since the code cites
+  their page numbers. Plus a history page on the OPS243 internal trigger and
   firmware updates; see
   [OPS243 internal trigger and firmware updates](reference/ops243-firmware-history.md).
 

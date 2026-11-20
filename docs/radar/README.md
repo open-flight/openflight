@@ -4,10 +4,15 @@ Vendor PDFs for the OPS243-A Doppler radar, kept here so a build doesn't depend
 on OmniPreSense's site staying up. Check the source URL before assuming a copy
 is current — OmniPreSense revises these in place under new revision letters.
 
+The older AN-010-AD and AN-027-A copies are kept next to the current
+revisions because OpenFlight's code, tests and docs cite their page numbers.
+
 | File | Rev | Date | Source |
 |---|---|---|---|
+| [`AN-010-AF_API_Interface.pdf`](AN-010-AF_API_Interface.pdf) | AF | 9 Sep 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/09/AN-010-AF_API_Interface.pdf) — current; adds the 1.3.1 rolling-buffer speed trigger and FFT processing (rev AE) and corrects the speed-trigger command |
 | [`AN-010-AD_API_Interface.pdf`](AN-010-AD_API_Interface.pdf) | AD | Oct 2025 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2025/10/AN-010-AD_API_Interface.pdf) |
-| [`AN-013-G_Code-Update.pdf`](AN-013-G_Code-Update.pdf) | G | Nov 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-G_Code-Update.pdf) |
+| [`AN-013-H_Code-Update.pdf`](AN-013-H_Code-Update.pdf) | H | 17 Nov 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/11/AN-013-H_Code-Update.pdf) — current; adds the UART update for code older than 1.3.3 by grounding `J2` pin 2 |
+| [`AN-027-C_Rolling-Buffer.pdf`](AN-027-C_Rolling-Buffer.pdf) | C | 11 Sep 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/09/AN-027-C_Rolling-Buffer.pdf) — current; `GC`/`GS` mode commands, speed trigger (`STxnnn`) and speed processing output (`SZ`) |
 | [`AN-027-A_Rolling Buffer.pdf`](<AN-027-A_Rolling Buffer.pdf>) | A | Jun 2025 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2025/06/AN-027-A_Rolling-Buffer-1.pdf) |
 | [`AN-029-A_OPS243-for-Sports.pdf`](AN-029-A_OPS243-for-Sports.pdf) | A | Jun 2026 | [omnipresense.com](https://omnipresense.com/wp-content/uploads/2026/06/AN-029-A_OPS243-for-Sports_260621.pdf) |
 | [`OmniPreSense_Sports_Ball_Detect_2507.pdf`](OmniPreSense_Sports_Ball_Detect_2507.pdf) | — | Jul 2025 | Vendor slide deck, not published on the site |
