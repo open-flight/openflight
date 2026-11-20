@@ -55,7 +55,7 @@ Firmware 1.3.3 adds a UART bootloader. From 1.3.3 on, the radar can be updated
 over the same `J3` wires OpenFlight already runs to the Pi
 ([AN-013-G](../radar/AN-013-G_Code-Update.pdf)), and sensors shipping now
 should come with it. Sensors on older firmware have no bootloader. Their first
-update still needs a debugger on the `J2` header: a SEGGER J-Link (about $76),
+update still needs a programmer on the `J2` header: a SEGGER J-Link (about $76),
 or the Raspberry Pi Debug Probe route in
 [PR #320](https://github.com/open-flight/openflight/pull/320) (about $30).
 

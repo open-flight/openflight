@@ -43,7 +43,7 @@ version it prints back.
   [told the project on 2026-09-10](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576)
   that 1.3.2 went onto the sensors shipping from that build on. 1.3.1 had gone
   to some earlier customers with a late bug.
-- **1.3.1 or older.** You flash it yourself with a debugger on the radar's
+- **1.3.1 or older.** You flash it yourself with a programmer on the radar's
   keyed `J2` JTAG header. That is a 10-pin 1.27 mm Cortex debug header, not the
   `J3` UART header OpenFlight wires to. The procedure at the time was AN-013
   rev D: a SEGGER J-Link, Infineon's free XMCFlasher in Serial Wire Debug mode
@@ -83,7 +83,7 @@ wires that cable to `J3` pin 9 (power), pin 10 (ground), pin 7 (TxD) and pin 6
 
 What that means for OpenFlight:
 
-- **A sensor that already has 1.3.3** never needs a debugger again. Later
+- **A sensor that already has 1.3.3** never needs a programmer again. Later
   updates go over the UART. Sensors shipping now should come with 1.3.3; check
   `?V` on arrival.
 - **A sensor older than 1.3.3** has no UART bootloader, so its first update
