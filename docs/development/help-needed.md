@@ -82,6 +82,43 @@ default 24.125 GHz could interfere with it. We want to validate whether
 moving the OPS off that frequency avoids the interference, without hurting
 ball-speed or spin accuracy, and whether the setting persists.
 
+## Print the new radar front
+
+If you want to help with the camera, sensor fusion or the IWR6843 setup,
+print the radar front from Cormac's draft enclosure PR,
+[openflight-enclosure#12](https://github.com/open-flight/openflight-enclosure/pull/12).
+**It is meant to be the radar mount from now on**, so testing on it now
+means your results carry forward. Use
+[`Front-Radar-No-Fill.stl`](https://github.com/Cormac131/openflight-enclosure/blob/feat/self-tapping/stls/radar/experimental/Front-Radar-No-Fill.stl)
+from the `feat/self-tapping` branch for heat-set inserts, or
+`Front-Radar-No-Fill-Self-Tapping.stl` next to it for screws only.
+
+It moves the IWR6843 inward and makes the board's **SOP (boot-mode) switches on
+S1** easier to reach, so you can reflash the IWR without taking the case apart.
+That matters while the IWR firmware is still changing. More revisions to the
+enclosure are coming, so feedback on fit, access and print quality goes on
+that PR.
+
+## Radome tests
+
+At the moment the radar front leaves both radars **exposed**: nothing covers
+them, because we have not done enough testing to know what can go in front
+without hurting the measurements. A cover, or radome, would protect the boards
+from dust, rain and stray balls. We would greatly appreciate tests of whether
+some material can sit in front of the radars without performance suffering
+too much:
+
+- **Different materials and thicknesses**, for example printed PETG and PLA
+  panels at a few wall thicknesses, polycarbonate, acrylic and fabric. Note
+  the infill and print orientation for printed panels.
+- **Both radars.** The OPS243 is at 24 GHz and the IWR6843 at 60 GHz, so a
+  material that is fine for one may not be for the other.
+- **What to compare**, with and without the cover on the same shots: OPS243
+  ball and club speed and detection rate, IWR6843 launch angle and its
+  confidence, and missed shots.
+- **Feasibility**: how a cover would mount on the radar front, and whether it
+  can be printed with the case.
+
 ## Sensor fusion with the camera
 
 Combining the camera with the radars is an interesting area, and

@@ -37,8 +37,9 @@ request process.
 !!! info "Help needed"
 
     Testing the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
-    OPS243 firmware updates, newer OPS firmware features, camera sensor fusion
-    and the mobile app: see **[Help Needed](help-needed.md)**.
+    OPS243 firmware updates, newer OPS firmware features, the new radar front,
+    radome tests, camera sensor fusion and the mobile app: see
+    **[Help Needed](help-needed.md)**.
 
 Quick reference:
 

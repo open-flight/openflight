@@ -28,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Security and scope](ios-ble.md#security-and-scope).
 - **Help Needed page** listing the testing and development work that would help
   most: the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
-  OPS243 firmware updates, newer OPS firmware features, camera sensor fusion,
-  the mobile app, and azimuth calibration; see
+  OPS243 firmware updates, newer OPS firmware features, the new radar front,
+  radome tests, camera sensor fusion, the mobile app, and azimuth calibration; see
   [Help Needed](development/help-needed.md).
 - **AN-013-G** (OmniPreSense code update, rev G, November 2026) checked into
   `docs/radar/`, with a history page on the OPS243 internal trigger and
