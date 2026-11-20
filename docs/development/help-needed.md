@@ -72,6 +72,14 @@ both running on the same shots and share:
 - the TrackMan export for the same shots,
 - the rig geometry: tee and net distance, radar height and tilt.
 
+**Exporting the TrackMan shots.** SwingSync has worked for exporting the
+TrackMan data in two TrackMan modes. Shots are matched between the two systems
+by their timestamps, so **connect both computers to the internet** during the
+session: the OpenFlight unit and the computer running TrackMan or the
+simulator. Each then sets its clock from the network, and the two sets of
+timestamps line up. With one of them offline its clock drifts, and the shots
+can't be reliably paired afterwards.
+
 Every club and every condition helps. The
 [launch angle field report](../how-it-works/launch-angle.md) lists the
 specific A/B runs that are wanted most.
