@@ -203,11 +203,12 @@ start. Help with testing, review, or the fusion maths is welcome.
 
 ## Test the mobile app
 
-[OpenFlight Mobile](https://github.com/open-flight/openflight-mobile) is the
-companion app. It connects to the OpenFlight server and shows live shot data,
-and the goal is a complete standalone interface so the Pi can run headless
-without the kiosk screen. It needs testers on both iOS and Android against a
-real rig. Report issues in that repository.
+[OpenFlight Companion](https://github.com/open-flight/openflight-mobile-kmp)
+is the companion app: Kotlin Multiplatform, with a native UI on each platform
+(Jetpack Compose on Android, SwiftUI on iOS). It talks to the Pi over Wi-Fi,
+Ethernet or Bluetooth LE, and shows live shots, a driving range view and
+session stats. It needs testers on both iOS and Android against a real rig,
+over each connection type. Report issues in that repository.
 
 ## Make the software better
 
