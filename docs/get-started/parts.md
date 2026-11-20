@@ -27,8 +27,8 @@ Hardware components for building the OpenFlight golf launch monitor.
 > screen front for it. Its connector is the 15-way "standard" one, so if the
 > box has no Pi 5 ribbon long enough, the 200 mm SC1131 above fits it. It takes
 > 5V from the Pi header as well, so the female/male jumpers apply the same way.
-> [Hosyond](https://hosyond.com/) /
-> [Amazon search](https://www.amazon.com/s?k=Hosyond+7+inch+DSI+display).
+> [Hosyond 7" DSI Display, 800×480 (Amazon)](https://www.amazon.com/dp/B0D3QB7X4Z) /
+> [Hosyond](https://hosyond.com/).
 >
 > **HDMI panels work, but are not recommended.** An HDMI touchscreen such as the
 > HMTECH 7" 1024×600 runs too, with the
