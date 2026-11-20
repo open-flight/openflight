@@ -243,3 +243,15 @@ used to analyse the captures are being discussed in
 [Discussion #371](https://github.com/open-flight/openflight/discussions/371).
 Repeat runs on other rigs, other targets, and ideas for turning it into a
 standard calibration step are all welcome there.
+
+## Anything else you come up with
+
+This list is not the limit. If you have an idea for something to test, build,
+measure or fix, it is welcome: a new sensor, a better trigger, a cleaner
+build, clearer docs, or a test nobody has thought of yet. Post it in the
+[Ideas category of GitHub Discussions](https://github.com/open-flight/openflight/discussions/categories/ideas)
+or on the [OpenFlight Discord](https://discord.gg/w8hhG4WVMN), open an
+[issue](https://github.com/open-flight/openflight/issues), or send a pull
+request; see
+[`CONTRIBUTING.md`](https://github.com/open-flight/openflight/blob/main/CONTRIBUTING.md)
+for how.
