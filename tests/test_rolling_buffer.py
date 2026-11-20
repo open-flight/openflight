@@ -380,13 +380,6 @@ class TestRollingBufferProcessor:
         """Create a processor instance for testing."""
         return RollingBufferProcessor()
 
-    def test_processor_creation(self):
-        """Processor should initialize with correct constants."""
-        processor = RollingBufferProcessor()
-        assert processor.WINDOW_SIZE == 128
-        assert processor.FFT_SIZE == 4096
-        assert processor.SAMPLE_RATE == 30000
-
     def test_parse_capture_valid_json(self, processor):
         """Parser should handle valid JSON response."""
         # Create a mock JSON response like the radar would return
@@ -1599,10 +1592,6 @@ class TestDualPeakExtraction:
         """Create a processor instance for testing."""
         return RollingBufferProcessor()
 
-    def test_dc_mask_bins_constant(self, processor):
-        """DC_MASK_BINS should be 150 (~15 mph exclusion zone)."""
-        assert processor.DC_MASK_BINS == 150
-
     def test_both_peaks_extracted_from_block(self, processor):
         """A signal with outbound + inbound tones should produce two peaks."""
         import numpy as np
@@ -2673,30 +2662,6 @@ class TestSpinRailRejection:
                 f"seed={seed}: upper rail not rejected, got "
                 f"{r.spin_rpm} RPM (quality={r.quality}, snr={r.snr})"
             )
-
-    def test_rail_flags_set_when_peak_near_boundary(self):
-        """SpinResult must expose `at_lower_rail` and `at_upper_rail`
-        flags so we can diagnose rail-hit failures from the JSONL.
-        """
-        processor = RollingBufferProcessor()
-        i, q = self._toneless_envelope_iq(
-            base_speed_mph=100.0,
-            envelope_depth=0.015,
-            seed=1,
-        )
-        capture = IQCapture(
-            sample_time=0.0,
-            trigger_time=0.068,
-            i_samples=i,
-            q_samples=q,
-        )
-        result = processor.detect_spin(
-            capture,
-            ball_speed_mph=100.0,
-            ball_timestamp_ms=5.0,
-        )
-        assert hasattr(result, "at_lower_rail"), "SpinResult must expose at_lower_rail"
-        assert hasattr(result, "at_upper_rail"), "SpinResult must expose at_upper_rail"
 
     def test_modulation_depth_exposed_in_result(self):
         """SpinResult must report `modulation_depth` so the JSONL

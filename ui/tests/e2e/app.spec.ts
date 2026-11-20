@@ -655,12 +655,22 @@ test('unit toggle in the menu sheet updates displayed units', async ({ page }) =
   const imperialSpeed = await page.locator('.metric-card--selected .metric-card__value').textContent();
 
   await openMenu(page);
-  await page.getByRole('button', { name: 'KMH / M' }).click();
+  await page.getByRole('button', { name: 'KM/H / M' }).click();
   await page.getByRole('button', { name: 'Close menu' }).click();
 
   await expect(page.locator('.metric-card--selected .metric-card__unit')).toHaveText('km/h');
   await expect(page.locator('.metric-card').filter({ hasText: 'Carry' }).locator('.metric-card__unit')).toHaveText('m');
   await expect(page.locator('.metric-card--selected .metric-card__value')).not.toHaveText(imperialSpeed ?? '');
+
+  // Teaching-pro preset: speed back in mph, carry stays in meters.
+  await openMenu(page);
+  await page.getByRole('button', { name: 'MPH / M' }).click();
+  await page.getByRole('button', { name: 'Close menu' }).click();
+
+  await expect(page.locator('.metric-card--selected .metric-card__unit')).toHaveText('mph');
+  await expect(page.locator('.metric-card--selected .metric-card__value')).toHaveText(imperialSpeed ?? '');
+  await expect(page.locator('.metric-card').filter({ hasText: 'Carry' }).locator('.metric-card__unit')).toHaveText('m');
+  await expect(page.locator('.panel-footer__units')).toHaveText('mph / m');
 });
 
 test('tabbing to a menu segmented control shows a real keyboard focus ring, not a tap ring', async ({ page }) => {
@@ -672,7 +682,7 @@ test('tabbing to a menu segmented control shows a real keyboard focus ring, not 
 
   const unitsGroup = page.getByRole('group', { name: 'Display units' });
   const imperialButton = unitsGroup.getByRole('button', { name: 'MPH / YDS' });
-  const metricButton = unitsGroup.getByRole('button', { name: 'KMH / M' });
+  const metricButton = unitsGroup.getByRole('button', { name: 'KM/H / M' });
 
   // Bonus, near-zero-cost confirmation of the touch-target fix in a real
   // browser, reusing this test's setup instead of a dedicated spec.

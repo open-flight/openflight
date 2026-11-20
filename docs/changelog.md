@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`scripts/setup/setup.sh` offers the low-battery shutdown.** Answering yes
+  to the Geekworm X1202/X1206 question now also asks whether to install
+  `openflight-battery-guard.service` (default yes). A failed Geekworm step,
+  such as the taskbar package, warns instead of ending the setup run.
 - **Optional low-battery shutdown for UPS builds.**
   `scripts/battery/install_battery_guard.sh` installs a systemd service that,
   when external power is offline and the battery is at or below 10% or 3.40 V
@@ -38,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [OPS243 internal trigger and firmware updates](reference/ops243-firmware-history.md).
 
 ### Changed
+- **The interactive setup can configure an OPS243 on the Pi GPIO UART.**
+  Pass `--ops-port /dev/ttyAMA0` to `scripts/setup/setup.sh`; the selected
+  device is used for both rolling-buffer setup and post-power-cycle verification.
 - **Parts list: the Raspberry Pi Touch Display 2 is the core display.** Its
   200 mm DSI ribbon and the female/male header jumpers are listed with it. The
   cheaper Hosyond 7" DSI panel is the alternative, with the screen front to print
