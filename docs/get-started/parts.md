@@ -42,30 +42,6 @@ Hardware components for building the OpenFlight golf launch monitor.
 > rotation, resolution and backlight are right is up to you. OpenFlight's setup
 > and kiosk are only tested with the DSI panels above.
 
-<details markdown="1">
-<summary>Display and screen-front dimensions</summary>
-
-Panel figures are from the makers' own pages. The screen-front figures are the
-overall bounding box of each STL in
-[openflight-enclosure `stls/screen/v1/`](https://github.com/open-flight/openflight-enclosure/tree/main/stls/screen/v1),
-measured from the files as published on 2026-11-20.
-
-| Panel | Resolution | Outline (W × H × D) | Active area | Power | Screen front to print | Screen front size |
-|---|---|---|---|---|---|---|
-| Raspberry Pi Touch Display 2, 7" | 720 × 1280, portrait | 120 × 189.5 × 15 mm | 86.94 × 154.56 mm | 2.4 W, from GPIO | `Screen-RPI-Display-2.stl` | 200.0 × 117.5 × 53.8 mm |
-| Hosyond 7" DSI Display-A | 800 × 480, landscape | 192.96 × 110.76 × 20.13 mm | 154.21 × 85.92 mm | 2.2 W, from GPIO | `Screen-800x480.stl` | 200.0 × 117.5 × 53.8 mm |
-| HMTECH 7" HDMI (not recommended) | 1024 × 600 | — | — | from USB | `Screen-1024x600.stl` | 200.0 × 119.6 × 53.8 mm |
-
-Sources: the [Touch Display 2 product page](https://www.raspberrypi.com/products/touch-display-2/),
-[documentation](https://www.raspberrypi.com/documentation/accessories/touch-display-2.html)
-and 7-inch product brief; Hosyond's *7inch DSI Display-A User Manual*, linked
-from [hosyond.com](https://hosyond.com/). The enclosure's own
-[screen page](https://github.com/open-flight/openflight-enclosure/blob/main/docs/parts/screen.md)
-does not yet say which panel the 800×480 front was drawn around, so the
-Hosyond fit is from the outline above, not from a test print.
-
-</details>
-
 ## Sound Trigger (for Rolling Buffer Mode)
 
 The sound trigger detects club impact to precisely time radar captures. Essential for spin detection via rolling buffer mode.

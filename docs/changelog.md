@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parts list: the Raspberry Pi Touch Display 2 is the core display.** Its
   200 mm DSI ribbon and the female/male header jumpers are listed with it. The
   cheaper Hosyond 7" DSI panel is the alternative, with the screen front to print
-  for each and their dimensions. The micro-USB cable row is gone (the IWR6843LEVM
+  for each. The micro-USB cable row is gone (the IWR6843LEVM
   kit includes one), as are the internal-trigger programmer and the filament
   estimate. The IWR6843LEVM is now $172.
 - **IWR6843 measuring guide:** the antenna center is shown on TI's antenna
