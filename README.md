@@ -109,7 +109,8 @@ See the **[Raspberry Pi Setup Guide](docs/setup/raspberry-pi.md)** for details a
 scripts/start-kiosk.sh
 
 # With the IWR6843 angle radar (OPS243 on the Pi GPIO UART).
-# Geometry values are examples — measure your own; see the operator guide.
+# Geometry values are examples — measure your own unit; the defaults come from
+# the old enclosure. See docs/iwr6843/mounting.md#measure-the-geometry.
 scripts/start-kiosk.sh --iwr6843 \
   --ops-port /dev/ttyAMA0 \
   --iwr6843-tee-m 1.372 --iwr6843-net-m 4.064 \

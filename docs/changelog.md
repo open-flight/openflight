@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Help Needed page** listing the testing and development work that would help
   most: the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
   OPS243 firmware updates, newer OPS firmware features, the new radar front,
-  radome tests, camera sensor fusion, the mobile app, and azimuth calibration; see
+  radome tests, automatic setup measurement, camera sensor fusion, the mobile
+  app, and azimuth calibration; see
   [Help Needed](development/help-needed.md).
 - **AN-013-G** (OmniPreSense code update, rev G, November 2026) checked into
   `docs/radar/`, with a history page on the OPS243 internal trigger and
@@ -43,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for each and their dimensions. The micro-USB cable row is gone (the IWR6843LEVM
   kit includes one), as are the internal-trigger programmer and the filament
   estimate. The IWR6843LEVM is now $172.
+- **IWR6843 measuring guide:** the antenna center is shown on TI's antenna
+  figure, a side and top diagram shows what each geometry argument measures,
+  and a warning says the defaults come from the old enclosure and must be
+  measured on your own unit; see
+  [Mount, aim, and measure](iwr6843/mounting.md#measure-the-geometry)
+  ([#339](https://github.com/open-flight/openflight/issues/339)).
 - **"Moving the OPS243 from USB to the Pi GPIO UART" is now "Connecting the
   OPS243 to the Pi"**, with a note at the top for builds still on USB.
 - **The OPS sound-trigger hardware test defaults to the Pi GPIO UART.**

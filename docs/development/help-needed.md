@@ -119,6 +119,33 @@ too much:
 - **Feasibility**: how a cover would mount on the radar front, and whether it
   can be printed with the case.
 
+Post results, and ideas for how a cover could work, in
+[Discussion #154](https://github.com/open-flight/openflight/discussions/154),
+which asks exactly this question.
+
+## Measure the setup geometry automatically
+
+Every IWR6843 setup needs its geometry typed in as launch arguments: the
+distance to the ball, the distance to the net, the radar height and the ball
+height ([Mount, aim, and measure](../iwr6843/mounting.md#measure-the-geometry)).
+That makes setup harder than it should be. It is also easy to get wrong: people
+set the values once and forget to adjust them for the next session, when the
+mat, the bay or the tee position has changed. Wrong geometry costs the IWR its
+launch angles without raising any error.
+
+Could the IWR6843 measure the distance to the ball itself, on its own or
+together with the camera, so you would not need to enter it? The ball is a
+static return in front of the radar before every shot, and the camera can see
+where it sits. What would help:
+
+- **A ball-range measurement from the IWR's own frames** at address, checked
+  against a tape on real rigs, with the mat and the golfer's feet nearby.
+- **The camera's view of the ball** as a second estimate, or as a check on
+  the radar's.
+- **Height and net distance** too, if they can be inferred, so a session
+  could start with no geometry arguments at all, and warn when the measured
+  setup differs from the saved one.
+
 ## Sensor fusion with the camera
 
 Combining the camera with the radars is an interesting area, and

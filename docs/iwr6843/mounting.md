@@ -20,11 +20,12 @@ typically around 10 degrees, when both antenna faces are mounted parallel. Treat
 Measure the IWR6843 antenna-face tilt independently and enter that measured
 value in OpenFlight.
 
-Start with the IWR6843 antenna center approximately 6 inches (`0.1524 m`) above
-the floor surface under the radar. Measure vertically from that surface to the
-center of the antenna array, not to the enclosure bottom or mounting feet. This
-is the validated starting height, not a substitute for entering the actual
-measured height.
+The validated rig had the IWR6843 antenna center approximately 6 inches
+(`0.1524 m`) above the floor surface under the radar, in the old enclosure on a
+stand. A unit standing on its feet in the current case sits much lower, about
+`0.050 m` (see [Which point to measure from](#which-point-to-measure-from)).
+Measure vertically from the floor to the center of the antenna array, not to
+the enclosure bottom or mounting feet, and enter what you measure.
 
 Mounting requirements:
 
@@ -51,6 +52,34 @@ OpenFlight needs these physical inputs:
 | `--iwr6843-tilt-deg` | Antenna-face mount tilt from an inclinometer |
 | `--iwr6843-radar-height-m` | Antenna-center height above the floor reference (see [Which point to measure from](#which-point-to-measure-from)) |
 | `--iwr6843-ball-height-m` | Ball-center height above the same floor reference |
+
+!!! danger "Measure your own unit. The defaults are from the old enclosure."
+
+    The built-in values were measured on the validated rig, which used the old
+    enclosure on a stand. They are a starting point for that rig, not for
+    yours. On the current case they are wrong. The radar height alone is three
+    times too high for a unit on its feet. Wrong geometry does not raise an
+    error: the IWR6843 just reports biased launch angles, or rejects every ball
+    track and reports none. Measure each value on your own unit, and measure
+    again whenever the unit, the mat or the bay changes.
+
+    | Argument | Default | Where the default comes from |
+    |---|---|---|
+    | `--iwr6843-tee-m` | `1.575` | Validated rig |
+    | `--iwr6843-net-m` | `4.6` | Validated rig |
+    | `--iwr6843-radar-height-m` | `0.1524` | Reference calibration JSON (validated rig, old enclosure on a stand) |
+    | `--iwr6843-tilt-deg` | `10.40` | Reference calibration JSON (validated rig) |
+    | `--iwr6843-ball-height-m` | `0.040` | A typical iron ball center, not your mat |
+
+    Write your values into your start script so every session uses them, and
+    re-check them when you set up somewhere new. The values are easy to set
+    once and then forget when the setup changes.
+
+![Side view: radar height from the floor to the IWR6843 antenna centre, ball height from the same floor to the ball centre, tee-m from the antenna centre to the ball centre, net-m from the antenna centre to the net, and tilt of the antenna face from vertical. Top view: the antenna centre 46.4 mm from the case's left side seen from the front, on the target line through the ball to the net.](../assets/iwr6843-setup-measurements.svg)
+
+*What each geometry argument measures. Every distance and height starts at the
+antenna center, the green crosshair, and both heights use the floor the ball
+sits on.*
 
 ### Which point to measure from
 
@@ -94,26 +123,63 @@ whose patch outlines match SWRU585) placed on the radar front's four M3
 pockets. Check them with a tape on your own unit; a front from another branch
 or an older print moves the board.
 
+One unit measured with a ruler to the green crosshair
+([#339](https://github.com/open-flight/openflight/issues/339), 2026-11-18):
+
+| What | Tape | CAD |
+|---|---|---|
+| Antenna center above the case bottom, no feet | 52.5 mm | 45.3 mm |
+| Antenna face behind the front face | 27 mm | 27.0 mm |
+
+The depth matches the CAD. The height came out 7.2 mm above it, which is why
+your own tape wins over both tables: a different print of the radar front or
+the shell moves it. 7 mm is about 0.25° of elevation at 1.6 m. That unit runs
+with `--iwr6843-radar-height-m 0.0525`, plus the height of its feet when they
+are fitted. More measurements from other units will settle a default for the
+current front.
+
 What that means for the tape:
 
 - **`tee-m` and `net-m` are taken from the antenna center.** With a tape,
   start at the face of the radar front at antenna height, directly in front
   of the IWR (not the bottom lip, which sticks out about 8 mm further), run it
   horizontally along the target line, and add the 27 mm depth to the antenna
-  face.
-
-    !!! note "On the `feat/iwr-self-trigger` branch"
-
-        The self-trigger branch changes this: there, `tee-m` and `net-m` are
-        taped from the radar front's face and the software adds 30 mm
-        (`ARRAY_DEPTH_M`) itself, so you do **not** add the depth. Check which
-        one your checkout runs.
+  face. `net-m` runs from the unit to the net, not from the ball to the net.
 - **`radar-height-m`** is measured to the antenna center above, from the floor
   the ball sits on. A unit standing on its feet directly on that floor reads
-  about 0.050 m, not the 0.1524 m starting value further up this page, which
-  assumes the unit sits on a stand.
+  about 0.050 m, not the 0.1524 m default, which assumes the old enclosure on
+  a stand.
+- **`ball-height-m`** is the mat height plus the ball's 0.021 m radius,
+  measured from the same floor. A ball on a 4 cm mat is about 0.061 m, not the
+  0.040 m default.
 - **The target line and the azimuth check** run through the same point seen
   from above: 46.4 mm from the case's left side.
+
+!!! note "On the `feat/iwr-self-trigger` branch"
+
+    The self-trigger branch changes the `tee-m` and `net-m` reference: there
+    they are taped from the radar front's face and the software adds 30 mm
+    (`ARRAY_DEPTH_M`) itself, so you do **not** add the depth. Check which one
+    your checkout runs.
+
+<details markdown="1">
+<summary>What goes wrong with the wrong values</summary>
+
+From a 2026-11-01 studio session with TrackMan running alongside
+([#339](https://github.com/open-flight/openflight/issues/339)):
+
+- **Net entered as ball → net** (3.0 m) instead of unit → net (5.30 m). The
+  tracker stopped 0.25 m short of that net and searched from 2.25 m, which left
+  about 10 ms of flight, so it rejected every track. Replaying the same dumps
+  with 4.6 m tracked every real shot.
+- **Ball on a 4 cm mat left at the 0.04 m default** instead of about 0.061 m.
+  Replaying 31 shots against TrackMan, the corrected height cut the launch
+  bias from +0.87° to +0.39° on the good tracks.
+- **Radar height measured to the board center**, because it is not obvious
+  where the antennas are on the IWR6843LEVM. That is what the figure above is
+  for.
+
+</details>
 
 !!! note "Saved phone calibration"
 
