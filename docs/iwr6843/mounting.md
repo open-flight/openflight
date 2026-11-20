@@ -20,6 +20,14 @@ reports. The numbers you measure here go straight into the runtime.
 A corner reflector on the target line can check horizontal aim, but it does not
 replace validation with real shots.
 
+**Give the ball as much flight as you can.** The radar can only track the ball
+until it hits the net or leaves the radar's range. The longer that flight, the
+more frames the radar gets of the ball, and in theory the better the reading.
+So place the unit and the tee to leave as much room to the net as the space
+allows. For the same reason, an outdoor range should in theory read better than
+a net indoors. On the `feat/iwr-self-trigger` branch, tell it which with
+`--iwr6843-flight range` or `net`.
+
 ## Measure The Geometry
 
 !!! danger "Measure your own unit. The defaults are from the old enclosure."
