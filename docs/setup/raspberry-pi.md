@@ -97,9 +97,11 @@ configuration with prompts:
    plugging them in one at a time, so OpenFlight always knows which is which
 4. **Geekworm UPS** (optional) — enables native X1202/X1206 battery and
    external-power telemetry, Pi power settings, and desktop battery support
-5. **Auto-start on boot** — optional systemd service
-6. **Desktop shortcut** — optional
-7. **FlightWeb cloud sync** — optional uploader and device linking
+5. **RTC battery charging** (optional, rechargeable battery only) — keeps the
+   clock running while unplugged; see [RTC Backup Battery](#rtc-backup-battery)
+6. **Auto-start on boot** — optional systemd service
+7. **Desktop shortcut** — optional
+8. **FlightWeb cloud sync** — optional uploader and device linking
 
 Every step can be skipped and the script is **safe to re-run** any time —
 it picks up where you left off.
@@ -188,6 +190,22 @@ UPS step; on its own, install it with `scripts/battery/install_battery_guard.sh`
 Cell type, board-revision power limits, physical installation, every system
 change, and troubleshooting are documented in the
 **[Geekworm X1202/X1206 Operator Guide](../build/battery.md)**.
+
+### RTC Backup Battery
+
+A battery on the Pi 5's **J5 (BAT)** connector keeps the clock running while
+unplugged, so logs have the correct time without a network or the phone app.
+Charging is off by default; turn it on with:
+
+```bash
+./scripts/setup/enable_rtc_battery_charging.sh   # --disable to undo
+sudo reboot
+```
+
+> [!WARNING]
+> **Rechargeable batteries only**, such as the
+> [official Raspberry Pi RTC battery](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#add-a-backup-battery).
+> Never charge a CR2032 or other non-rechargeable cell — it can leak or burst.
 
 ### K-LD7 Device Names (Deprecated Hardware)
 
