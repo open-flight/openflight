@@ -89,7 +89,7 @@ at runtime, so the mode has to already be in flash at power-on.
 | Dump time at 230,400 baud | ~1.8 s |
 | Dump time at 19,200 baud (factory default) | ~21 s — every capture truncated |
 
-The baud rate is why the [UART migration](../build/ops243-uart.md) negotiates up
+The baud rate is why the [UART connection](../build/ops243-uart.md) negotiates up
 to 230,400 rather than accepting the factory default.
 
 ## Related

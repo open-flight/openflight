@@ -12,18 +12,39 @@ Hardware components for building the OpenFlight golf launch monitor.
 |------|-------------|------|--------|
 | **OPS243 Radar** | Doppler radar for ball/club speed detection | [OmniPreSense](https://omnipresense.com/product/ops243-doppler-radar-sensor/) | $249 |
 | **Raspberry Pi 5** | Main compute unit (4GB+ recommended) | [Adafruit](https://www.adafruit.com/product/5812) | $130 |
-| **7" Touchscreen Display** | HMTECH 7" 1024x600 IPS display | [Amazon](https://www.amazon.com/dp/B0D3QB7X4Z) | $46 |
-| **Raspberry Pi Display Cable, Standard–Mini, 200 mm (SC1131)** | Only with the Touch Display 2 below: the 22-way (Pi 5 "mini") to 15-way (display "standard") DSI ribbon. Buy **200 mm** — the ~100 mm ribbon in the Display 2 box does not reach the Pi in the v3 case ([Cable lengths](#cable-lengths-enclosure-v3)). 300 and 500 mm fit but leave a loop to stow | [Raspberry Pi](https://www.raspberrypi.com/products/display-cable/) / [Mouser](https://www.mouser.com/ProductDetail/Raspberry-Pi/SC1131?qs=HoCaDK9Nz5eSyEpyddOkmQ%3D%3D) / [Amazon](https://www.amazon.com/dp/B0GX33S2C6) (Raspberry Pi's own listing; pick 200 mm) | ~$2 |
+| **Raspberry Pi Touch Display 2 (7")** | The display. Portrait IPS panel with five-finger capacitive touch, on the Pi's DSI ribbon port, powered from the Pi's GPIO header. Print the [`Screen-RPI-Display-2.stl`](https://github.com/open-flight/openflight-enclosure/blob/main/stls/screen/v1/Screen-RPI-Display-2.stl) screen front for it. In the box: the GPIO power cable, two short ribbons (standard–standard and standard–mini), and eight M2.5 screws. You also need the two rows below | [Raspberry Pi](https://www.raspberrypi.com/products/touch-display-2/) | $60 |
+| **Raspberry Pi Display Cable, Standard–Mini, 200 mm (SC1131)** | Display 2 accessory: the 22-way (Pi 5 "mini") to 15-way (display "standard") DSI ribbon. Buy **200 mm**. The ~100 mm ribbon in the Display 2 box does not reach the Pi in the v3 case, because the case mounts the Pi and UPS to the shell rather than to the back of the screen ([Cable lengths](#cable-lengths-enclosure-v3)). 300 and 500 mm fit but leave a loop to stow | [Raspberry Pi](https://www.raspberrypi.com/products/display-cable/) / [Mouser](https://www.mouser.com/ProductDetail/Raspberry-Pi/SC1131?qs=HoCaDK9Nz5eSyEpyddOkmQ%3D%3D) / [Amazon](https://www.amazon.com/dp/B0GX33S2C6) (Raspberry Pi's own listing; pick 200 mm) | ~$2 |
+| **Jumper wires (female/male, 75 mm)** | Display 2 accessory. Header-pin extensions: the female end goes onto a Pi GPIO pin and the male end re-presents that pin for a second connector. They keep the 5V rail reachable for the OPS243 when the Display 2 power cable is also on the header, so one connector does not cover the whole rail. 75 mm is the shortest female/male length Mouser stocks (Adafruit 1953, Mouser 485-1953, 20-wire ribbon). $1.95 at Adafruit list; Mouser's price for 485-1953 is unverified | [Mouser](https://www.mouser.com/ProductDetail/Adafruit/1953?qs=GURawfaeGuBbX2LiaCDbnA%3D%3D) | $2 |
 
 > **NOTE on OPS243-A-W (WiFi version):** The standard **OPS243-A** (USB only) is strongly recommended. The WiFi module on the OPS243-A-W drives the internal UART receive line, preventing direct connection to the Raspberry Pi GPIO UART (Layout A). However, if you already have the WiFi version, it can still be used over USB with a powered USB hub (Layout B) when paired with the IWR6843 angle radar.
 
-> **Display alternative:** The [Raspberry Pi Touch Display 2](https://www.raspberrypi.com/products/touch-display-2/) (7" 720x1280, MIPI DSI) also works with the Pi 5. Print the `Screen-RPI-Display-2.stl` bezel from the [openflight-enclosure v3 case](https://github.com/open-flight/openflight-enclosure) for it. **It also needs the 200 mm display cable in the row above:** the case mounts the Pi and UPS to the shell rather than to the screen, which makes the install easier, and the roughly 100 mm 22-way to 15-way ribbon that ships in the Display 2 box does not reach the Pi from there.
+> **Display alternative (cheaper): Hosyond 7" DSI Display.** Hosyond's 7-inch
+> **DSI** panel (sold as "7inch DSI Display-A") is a landscape 800×480 IPS panel
+> with five-point capacitive touch. It uses the same DSI ribbon port as the
+> Display 2 and is listed for the Pi 4B and Pi 5. Buy the **DSI** version.
+> Hosyond also sells HDMI panels, and those are not this part. Print the
+> [`Screen-800x480.stl`](https://github.com/open-flight/openflight-enclosure/blob/main/stls/screen/v1/Screen-800x480.stl)
+> screen front for it. Its connector is the 15-way "standard" one, so if the
+> box has no Pi 5 ribbon long enough, the 200 mm SC1131 above fits it. It takes
+> 5V from the Pi header as well, so the female/male jumpers apply the same way.
+> [Hosyond 7" DSI Display, 800×480 (Amazon)](https://www.amazon.com/dp/B0D3QB7X4Z) /
+> [Hosyond](https://hosyond.com/).
+>
+> **HDMI panels work, but are not recommended.** An HDMI touchscreen such as the
+> HMTECH 7" 1024×600 runs too, with the
+> [`Screen-1024x600.stl`](https://github.com/open-flight/openflight-enclosure/blob/main/stls/screen/v1/Screen-1024x600.stl)
+> screen front. It needs a micro-HDMI cable for video plus two USB cables for
+> touch and power, all of which have to be routed inside the case. A single
+> DSI ribbon is simpler.
+>
+> **With any screen that is not DSI, you are on your own for the software.**
+> Making sure its drivers work, that touch responds, and that the display
+> rotation, resolution and backlight are right is up to you. OpenFlight's setup
+> and kiosk are only tested with the DSI panels above.
 
 ## Sound Trigger (for Rolling Buffer Mode)
 
 The sound trigger detects club impact to precisely time radar captures. Essential for spin detection via rolling buffer mode.
-
-> **Optional internal-trigger path:** Hardware mode lets the OPS243 fire the rolling-buffer dump from its own internal speed trigger, with no SEN-14262 in the loop. It requires OPS243-A firmware 1.3.2 or newer in the 1.3 release train; firmware 1.3.1 is rejected because of a vendor data-sequence bug. See [Internal Hardware Trigger](#internal-hardware-trigger) below.
 
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
@@ -49,30 +70,16 @@ SEN-14262               Raspberry Pi           OPS243
 
 See [sound-trigger-wiring.md](../build/sound-trigger.md) for detailed instructions and troubleshooting.
 
-### Internal Hardware Trigger
-
-> **Why this is worth wanting, beyond the parts it saves.** A microphone cannot
-> tell your strike from someone else's, and it cannot tell either from a door,
-> a ball hopper or the next bay over — that is the nature of listening for a
-> bang. It is why the SEN-14262 needs its `R17` gain trimmed to your room in
-> the first place, and why a noisy range is the environment it handles worst.
-> The internal trigger fires on the radar's own speed reading instead, so it
-> responds to something moving in front of the sensor rather than to sound in
-> the building. In theory that makes it both less error-prone and usable in
-> loud places the sound trigger cannot cope with. Treat that as the expectation
-> rather than a measured result: nobody has published a false-trigger
-> comparison between the two.
-
-Hardware mode lets the OPS243-A start the rolling-buffer capture from its own speed trigger, so the sound detector, its resistor and its wiring are not needed. The supported firmware is OPS243-A 1.3.2 or newer in the 1.3 release train. Check before buying anything: plug the radar into USB, open a serial terminal, send `?V`, and read the version it prints back.
-
-- **It reports 1.3.2 or later in the 1.3 train.** Nothing to buy; use `scripts/start-kiosk.sh --trigger hardware`. OmniPreSense [told the project on 2026-09-10](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576) that 1.3.2 went onto the sensors shipping from that build on (1.3.1 had gone to some earlier customers with a late bug), so a new order should arrive like this. Skip the Sound Trigger table above if you choose hardware mode.
-- **It reports 1.3.1 or older.** You flash it yourself, which is where the debugger cost comes in. OmniPreSense's [AN-013 code-update note](https://omnipresense.com/wp-content/uploads/2019/06/AN-013-D_OPS241-Code-Update.pdf) is the procedure: a SEGGER J-Link on the radar's keyed `J2` JTAG header (a 10-pin 1.27 mm Cortex debug header, not the `J3` UART header OpenFlight wires to), Infineon's free XMCFlasher in Serial Wire Debug mode with the XMC4500-1024 target selected, and the 1.3.2 hex file, which is not a public download — OmniPreSense hand it out on request. **Two ways to ask, both confirmed by Sandy at OmniPreSense**, who [said on the project Discord](https://github.com/open-flight/openflight/pull/221#issuecomment-5619646576) *"If you have a Segger programmer, and would like to update the code on your OPS243, please send me a message here or via email on our website"*: message them on **Discord**, or use the **contact page on [omnipresense.com](https://omnipresense.com/contact/)**. The customerservice@omnipresense.com address reaches them too. They will also confirm which J-Link model to get. Send `?P` first and pick the XMC4700 in XMCFlasher instead if the board reports that part ([note on the PR](https://github.com/open-flight/openflight/pull/221#issuecomment-5463503457)). Do not press Erase in XMCFlasher: it clears the factory settings some sensors carry and anything you saved to persistent memory. On Windows run the J-Link driver installer as administrator and tick the legacy J-Link USB driver, or XMCFlasher will not find the probe ([upgrade report](https://github.com/open-flight/openflight/pull/221#issuecomment-5756563718)).
-
-| Part | Description | Link | ~Price |
-|------|-------------|------|--------|
-| **SEGGER J-Link EDU Mini (Adafruit 3571)** | Only if you go the internal-trigger route and your OPS243-A reports firmware older than 1.3.2. This is the low-cost programmer AN-013 points at; the 9-pin 0.05" (1.27 mm) Cortex target cable that fits `J2` is in the box | [Mouser](https://www.mouser.se/en/ProductDetail/Adafruit/3571?qs=YCa%2FAAYMW03SrXLinBpZFw%3D%3D) / [Amazon](https://www.amazon.com/dp/B0758XRMTF) / [Adafruit](https://www.adafruit.com/product/3571) | $76 |
-
-That is about four times the sound trigger's $18, and it is a one-off tool rather than a part of the monitor, so it is a trade you make for the wiring and the R17 soldering the internal trigger removes, not for the price.
+> The OPS243's own internal trigger, the firmware it needs and the programmer
+> used to update older sensors used to be listed here. None of that is needed
+> to build OpenFlight. How it evolved is now in
+> [OPS243 internal trigger and firmware updates](../reference/ops243-firmware-history.md).
+>
+> **The goal is to not need the sound trigger at all.** The plan is for the
+> IWR6843 to detect the shot itself and trigger the capture, so a future build
+> drops the SEN-14262 and its wiring. That self-trigger is still being tested;
+> see [Help needed](../development/help-needed.md#test-the-iwr6843-self-trigger).
+> Until it is ready, buy the sound trigger above.
 
 ## Angle Radar (TI IWR6843) — CURRENT
 
@@ -81,8 +88,7 @@ angle, and supplies the pre-impact frames club path is derived from.
 
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
-| **TI IWR6843LEVM** | 60 GHz mmWave evaluation board, 4 RX × 3 TX | [TI](https://www.ti.com/tool/IWR6843LEVM) | $150 |
-| **Micro-USB cable (data-capable), 250-300 mm** | Connects the LEVM's CP2105 serial bridge to the Pi; the LEVM's port is micro-USB, and charge-only cables will not enumerate. 150 mm is the floor and 250-500 mm comfortable ([Cable lengths](#cable-lengths-enclosure-v3)); the shared Mouser project carries a 50 cm StarTech cable. This is the same single cable as the micro-USB row in Accessories, not a second one: with both radars fitted it serves the LEVM, because Layout A puts the OPS243 on the GPIO UART | Any | in Accessories |
+| **TI IWR6843LEVM** | 60 GHz mmWave evaluation board, 4 RX × 3 TX. The kit comes with the micro-USB cable that connects it to the Pi, so there is no cable to buy | [TI](https://www.ti.com/tool/IWR6843LEVM) | $172 |
 | **Jumper wire** | 1 wire: detector `GATE` → Pi BCM17 / physical pin 11, alongside the existing `GATE` → OPS `HOST_INT`. Female/female, out of the same 300 mm SparkFun PRT-09389 pack as the sound-trigger wires above, so it is not a separate purchase | [Mouser](https://www.mouser.com/c/?q=PRT-09389) | in that pack |
 
 The board needs **custom firmware** — it does not work out of the box. The
@@ -113,8 +119,8 @@ radars over USB.
 > commands. WiFi OPS boards must use Layout B with a powered hub.
 
 Full instructions: **[IWR6843 Operator Guide](../iwr6843/index.md)** for wiring,
-flashing, mounting, and geometry; **[Moving the OPS243 to the Pi GPIO
-UART](../build/ops243-uart.md)** for the OPS side of Layout A.
+flashing, mounting, and geometry; **[Connecting the OPS243 to the
+Pi](../build/ops243-uart.md)** for the OPS side of Layout A.
 
 ### Optional Enclosure Inclinometer
 
@@ -173,9 +179,7 @@ One unit is mounted vertically (launch angle), one horizontally (club path / aim
 | Part | Description | Link | ~Price |
 |------|-------------|------|--------|
 | **Raspberry Pi Active Cooler** | Clip-on heatsink + fan for the Pi 5 (SC1148). Recommended: the kiosk runs the UI, radar capture, and FFT processing continuously, and a passively cooled Pi 5 throttles under sustained load | [Mouser](https://www.mouser.com/ProductDetail/Raspberry-Pi/SC1148?qs=HoCaDK9Nz5fqo0izK2taew%3D%3D) | $8 |
-| **Jumper wires (female/male, 75 mm)** | Header-pin extensions: the female end goes onto a Pi GPIO pin and the male end re-presents that pin for a second connector. Used here to keep the 5V rail reachable for the OPS243 when the Touch Display 2 is also wired to the header, instead of one connector covering the whole rail. 75 mm is the shortest female/male length Mouser stocks (Adafruit 1953, Mouser 485-1953, 20-wire ribbon). $1.95 at Adafruit list; Mouser's price for 485-1953 is unverified | [Mouser](https://www.mouser.com/ProductDetail/Adafruit/1953?qs=GURawfaeGuBbX2LiaCDbnA%3D%3D) | $2 |
 | MicroSD Card (32GB+) | For Pi OS and software | Any Class 10 | $10 |
-| USB-A to Micro-USB Cable | One data-capable cable, for whichever radar sits on USB. With the **OPS243 on its own** it plugs into the OPS243. With **both radars** Layout A moves the OPS243 onto the Pi's GPIO UART header, because the Pi cannot supply both from its USB budget, so this cable goes to the IWR6843LEVM instead — the LEVM does not include one. It is the same single cable either way, not one per radar; the length to buy is in the angle-radar table above | Any | $5 |
 
 
 ## Optional
@@ -230,7 +234,7 @@ last column.
 | Sound trigger `GATE` → `HOST_INT` | Detector on the camera strip → OPS243 `J3` pin 3 | ~90 mm | ~150 mm | 300 mm |
 | Sound trigger `VCC`, `GND`, and `GATE` → BCM17 | Detector → Pi GPIO header | ~70 mm | ~135 mm | 300 mm (150 mm reaches closed, not with the strip lifted off) |
 | Inclinometer | Pi GPIO header → LIS3DH in the left floor bay | ~65 mm | ~135 mm | 150 mm Qwiic-to-Dupont, ~15 mm spare |
-| IWR6843 USB | LEVM `J5` (top edge of the board, radar front) → Pi USB-A | ~50 mm | ~130 mm | 250-500 mm micro-USB; 150 mm is the floor |
+| IWR6843 USB | LEVM `J5` (top edge of the board, radar front) → Pi USB-A | ~50 mm | ~130 mm | the micro-USB cable in the LEVM kit; 150 mm is the floor |
 | Touch Display 2 DSI | Pi `DISP` FPC connector (right edge of the Pi) → display FPC connector | ~65 mm | ~140 mm | 200 mm Standard–Mini (SC1131); the ~100 mm ribbon in the box does not reach |
 | Camera CSI, if fitted | Pi `CAM` FPC connector → OV9281 on the camera strip | ~55 mm | ~125 mm | 200 mm Standard–Mini camera cable (SC1128); not in the tables |
 | Ethernet, if fitted | Panel coupler in the rear recess (left) → Pi RJ45 | ~100 mm | ~195 mm | a 6 in / 15 cm patch only pulled straight; 1 ft / 30 cm is comfortable |
@@ -284,12 +288,12 @@ the running total tells you what it costs to stop there.
 
 | Group | What it covers | ~Price |
 |---|---|---|
-| Core | OPS243-A radar, Raspberry Pi 5, 7" display | $425 |
+| Core | OPS243-A radar, Raspberry Pi 5, Touch Display 2 with its 200 mm ribbon and female/male jumpers | $443 |
 | Sound trigger | SEN-14262, the `R17` resistor, the 300 mm jumper pack | $18 |
-| Accessories | Active cooler, female/male jumpers, microSD, micro-USB radar cable | $25 |
+| Accessories | Active cooler, microSD | $18 |
 | Power | [Route 1](power.md#route-1-the-official-27-w-usb-c-supply), the official 27 W supply, whose cable is captive | $14 |
-| Enclosure | ~750 g PETG, plus heat-set inserts and screws | $52 |
-| **Base build** | a working unit: ball speed, club speed, smash factor, spin, estimated carry | **~$534** |
+| Enclosure | Printed parts, plus heat-set inserts and screws | $52 |
+| **Base build** | a working unit: ball speed, club speed, smash factor, spin, estimated carry | **~$545** |
 
 The enclosure is in here rather than under Optional because you need one
 whichever radars you fit. Nothing measures repeatably until the boards are
@@ -299,16 +303,16 @@ IWR6843LEVM, so an OPS-only build prints exactly the same parts and leaves the
 IWR mounts empty. The $52 assumes you print it yourself; add a print
 service if you do not own a printer.
 
+The core line is priced with the Touch Display 2. The Hosyond DSI panel in
+[Core Components](#core-components) is the cheaper option, and its own listing
+has the current price.
+
 ### 2. Add the angle radar
 
 | Add | What it buys | ~Price | Running |
 |---|---|---|---|
-| **TI IWR6843LEVM** | measured launch angle and direction, and club path | $150 | **~$684** |
+| **TI IWR6843LEVM** | measured launch angle and direction, and club path | $172 | **~$717** |
 | 2× K-LD7 + FTDI adapters | the same, but **deprecated** — not for new builds | $140 | — |
-
-The board is the whole cost here. Its micro-USB cable is counted in
-Accessories and its one `GATE` → BCM17 jumper comes out of the sound-trigger
-pack, so neither is charged twice.
 
 ### 3. Optional
 
@@ -320,17 +324,16 @@ Independent of each other; add the ones you want.
 | Camera | InnoMaker OV9281, experimental vision work only | $30 |
 | **Battery power, [X1202](power.md#route-2-the-geekworm-x1202-x1206-ups-hat)** | HAT $48, four 18650s $24, 12 V adapter $15, panel DC jack $8, the lead into the board $2-3, and a 12 mm button with leads $6 — $104 in all. It **replaces** the $14 supply in step 1, so the net add is | **+$90** |
 | Battery power, [X1206](power.md#route-2-the-geekworm-x1202-x1206-ups-hat) instead | the same list with a $52 HAT and four 21700s at $32 | +$102 |
-| J-Link EDU Mini | only if your OPS243 reports firmware older than 1.3.2 and you want the internal trigger | $76 |
 
 ### Worked totals
 
 | Build | ~Price |
 |---|---|
-| **Base build — OPS243 only, in its case** | **~$534** |
-| + angle radar | ~$684 |
-| + inclinometer and camera | ~$729 |
-| **Everything, battery powered (X1202)** | **~$819** |
-| Everything, with the X1206 instead | ~$831 |
+| **Base build — OPS243 only, in its case** | **~$545** |
+| + angle radar | ~$717 |
+| + inclinometer and camera | ~$762 |
+| **Everything, battery powered (X1202)** | **~$852** |
+| Everything, with the X1206 instead | ~$864 |
 
 > **The battery line includes its own wiring.** A UPS HAT cannot be powered in
 > a closed case without a DC adapter, a panel jack and the leads that join
@@ -345,30 +348,6 @@ Independent of each other; add the ones you want.
 > slowly, so it is a trade rather than an upgrade —
 > [both sides of it are here](power.md#route-2b-the-same-ups-on-a-captive-usb-c-supply).
 
-<details markdown="1">
-<summary>How the filament estimate was made</summary>
-
-The enclosure filament line is an estimate from the CAD, not a slicer figure,
-and it assumes **PETG**, not PLA: the case lives outdoors in the sun, and PETG
-holds up to UV and to a hot car far better than PLA (it softens at ~80 °C
-against PLA's ~60 °C), while still being a stock spool everywhere and an easy
-print on an enclosed printer such as the P1S. The figure is the mesh volume of
-the v3 `v1` print set at PETG's 1.27 g/cm³: the x1202 shell is 416 cm³
-(~530 g; a 200 × 214 × 111 mm body with 3 mm walls prints close to solid at
-the recommended 3-4 walls, so infill saves little), the no-fill radar front
-60 cm³ (~75 g), the camera + sound-detector strip and its retainer 31 cm³
-(~40 g), the 1024×600 screen bezel 36 cm³ (~45 g) and four solid feet 5 cm³
-(~7 g): about 700 g of parts, and the tree supports the shell, camera strip
-and no-fill radar front need plus a purge line take the print to roughly
-750 g, three-quarters of a 1 kg spool. At $20-25/kg that is ~$17. The Touch
-Display 2 bezel is 69 cm³ (~85 g), 40 g more than the 1024×600 one, and the
-no-UPS Pi adapter adds 17 cm³ (~20 g). Replace these with sliced weights when
-the enclosure repository publishes them. Heat-set inserts, screws and the hex
-key are listed on the enclosure repository's Required hardware page (see
-Enclosure Hardware above).
-
-</details>
-
 The enclosure hardware line is an allowance for the v3 set (short heat-set
 inserts in three sizes, plus the case screws and the board screws) at pack
 prices. It was $35 for the v2 set and is
@@ -379,22 +358,15 @@ Cell prices are estimates: ~$6 each for an 18650 (a Samsung 35E, Molicel P28A
 or LG MJ1 sells for about that) and ~$8 each for a 21700 (a Samsung 50E or
 Molicel P42A sells for $6-9). With the X1206 the HAT is $52 at Geekworm list
 and its four cells come to $32, so the battery line is $116 gross and
-+$102 net, and the full build reaches ~$831. Nothing else
++$102 net, and the full build reaches ~$864. Nothing else
 changes: the X1206 V2.0 carries its four 21700 holders on the board, uses the
 same power-button header, and takes the same 12 V adapter.
-
-With the internal hardware trigger, the Sound Trigger line ($18) becomes
-optional and drops out of every total above for a radar that already reports
-firmware 1.3.2. For one that arrived with 1.3.1 or older, the swap instead costs
-the ~$76 J-Link EDU Mini listed under
-[Internal Hardware Trigger](#internal-hardware-trigger), a one-off tool that
-flashes the 1.3.2 firmware.
 
 OpenFlight works without any angle radar: you get ball speed, club speed, smash
 factor, spin rate, and estimated carry. The angle radar adds measured launch
 angle (vertical and horizontal) and is what club path is derived from.
 
-If you are building new, buy the **IWR6843**, not the K-LD7s. It costs about the
-same as the two K-LD7s plus their FTDI adapters ($150 vs $140) and replaces both
-of them with one board. The K-LD7 path is **deprecated** and kept only so
+If you are building new, buy the **IWR6843**, not the K-LD7s. It costs a little
+more than the two K-LD7s plus their FTDI adapters ($172 vs $140) and replaces
+both of them with one board. The K-LD7 path is **deprecated** and kept only so
 existing builds keep working.

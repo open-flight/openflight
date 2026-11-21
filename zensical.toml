@@ -91,6 +91,7 @@ nav = [
     "reference/constants.md",
     "reference/cloud-uploader-spec.md",
     "reference/datasheets.md",
+    "reference/ops243-firmware-history.md",
   ] },
 
   { "Troubleshooting" = [
@@ -99,6 +100,7 @@ nav = [
 
   { "Development" = [
     "development/index.md",
+    "development/help-needed.md",
     "development/firmware.md",
     "development/spin-replay.md",
     "development/camera-yolo.md",

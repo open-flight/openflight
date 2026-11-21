@@ -43,18 +43,18 @@ Doppler radar, with an optional TI IWR6843 angle radar.
 |-----------|-------------|-------|
 | OPS243-A Radar | Ball speed, club speed, experimental spin | $249 |
 | Raspberry Pi 5 | Runs everything | $130 |
-| 7" Touchscreen | Shows shot data | $46 |
+| Raspberry Pi Touch Display 2 | Shows shot data (with its 200 mm ribbon and header jumpers) | $64 |
 | SparkFun SEN-14262 | Impact sound trigger for shot capture | $18 |
-| Power supply + accessories | 27 W supply with a captive, non-detachable cable, active cooler, microSD, cables | $39 |
-| Printed enclosure | ~750 g PETG, plus heat-set inserts and screws | $52 |
-| **Base build, in its case** | Ball speed, club speed, smash factor, spin, carry | **~$534** |
-| TI IWR6843LEVM | Launch angle, launch direction, experimental club path | $150 |
-| **With the angle radar** | | **~$684** |
+| Power supply + accessories | 27 W supply with a captive, non-detachable cable, active cooler, microSD | $32 |
+| Printed enclosure | Printed parts, plus heat-set inserts and screws | $52 |
+| **Base build, in its case** | Ball speed, club speed, smash factor, spin, carry | **~$545** |
+| TI IWR6843LEVM | Launch angle, launch direction, experimental club path | $172 |
+| **With the angle radar** | | **~$717** |
 
 Optional on top: battery power from a Geekworm UPS HAT (**+$90**, and it
 replaces the 27 W supply — see [Powering OpenFlight](docs/get-started/power.md)),
 a tilt sensor ($15), and a global-shutter camera ($30). Everything together is
-roughly **$819**. Full staged breakdown in the
+roughly **$852**. Full staged breakdown in the
 [parts list](docs/get-started/parts.md#cost-summary).
 
 Without an angle radar you still get ball speed, club speed, smash factor,
@@ -80,7 +80,7 @@ the OPS243 moves to the Pi's GPIO UART header while the TI board takes the USB
 port. Do it in this order, validating each step before the next — doing both at
 once makes any failure ambiguous:
 
-1. **[Move the OPS243 from USB to the Pi GPIO UART](docs/build/ops243-uart.md)** — rewire and confirm the OPS still triggers on its own.
+1. **[Connect the OPS243 to the Pi](docs/build/ops243-uart.md)** — wire it to the Pi's GPIO UART (switch it over if it is still on USB) and confirm the OPS still triggers on its own.
 2. **[IWR6843 Operator Guide](docs/iwr6843/index.md)** — wire, flash the firmware, mount, aim, and measure geometry.
 
 If your OPS243-A has **WiFi**, you cannot use the GPIO UART — its WiFi module
@@ -109,7 +109,8 @@ See the **[Raspberry Pi Setup Guide](docs/setup/raspberry-pi.md)** for details a
 scripts/start-kiosk.sh
 
 # With the IWR6843 angle radar (OPS243 on the Pi GPIO UART).
-# Geometry values are examples — measure your own; see the operator guide.
+# Geometry values are examples — measure your own unit; the defaults come from
+# the old enclosure. See docs/iwr6843/mounting.md#measure-the-geometry.
 scripts/start-kiosk.sh --iwr6843 \
   --ops-port /dev/ttyAMA0 \
   --iwr6843-tee-m 1.372 --iwr6843-net-m 4.064 \
@@ -307,7 +308,9 @@ questions, share results, and follow development.
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines, and
+**[Help Needed](docs/development/help-needed.md)** for the testing and
+development work that would help most right now.
 
 Areas of interest:
 
@@ -336,7 +339,7 @@ Build it locally with `make docs` (serves at `localhost:8000`).
 - **[Geekworm X1202/X1206 Operator Guide](docs/build/battery.md)** — Batteries, Pi setup, native telemetry, and warnings
 - **[IWR6843 Operator Guide](docs/iwr6843/index.md)** — Wire, flash, mount, aim, and calibrate the angle radar
 - **[LIS3DH Inclinometer Setup](docs/build/inclinometer.md)**: Add enclosure-level compensation to IWR6843 tilt
-- **[OPS243 USB → GPIO UART Migration](docs/build/ops243-uart.md)** — Required before adding the IWR6843
+- **[Connecting the OPS243 to the Pi](docs/build/ops243-uart.md)** — GPIO UART; required before adding the IWR6843
 - **[IWR6843 Firmware Developer Guide](docs/development/firmware.md)** — Build the firmware from source (not needed to flash the prebuilt image)
 - **[Enclosure & Case](https://github.com/open-flight/openflight-enclosure)** — The printed case, in its own repository
 - **[Hardware Diagnostic](docs/setup/raspberry-pi.md)** — Pi setup, auto-start, and troubleshooting

@@ -14,9 +14,10 @@ it is done and verified.
     Solder R17, wire `GATE` → `HOST_INT`. Everything downstream depends on this
     trigger path.
 
-- :material-numeric-2-circle-outline: **[OPS243 → GPIO UART](ops243-uart.md)**
+- :material-numeric-2-circle-outline: **[Connecting the OPS243 to the Pi](ops243-uart.md)**
 
-    Move the OPS243 off USB. Required before the IWR6843, which needs the bus.
+    The OPS243 on the Pi's GPIO UART. Still on USB? Switch it over: the
+    IWR6843 needs the USB port.
 
 - :material-numeric-3-circle-outline: **[IWR6843 angle radar](../iwr6843/index.md)**
 
