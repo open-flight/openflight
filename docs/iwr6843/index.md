@@ -119,6 +119,8 @@ Work these in order — each depends on the one before it.
 - :material-numeric-3-circle-outline: **[Mount, aim, and measure](mounting.md)**
 
     Physical placement and the geometry measurements the runtime needs.
+    **Measure your own unit:** the defaults come from the old enclosure, and
+    wrong geometry costs the IWR its launch angles.
 
 - :material-numeric-4-circle-outline: **[Start and verify](verify.md)**
 

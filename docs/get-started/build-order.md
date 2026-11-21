@@ -55,9 +55,9 @@ clap.
     angles. Play with it at this stage before continuing — it confirms the whole
     trigger and capture path is sound.
 
-## 4. Move the OPS243 to the GPIO UART
+## 4. Connect the OPS243 to the Pi
 
-**→ [OPS243 → GPIO UART](../build/ops243-uart.md)**
+**→ [Connecting the OPS243 to the Pi](../build/ops243-uart.md)**
 
 Required before the IWR6843, which needs the USB bus and real current. Do this
 migration on its own; adding the TI radar at the same time makes any failure

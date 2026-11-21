@@ -9,6 +9,10 @@ is not part of the production path.
 
 <div class="grid cards" markdown>
 
+- :material-hand-heart: **[Help needed](help-needed.md)**
+
+    Testing and development work that would help most right now.
+
 - :material-chip: **[Firmware build](firmware.md)**
 
     Build the IWR6843 configurable image from source. Not needed to flash the
@@ -30,11 +34,13 @@ See [`CONTRIBUTING.md`](https://github.com/open-flight/openflight/blob/main/CONT
 in the repository for development setup, code quality standards, and the pull
 request process.
 
-!!! info "Testers wanted: IWR6843 self-trigger firmware"
+!!! info "Help needed"
 
-    Experimental IWR6843 firmware that triggers on the shot by itself needs
-    testing on real OpenFlight rigs. If you have a working build with an
-    IWR6843, say so on the [OpenFlight Discord](https://discord.gg/w8hhG4WVMN).
+    Testing the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
+    OPS243 firmware updates, newer OPS firmware features, the new radar front,
+    radome tests, automatic setup measurement, camera sensor fusion, the
+    mobile app and the software (SQLite storage): see
+    **[Help Needed](help-needed.md)**.
 
 Quick reference:
 

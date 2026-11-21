@@ -1,7 +1,14 @@
-# Moving the OPS243 from USB to the Pi GPIO UART
+# Connecting the OPS243 to the Pi
 
-Step-by-step migration for taking the OPS243-A off USB and onto the Pi's
-40-pin header, plus how to prove it still works before anything else changes.
+How the OPS243-A connects to the Raspberry Pi: over the J3 UART to the Pi's
+40-pin header, plus how to prove it works before anything else changes.
+
+!!! note "Running the OPS243 over USB? Switch it to UART."
+
+    If your OPS243 is still on its micro-USB cable, move it to the UART
+    connection below so the IWR6843 can have the USB port. The two radars
+    cannot both run from the Pi over USB: the Pi limits how much current its
+    USB ports can supply, and that is not enough for both.
 
 ## Why
 
@@ -10,6 +17,11 @@ real current; moving the OPS243 to the GPIO header takes it off the USB bus
 entirely — 5V from a header pin instead of a port, and data over the J3 UART.
 The total draw from the power supply is unchanged; what you gain is escaping
 the per-port USB current limit and the shared controller.
+
+UART is also less overhead than USB. The radar's bytes go straight from its
+UART to the Pi's, with no USB enumeration, no CDC-ACM serial driver and no USB
+host controller in between. That leaves the USB stack to the IWR6843, which
+streams far more data.
 
 Do this migration on its own and validate it. Adding the TI radar at the same
 time makes any failure ambiguous.

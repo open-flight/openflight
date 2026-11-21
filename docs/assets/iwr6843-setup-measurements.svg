@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <title>IWR6843 setup measurements: side view and top view</title>
+  <desc>Side view: radar height is taken from the floor to the IWR6843 antenna centre, ball height from the same floor to the ball centre, tee-m from the antenna centre to the ball centre, net-m from the antenna centre to the net, and tilt is the antenna face's angle from vertical. Top view: the antenna centre sits 46.4 mm from the case's left side as seen from the front, and the target line runs from it through the ball to the net.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f2937"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="900" height="600" fill="#ffffff"/>
+
+  <!-- ===== Side view ===== -->
+  <text x="20" y="28" font-size="16" font-weight="700" fill="#111827">Side view</text>
+
+  <!-- floor -->
+  <line x1="20" y1="270" x2="880" y2="270" stroke="#6b7280" stroke-width="2"/>
+  <text x="870" y="290" text-anchor="end" fill="#6b7280">floor the ball sits on</text>
+
+  <!-- unit -->
+  <rect x="80" y="160" width="110" height="104" rx="6" fill="#e5e7eb" stroke="#374151" stroke-width="2"/>
+  <rect x="88" y="264" width="14" height="6" fill="#374151"/>
+  <rect x="168" y="264" width="14" height="6" fill="#374151"/>
+  <text x="135" y="152" text-anchor="middle" fill="#374151">OpenFlight unit</text>
+  <!-- radar front face -->
+  <line x1="190" y1="160" x2="190" y2="264" stroke="#111827" stroke-width="4"/>
+  <!-- tilted antenna board -->
+  <line x1="156" y1="236" x2="170" y2="176" stroke="#2563eb" stroke-width="4"/>
+  <!-- antenna centre crosshair -->
+  <circle cx="163" cy="206" r="6" fill="none" stroke="#16a34a" stroke-width="2.5"/>
+  <line x1="153" y1="206" x2="173" y2="206" stroke="#16a34a" stroke-width="2"/>
+  <line x1="163" y1="196" x2="163" y2="216" stroke="#16a34a" stroke-width="2"/>
+
+  <!-- tilt angle -->
+  <line x1="163" y1="206" x2="163" y2="166" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M163,180 A26,26 0 0 1 169,180.7" fill="none" stroke="#b45309" stroke-width="2"/>
+  <text x="214" y="182" fill="#b45309" font-weight="600">--iwr6843-tilt-deg</text>
+  <text x="214" y="198" fill="#b45309">antenna face from vertical</text>
+  <line x1="211" y1="184" x2="174" y2="180" stroke="#b45309" stroke-width="1"/>
+
+  <!-- depth behind face -->
+  <line x1="163" y1="300" x2="190" y2="300" stroke="#1f2937" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <line x1="163" y1="216" x2="163" y2="306" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="190" y1="270" x2="190" y2="306" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="200" y="304" fill="#374151">27 mm on the current radar front (antenna face behind the front face)</text>
+
+  <!-- radar height -->
+  <line x1="163" y1="206" x2="44" y2="206" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="50" y1="270" x2="50" y2="206" stroke="#1f2937" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text transform="translate(38,222) rotate(-90)" text-anchor="middle" fill="#111827" font-weight="600">radar-height-m</text>
+
+  <!-- mat and ball -->
+  <rect x="500" y="260" width="120" height="10" fill="#86efac" stroke="#15803d"/>
+  <circle cx="560" cy="250" r="10" fill="#ffffff" stroke="#111827" stroke-width="2"/>
+  <circle cx="560" cy="250" r="1.8" fill="#111827"/>
+  <text x="560" y="228" text-anchor="middle" fill="#374151">ball on mat</text>
+
+  <!-- ball height -->
+  <line x1="560" y1="250" x2="652" y2="250" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="646" y1="270" x2="646" y2="250" stroke="#1f2937" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="656" y="258" fill="#111827" font-weight="600">--iwr6843-ball-height-m</text>
+  <text x="656" y="274" fill="#374151" font-size="12">mat height + 0.021 m ball radius</text>
+
+  <!-- net -->
+  <line x1="840" y1="270" x2="840" y2="70" stroke="#7c3aed" stroke-width="3" stroke-dasharray="8 4"/>
+  <text x="836" y="62" text-anchor="end" fill="#7c3aed" font-weight="600">net / screen</text>
+
+  <!-- tee-m -->
+  <line x1="163" y1="196" x2="163" y2="114" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="560" y1="240" x2="560" y2="114" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="163" y1="120" x2="560" y2="120" stroke="#1f2937" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="361" y="112" text-anchor="middle" fill="#111827" font-weight="600">--iwr6843-tee-m: antenna centre → ball centre</text>
+
+  <!-- net-m -->
+  <line x1="163" y1="114" x2="163" y2="78" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="163" y1="84" x2="840" y2="84" stroke="#1f2937" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="500" y="76" text-anchor="middle" fill="#111827" font-weight="600">--iwr6843-net-m: antenna centre → net (not ball → net)</text>
+
+  <!-- legend -->
+  <circle cx="236" cy="146" r="6" fill="none" stroke="#16a34a" stroke-width="2.5"/>
+  <text x="248" y="151" fill="#16a34a" font-weight="600">antenna centre (all heights and distances start here)</text>
+
+  <!-- ===== Top view ===== -->
+  <line x1="20" y1="330" x2="880" y2="330" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="20" y="360" font-size="16" font-weight="700" fill="#111827">Top view</text>
+
+  <rect x="80" y="390" width="110" height="160" rx="6" fill="#e5e7eb" stroke="#374151" stroke-width="2"/>
+  <line x1="190" y1="390" x2="190" y2="550" stroke="#111827" stroke-width="4"/>
+  <text x="135" y="382" text-anchor="middle" fill="#374151">unit, from above</text>
+  <!-- antenna point: 46.4 mm of 200 mm width from the left side seen from the front (bottom edge here) -->
+  <circle cx="163" cy="513" r="6" fill="none" stroke="#16a34a" stroke-width="2.5"/>
+  <line x1="153" y1="513" x2="173" y2="513" stroke="#16a34a" stroke-width="2"/>
+  <line x1="163" y1="503" x2="163" y2="523" stroke="#16a34a" stroke-width="2"/>
+
+  <line x1="60" y1="513" x2="163" y2="513" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="66" y1="550" x2="66" y2="513" stroke="#1f2937" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="24" y="592" fill="#374151">46.4 mm from the case's left side, seen from the front (CAD, current radar front)</text>
+  <text x="200" y="568" fill="#6b7280" font-size="12">left side as seen from the ball ↓</text>
+
+  <!-- target line -->
+  <line x1="163" y1="513" x2="840" y2="513" stroke="#16a34a" stroke-width="2" stroke-dasharray="10 5"/>
+  <circle cx="560" cy="513" r="10" fill="#ffffff" stroke="#111827" stroke-width="2"/>
+  <line x1="840" y1="420" x2="840" y2="560" stroke="#7c3aed" stroke-width="3" stroke-dasharray="8 4"/>
+  <text x="560" y="490" text-anchor="middle" fill="#111827">ball on the target line</text>
+  <text x="700" y="535" text-anchor="middle" fill="#16a34a" font-weight="600">target line</text>
+  <text x="836" y="412" text-anchor="end" fill="#7c3aed" font-weight="600">net</text>
+</svg>

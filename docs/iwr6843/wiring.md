@@ -7,11 +7,11 @@ icon: lucide/cable
 Power and data for the IWR6843, the Raspberry Pi UART, serial and GPIO
 permissions, and the sound-trigger line.
 
-!!! warning "Do the OPS243 UART migration first"
+!!! warning "Connect the OPS243 over UART first"
 
     The IWR6843 needs the USB bus, so the OPS243 has to move to the Pi GPIO
     UART before you start. See
-    [Moving the OPS243 to the Pi GPIO UART](../build/ops243-uart.md).
+    [Connecting the OPS243 to the Pi](../build/ops243-uart.md).
 
 ## Connect The Hardware
 
@@ -29,7 +29,7 @@ Pi UART header for power and data.
 
 If the OPS243 is currently on USB, migrate and validate it on its own before
 adding the TI board — see
-[Moving the OPS243 from USB to the Pi GPIO UART](../build/ops243-uart.md).
+[Connecting the OPS243 to the Pi](../build/ops243-uart.md).
 Doing both at once makes any failure ambiguous.
 
 > [!WARNING]
