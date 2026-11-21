@@ -284,6 +284,8 @@ def test_server_publishes_high_speed_camera_status_without_blocking_ops(
         "init_camera_capture",
         lambda **_kwargs: camera_available,
     )
+    # A successful init leaves a capturing camera behind (startup asks its status).
+    monkeypatch.setattr(server, "camera_capture_runtime", _RunningCamera())
     monkeypatch.setattr(server, "start_monitor", lambda **_kwargs: None)
     monkeypatch.setattr(server.socketio, "run", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(server, "_cleanup_hardware_for_shutdown", lambda: None)
@@ -318,6 +320,7 @@ def test_camera_shot_analysis_enables_capture_and_replaces_legacy_analysis(tmp_p
         "init_camera_capture",
         lambda **kwargs: init_calls.append(kwargs) or True,
     )
+    monkeypatch.setattr(server, "camera_capture_runtime", _RunningCamera())
     monkeypatch.setattr(server, "start_monitor", lambda **_kwargs: None)
     monkeypatch.setattr(server.socketio, "run", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(server, "_cleanup_hardware_for_shutdown", lambda: None)
@@ -419,3 +422,8 @@ def test_server_publishes_specific_ti_recovery(
     assert payload["overall"] == "error"
     assert payload["message"] == "TI radar failed to initialize"
     assert payload["error"]["recovery"] == expected_recovery
+
+
+class _RunningCamera:
+    def status(self):
+        return {"running": True}

@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Security and scope](ios-ble.md#security-and-scope).
 
 ### Changed
+- **Camera capture runs in its own process.** At high frame rates its per-frame
+  callbacks no longer compete with the radar math for the Python GIL. The process
+  is pinned with `--camera-cpu-core` (default `2,3`), restarts automatically after
+  a crash, hang or failed start, and `--camera-in-process` keeps the old behavior.
 - **The interactive setup can configure an OPS243 on the Pi GPIO UART.**
   Pass `--ops-port /dev/ttyAMA0` to `scripts/setup/setup.sh`; the selected
   device is used for both rolling-buffer setup and post-power-cycle verification.

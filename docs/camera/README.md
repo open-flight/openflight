@@ -364,6 +364,17 @@ The session JSONL contains a `camera_capture` entry linking the shot number to
 the camera directory. Keep the JSONL, OPS capture, IWR6843 dump, and camera
 directory together when copying a session for offline analysis.
 
+## Capture Process
+
+Camera capture runs in its own process so per-frame callbacks do not compete with
+radar processing for the Python GIL. `--camera-cpu-core` chooses its cores, such as
+`3` or `2,3` (default `2,3`), and the server uses the others. Use `-1` to disable
+pinning, or `--camera-in-process` to run capture inside the server.
+
+If the process crashes, hangs or fails to start, OpenFlight restarts it with
+increasing delays of up to 30 s. A shot taken during a restart is logged with
+`camera_process_restarting`.
+
 ## Troubleshooting
 
 ### No camera detected

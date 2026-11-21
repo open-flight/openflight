@@ -1270,6 +1270,35 @@ def api_shutdown():
     return {"status": "shutting_down"}, 200
 
 
+def _camera_startup_report(runtime) -> tuple[str, str]:
+    """('ready'|'error', message) for the startup screen from the camera's status.
+
+    The capture process restarts itself, but a camera that is not capturing at
+    startup is still a failure the operator must see, not a quiet skip.
+    """
+    status = runtime.status()
+    if status.get("running"):
+        return "ready", "High-speed camera connected"
+    reason = status.get("last_error") or "camera not capturing"
+    return "error", f"High-speed camera not running ({reason}); restarting automatically"
+
+
+def _missing_camera_capture_reason(runtime) -> str:
+    """Why a shot has no camera capture, naming a restarting capture process."""
+    status = runtime.status()
+    if status.get("restarting"):
+        return f"camera_process_restarting: {status.get('last_error') or 'unknown'}"
+    return "no_matching_camera_capture"
+
+
+def _parse_cpu_cores(text: str) -> int | tuple[int, ...] | None:
+    """``--camera-cpu-core``: one core ("3"), several ("2,3"), or none ("-1")."""
+    cores = tuple(int(part) for part in str(text).split(",") if part.strip())
+    if not cores or any(core < 0 for core in cores):
+        return None
+    return cores[0] if len(cores) == 1 else cores
+
+
 def init_camera_capture(
     *,
     output_dir: str | Path,
@@ -1291,8 +1320,16 @@ def init_camera_capture(
     horizontal_offset_deg: float,
     use_gpio_trigger: bool,
     shot_analysis_enabled: bool = False,
+    camera_cpu_core: int | tuple[int, ...] | None = (2, 3),
+    camera_in_process: bool = False,
 ) -> bool:
-    """Initialize passive high-speed camera capture for offline alignment."""
+    """Initialize high-speed camera capture.
+
+    By default capture runs in its own process pinned to ``camera_cpu_core``
+    (None: not pinned), so its per-frame callbacks never compete
+    with the radar math for the GIL. ``camera_in_process`` keeps the old
+    single-process runtime.
+    """
     global camera_capture_runtime, camera_capture_config  # pylint: disable=global-statement
     global camera_replay_manager  # pylint: disable=global-statement
     global camera_reference_ball_tracker  # pylint: disable=global-statement
@@ -1318,11 +1355,21 @@ def init_camera_capture(
                 Path.home() / ".config" / "openflight" / "camera-exposure.json"
             ),
         )
-        camera_capture_runtime = CameraCaptureRuntime(
-            output_dir=output_dir,
-            settings=settings,
-            use_gpio_trigger=use_gpio_trigger,
-        )
+        if camera_in_process:
+            camera_capture_runtime = CameraCaptureRuntime(
+                output_dir=output_dir,
+                settings=settings,
+                use_gpio_trigger=use_gpio_trigger,
+            )
+        else:
+            from .camera.process import CameraCaptureProcess  # noqa: PLC0415
+
+            camera_capture_runtime = CameraCaptureProcess(
+                output_dir=output_dir,
+                settings=settings,
+                use_gpio_trigger=use_gpio_trigger,
+                cpu_core=camera_cpu_core,
+            )
         camera_capture_runtime.start()
         settings = camera_capture_runtime.settings
         from .camera.replay import CameraReplayManager
@@ -3625,14 +3672,15 @@ def _enrich_shot_from_optional_hardware(shot: Shot) -> _ShotEnrichmentResult:
                             camera_capture.error,
                         )
                 else:
+                    missing_reason = _missing_camera_capture_reason(camera_capture_runtime)
                     session_log.log_camera_capture(
                         shot_number=shot_number,
                         shot_timestamp=shot.impact_timestamp,
                         trigger_timestamp=None,
                         capture_path=None,
-                        capture_error="no_matching_camera_capture",
+                        capture_error=missing_reason,
                     )
-                    logger.warning("[SERVER] No camera capture matched this shot")
+                    logger.warning("[SERVER] No camera capture for this shot: %s", missing_reason)
     except Exception as error:  # pylint: disable=broad-exception-caught
         logger.warning("[SERVER] Camera capture matching error: %s", error, exc_info=True)
         log_session_error(
@@ -5013,6 +5061,18 @@ def main():
     parser.add_argument("--camera-capture-width", type=int, default=640)
     parser.add_argument("--camera-capture-height", type=int, default=400)
     parser.add_argument("--camera-capture-fps", type=float, default=300.0)
+    parser.add_argument(
+        "--camera-cpu-core",
+        type=_parse_cpu_cores,
+        default="2,3",
+        help="CPU core(s) for the camera capture process, e.g. 3 or 2,3; "
+        "the server uses the rest (-1: no pinning)",
+    )
+    parser.add_argument(
+        "--camera-in-process",
+        action="store_true",
+        help="Run camera capture inside the server process",
+    )
     parser.add_argument("--camera-capture-pre-ms", type=float, default=150.0)
     parser.add_argument("--camera-capture-post-ms", type=float, default=50.0)
     parser.add_argument(
@@ -5610,6 +5670,8 @@ def main():
             scaler_crop=camera_capture_scaler_crop,
             use_gpio_trigger=not args.iwr6843,
             shot_analysis_enabled=args.camera_shot_analysis,
+            camera_cpu_core=args.camera_cpu_core,
+            camera_in_process=args.camera_in_process,
         ):
             print("Camera capture unavailable - running without high-speed camera capture")
             startup_status.skip("camera", "High-speed camera unavailable; continuing")
@@ -5617,7 +5679,19 @@ def main():
             print(f"Camera capture enabled: {camera_capture_output_dir}")
             if args.camera_shot_analysis:
                 print("Impact-aware camera shot analysis: ENABLED")
-            startup_status.ready("camera", "High-speed camera connected")
+            camera_state, camera_message = _camera_startup_report(camera_capture_runtime)
+            if camera_state == "ready":
+                startup_status.ready("camera", camera_message)
+            else:
+                print(camera_message)
+                startup_status.error(
+                    "camera",
+                    camera_message,
+                    recovery=(
+                        "The camera restarts automatically. If it keeps failing, check the "
+                        "camera ribbon cable and the OV9281 driver, then relaunch OpenFlight."
+                    ),
+                )
 
     if args.iwr6843:
         startup_status.start("ti", "Connecting TI radar")
