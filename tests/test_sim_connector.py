@@ -7,6 +7,7 @@ import pytest
 
 from openflight.clubs import ClubType
 from openflight.gspro.codec import GSProCodec
+from openflight.pureplay import PureplayCodec
 from openflight.sim.codec import build_connector, SimConnector
 from openflight.sim.config import ConnectorConfig
 from openflight.sim.types import ConnectionState, PlayerUpdate, ResolvedShot
@@ -155,6 +156,10 @@ def test_build_connector_partee_uses_shared_codec_named_partee():
     assert isinstance(c.codec, GSProCodec)
     assert c.name == "partee"
 
+def test_build_connector_pureplay_uses_its_own_codec():
+    c = build_connector(ConnectorConfig(type="pureplay", host="192.168.1.60", port=9760))
+    assert isinstance(c.codec, PureplayCodec)
+    assert c.name == "pureplay"
 
 def test_build_connector_unknown_type_raises():
     with pytest.raises(ValueError):

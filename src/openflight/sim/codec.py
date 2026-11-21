@@ -84,7 +84,16 @@ def _codec_for(cfg: "ConnectorConfig") -> Codec:
     on its Developer API (3111, which speaks OpenConnect), named "opengolfsim" so
     the UI/logs/config say OpenGolfSim rather than GSPro; PAR-TEE listens for it
     on the phone's Wi-Fi address (921), named "partee" for the same reason.
+
+    Pureplay Connect is a different (binary, length-prefixed) protocol with its own
+    codec; it relies on the transport's optional ``find_frame_end`` and
+    ``drain_outbound`` codec hooks.
     """
+    if cfg.type == "pureplay":
+        # pylint: disable-next=import-outside-toplevel
+        from openflight.pureplay.codec import PureplayCodec
+
+        return PureplayCodec(device_name=cfg.device_id)
     if cfg.type not in ("gspro", "opengolfsim", "partee"):
         raise ValueError(f"unknown simulator connector type: {cfg.type!r}")
     from openflight.gspro.codec import GSProCodec  # pylint: disable=import-outside-toplevel
