@@ -4,6 +4,7 @@ Trigger strategies for rolling buffer capture.
 Defines different methods for determining when to capture the rolling buffer.
 """
 
+import dataclasses
 import logging
 import math
 import threading
@@ -139,6 +140,15 @@ class TriggerStrategy(ABC):
             peak_inbound_magnitude=summary["peak_inbound_magnitude"],
             trigger_latency_ms=trigger_latency_ms,
         )
+
+    def finish_housekeeping(
+        self,
+        cancel_event: Optional[threading.Event] = None,
+        timeout_s: Optional[float] = None,
+    ) -> bool:
+        """Wait for any post-capture radar work; strategies without any are done."""
+        del cancel_event, timeout_s
+        return True
 
     @abstractmethod
     def wait_for_trigger(
@@ -357,6 +367,14 @@ class SoundTrigger(TriggerStrategy):
                 The trigger does NOT configure rolling buffer mode itself.
         """
         super().__init__(pre_trigger_segments=pre_trigger_segments)
+        # Post-dump clock sync + re-arm of the previous accepted shot, run off
+        # the shot's critical path (see wait_for_trigger).
+        self._housekeeping: Optional[threading.Thread] = None
+        self._housekeeping_error: Optional[BaseException] = None
+        # Clock-synced minus first-byte-inferred trigger time, learned from the
+        # last fresh sync: corrects first-byte timing when no sync is fresh.
+        self._first_byte_bias_s: Optional[float] = None
+        self._bias_lock = threading.Lock()
 
     @staticmethod
     def _clock_sync_last_read_host_time(clock_sync: dict) -> Optional[float]:
@@ -576,6 +594,9 @@ class SoundTrigger(TriggerStrategy):
         output, causing the radar to dump its rolling buffer automatically.
         We just block on serial read waiting for the I/Q data to arrive.
         """
+        # The previous shot's re-arm must finish before reading again.
+        if not self.finish_housekeeping(cancel_event):
+            return None
         logger.info("[TRIGGER] Waiting for sound trigger (timeout=%.0fs)...", timeout)
 
         response = radar.wait_for_hardware_trigger(
@@ -648,13 +669,21 @@ class SoundTrigger(TriggerStrategy):
             )
             return None
 
-        # Accepted: talk on the wire while the radar is still idle, then
-        # re-arm as the last serial action before returning to the reader.
-        self._select_clock_sync_for_capture(radar, capture)
-        radar.rearm_rolling_buffer(self.pre_trigger_segments)
-
-        if capture.first_byte_timestamp is not None and capture.trigger_timestamp is None:
-            capture.apply_trigger_timestamp_from_first_byte()
+        # Accepted. Time the shot from what is already known, hand it over at
+        # once, and do the post-dump wire talk on a helper thread: clock sync
+        # while the radar is still idle, then re-arm last (the net-impact
+        # deadlock ordering). That housekeeping took ~1.35 s per shot and none
+        # of it is needed to compute the shot. The next wait_for_trigger joins
+        # the helper before reading, so re-arm always completes first.
+        self._apply_provisional_timestamp(radar, capture)
+        self._housekeeping_error = None
+        self._housekeeping = threading.Thread(
+            target=self._post_dump_housekeeping,
+            args=(radar, dataclasses.replace(capture)),
+            name="ops-post-dump-housekeeping",
+            daemon=True,
+        )
+        self._housekeeping.start()
 
         if capture.trigger_timestamp is not None and capture.first_byte_timestamp is not None:
             logger.info(
@@ -679,6 +708,70 @@ class SoundTrigger(TriggerStrategy):
         )
 
         return capture
+
+    def finish_housekeeping(
+        self,
+        cancel_event: Optional[threading.Event] = None,
+        timeout_s: Optional[float] = None,
+    ) -> bool:
+        """Wait for the previous shot's clock sync and re-arm.
+
+        Returns False if ``cancel_event`` is set or ``timeout_s`` passes first.
+        Re-raises an error from the helper here, where the capture loop handles
+        errors, so a failed re-arm is never swallowed on the helper thread.
+        """
+        thread = self._housekeeping
+        deadline = None if timeout_s is None else time.monotonic() + timeout_s
+        while thread is not None and thread.is_alive():
+            if cancel_event is not None and cancel_event.is_set():
+                return False
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
+            thread.join(0.05)
+        error, self._housekeeping_error = self._housekeeping_error, None
+        if error is not None:
+            raise error
+        return True
+
+    def _apply_provisional_timestamp(self, radar: "OPS243Radar", capture: IQCapture) -> None:
+        """Trigger time without a new clock sync: a sync under 60 s old, else
+        first-byte timing corrected by the bias learned from the last fresh sync."""
+        previous = getattr(radar, "last_clock_sync", None)
+        valid, _reason = self._clock_sync_quality(previous)
+        age_s = self._clock_sync_age_s(previous) if isinstance(previous, dict) else None
+        if valid and age_s is not None and age_s <= self.CLOCK_SYNC_MAX_FALLBACK_AGE_S:
+            try:
+                capture.apply_trigger_timestamp_from_clock_sync(float(previous["best_offset_s"]))
+                return
+            except (TypeError, ValueError, KeyError):
+                pass
+        inferred = capture.apply_trigger_timestamp_from_first_byte()
+        with self._bias_lock:
+            bias_s = self._first_byte_bias_s
+        if inferred is not None and bias_s is not None:
+            capture.trigger_timestamp = inferred + bias_s
+            capture.trigger_timestamp_source = "first_byte_calibrated"
+
+    def _post_dump_housekeeping(self, radar: "OPS243Radar", capture: IQCapture) -> None:
+        """Clock sync (radar idle), then re-arm. ``capture`` is a copy: the
+        shot's own capture is never touched from this thread."""
+        try:
+            try:
+                selection = self._select_clock_sync_for_capture(radar, capture)
+                inferred = capture.infer_trigger_timestamp_from_first_byte()
+                if (
+                    selection.get("selection") == "fresh"
+                    and capture.trigger_timestamp_source == "ops_clock_sync"
+                    and inferred is not None
+                ):
+                    with self._bias_lock:
+                        self._first_byte_bias_s = capture.trigger_timestamp - inferred
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.warning("[TRIGGER] Post-shot clock sync failed", exc_info=True)
+            radar.rearm_rolling_buffer(self.pre_trigger_segments)
+        except BaseException as error:  # pylint: disable=broad-exception-caught
+            logger.error("[TRIGGER] Post-shot re-arm failed: %s", error, exc_info=True)
+            self._housekeeping_error = error
 
     def reset(self):
         """Reset trigger state."""

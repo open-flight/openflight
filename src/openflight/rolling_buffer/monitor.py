@@ -341,6 +341,13 @@ class RollingBufferMonitor:
                 logger.warning("[MONITOR] Capture thread still active during shutdown")
             else:
                 self._capture_thread = None
+        # A post-shot clock sync + re-arm may still be talking to the radar;
+        # let it finish before the caller closes the serial port.
+        try:
+            if not self.trigger.finish_housekeeping(timeout_s=5.0):
+                logger.warning("[MONITOR] Post-shot radar re-arm still running at shutdown")
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("[MONITOR] Post-shot radar re-arm failed at shutdown", exc_info=True)
         logger.info("[MONITOR] Rolling buffer monitor stopped")
 
     def reinitialize_radar(self) -> None:

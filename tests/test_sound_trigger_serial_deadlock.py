@@ -117,6 +117,7 @@ def test_accepted_capture_clock_syncs_before_rearm():
     radar = ScriptedRadar(_dump_response(i_samples, q_samples))
     trigger = SoundTrigger()
     capture = trigger.wait_for_trigger(radar, RollingBufferProcessor(), timeout=1.0)
+    trigger.finish_housekeeping()  # clock sync + re-arm run on a helper thread
 
     assert capture is not None, "synthetic swing should be accepted"
     assert "clock_sync" in radar.calls and "rearm" in radar.calls

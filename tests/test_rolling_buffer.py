@@ -820,12 +820,27 @@ class TestSoundTriggerTimestampPropagation:
 
         trigger = SoundTrigger(pre_trigger_segments=12)
         result = trigger.wait_for_trigger(radar, processor, timeout=1.0)
-
+        # The per-shot sync now runs after the shot is handed over (2026-11-14:
+        # it cost 0.78 s of latency), so the first shot of a session is timed by
+        # first byte and the fresh sync times the shots that follow.
         assert result is capture
-        assert result.trigger_timestamp == pytest.approx(12100.068)
-        assert result.trigger_timestamp_source == "ops_clock_sync"
+        assert result.trigger_timestamp_source == "first_byte"
+        trigger.finish_housekeeping()
         assert radar.last_clock_sync is radar.read_clock_sync.return_value
         radar.read_clock_sync.assert_called_once_with(samples=36, store=False)
+
+        following = IQCapture(
+            sample_time=200.000,
+            trigger_time=200.068,
+            i_samples=[2048] * 4096,
+            q_samples=[2048] * 4096,
+        )
+        processor.parse_capture.return_value = following
+        result = trigger.wait_for_trigger(radar, processor, timeout=1.0)
+        trigger.finish_housekeeping()
+        assert result is following
+        assert result.trigger_timestamp == pytest.approx(12200.068)
+        assert result.trigger_timestamp_source == "ops_clock_sync"
 
     def test_sound_trigger_uses_recent_previous_sync_when_fresh_sync_is_bad(self):
         """A bad per-shot C? read should not discard a recent valid sync."""

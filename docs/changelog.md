@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Security and scope](ios-ble.md#security-and-scope).
 
 ### Changed
+- **OPS243 shots are handed over sooner.** The sound trigger returns an accepted
+  capture at once and runs the post-dump clock sync and re-arm on a helper thread,
+  about 1.35 s of serial work that no longer delays the shot.
 - **The interactive setup can configure an OPS243 on the Pi GPIO UART.**
   Pass `--ops-port /dev/ttyAMA0` to `scripts/setup/setup.sh`; the selected
   device is used for both rolling-buffer setup and post-power-cycle verification.
