@@ -370,8 +370,10 @@ class RollingBufferProcessor:
 
         # FFT
         fft_result = np.fft.fft(complex_signal, self.FFT_SIZE)
-        magnitude = np.abs(fft_result)
+        return self._peaks_from_magnitude(np.abs(fft_result))
 
+    def _peaks_from_magnitude(self, magnitude: np.ndarray) -> List[Tuple[float, float, str]]:
+        """Outbound/inbound peaks above threshold from one FFT magnitude spectrum."""
         half = self.FFT_SIZE // 2
         dc_mask = self.DC_MASK_BINS
 
@@ -426,26 +428,35 @@ class RollingBufferProcessor:
         i_data = np.asarray(capture.i_samples)
         q_data = np.asarray(capture.q_samples)
 
-        start = 0
-        while start + self.WINDOW_SIZE <= len(i_data):
-            i_block = i_data[start : start + self.WINDOW_SIZE]
-            q_block = q_data[start : start + self.WINDOW_SIZE]
+        if len(i_data) < self.WINDOW_SIZE:
+            return
 
-            peaks = self._process_block(i_block, q_block)
+        # Window every block at once, then one batched FFT. Row-wise operations
+        # match _process_block exactly, so results are identical.
+        i_blocks = np.lib.stride_tricks.sliding_window_view(i_data, self.WINDOW_SIZE)[::step_size]
+        q_blocks = np.lib.stride_tricks.sliding_window_view(q_data, self.WINDOW_SIZE)[::step_size]
+        scale = self.VOLTAGE_REF / self.ADC_RANGE
+        i_windowed = (i_blocks - np.mean(i_blocks, axis=1, keepdims=True)) * scale
+        q_windowed = (q_blocks - np.mean(q_blocks, axis=1, keepdims=True)) * scale
+        complex_blocks = i_windowed * self.hanning_window + 1j * (q_windowed * self.hanning_window)
+        magnitudes = np.abs(np.fft.fft(complex_blocks, self.FFT_SIZE, axis=1))
+
+        for row, magnitude in enumerate(magnitudes):
+            start = row * step_size
+            peaks = self._peaks_from_magnitude(magnitude)
             timestamp_ms = (start / self.SAMPLE_RATE) * 1000
             yield (
                 start,
                 [
                     SpeedReading(
                         speed_mph=speed_mph,
-                        magnitude=magnitude,
+                        magnitude=peak_magnitude,
                         timestamp_ms=timestamp_ms,
                         direction=direction,
                     )
-                    for speed_mph, magnitude, direction in peaks
+                    for speed_mph, peak_magnitude, direction in peaks
                 ],
             )
-            start += step_size
 
     def _process_capture(self, capture: IQCapture, step_size: int) -> SpeedTimeline:
         """Process a capture at one FFT window stride."""
