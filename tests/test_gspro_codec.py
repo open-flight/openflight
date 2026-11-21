@@ -105,3 +105,12 @@ def test_name_defaults_to_gspro_and_is_configurable():
     assert GSProCodec().name == "gspro"
     # OGS reaches this same OpenConnect codec under its own target name.
     assert GSProCodec(name="opengolfsim").name == "opengolfsim"
+
+
+def test_build_shot_sends_only_measured_club_fields():
+    """Unmeasured club fields are left out instead of sent as 0.0 (GSPro shows
+    zeros as real readings); an estimated path is dropped too."""
+    p = _build(GSProCodec(), _resolved(provenance={"club_path": "estimated"}))
+    assert p["ClubData"] == {"Speed": 110.0}
+    p = _build(GSProCodec(), _resolved(provenance={"club_path": "measured"}))
+    assert p["ClubData"] == {"Speed": 110.0, "Path": 0.5}
