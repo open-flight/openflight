@@ -1223,18 +1223,32 @@ def static_files(path):
     return send_from_directory(app.static_folder, path)
 
 
+BACKLIGHT_ROOT = Path("/sys/class/backlight")
+
+
+def find_backlight(root: Optional[Path] = None) -> Optional[Path]:
+    """The display's brightness file: OPENFLIGHT_BACKLIGHT_PATH, else a detected one.
+
+    The DSI panel backlight's name depends on the display and connector
+    (panel_backlight@0 on a Raspberry Pi Touch Display 2), so prefer any
+    panel_backlight* before other backlights. Keep in step with
+    scripts/touchscreen/screen_wake.py, which cannot import this package.
+    """
+    configured = os.environ.get("OPENFLIGHT_BACKLIGHT_PATH")
+    if configured:
+        return Path(configured)
+    candidates = sorted((root or BACKLIGHT_ROOT).glob("*/brightness"))
+    panels = [path for path in candidates if path.parent.name.startswith("panel_backlight")]
+    return (panels or candidates or [None])[0]
+
+
 @app.route("/api/screen/sleep", methods=["POST"])
 def api_screen_sleep():
     """Switch off the display without stopping OpenFlight."""
-    backlight = Path(
-        os.environ.get(
-            "OPENFLIGHT_BACKLIGHT_PATH",
-            "/sys/class/backlight/panel_backlight@1/brightness",
-        )
-    )
+    backlight = find_backlight()
 
     try:
-        if not backlight.exists():
+        if backlight is None or not backlight.exists():
             return jsonify({"error": "Display backlight not found"}), 404
 
         backlight.write_text("0\n")
