@@ -24,7 +24,9 @@ is not part of the production path.
 
 - :material-camera-outline: **[Camera & YOLO](camera-yolo.md)**
 
-    Experimental vision work. Disabled in the production kiosk.
+    Experimental vision work. Disabled in the production kiosk. For camera
+    capture and shot replay, see the
+    [OV9281 high-speed camera guide](../camera/README.md).
 
 </div>
 

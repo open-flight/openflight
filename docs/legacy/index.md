@@ -5,7 +5,8 @@
     The K-LD7 angle radars are deprecated. The supported angle radar is the
     **TI IWR6843** — see the [IWR6843 operator guide](../iwr6843/index.md).
     Do not buy K-LD7s for a new build; this page is kept for existing builds
-    and for reading historical session logs.
+    and for reading historical session logs. For why the upgrade is worth it,
+    see the [IWR6843 vs K-LD7 comparison](../iwr6843_vs_kld7_comparison.md).
 
 The K-LD7 radars measure the ball's **launch angle** (vertical) and
 **launch direction** (horizontal aim) to complement the OPS243's ball

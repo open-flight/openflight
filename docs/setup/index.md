@@ -16,6 +16,11 @@ Software configuration, once the hardware is wired.
 
     The one-time flash-persist step. Hardware triggers do not work without it.
 
+- :material-radar: **[Internal hardware trigger](../hardware-trigger.md)**
+
+    *Opt-in.* Let the OPS243 start captures itself with `--trigger hardware`.
+    Needs firmware v1.3.2 or newer.
+
 - :material-power: **[Auto-start & kiosk mode](auto-start.md)**
 
     Run as a systemd service on boot; fullscreen, manual, and SSH variants.

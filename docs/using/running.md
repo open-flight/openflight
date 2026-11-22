@@ -110,8 +110,7 @@ name.
 | --- | --- | --- |
 | `sound` | ~10 µs | Hardware: SEN-14262 `GATE` → `HOST_INT`. What production uses. |
 | `speed` | ~5–6 ms | Radar speed detection initiates the capture. Min ball speed rises to 35 mph. |
-| `threshold` | — | Magnitude threshold |
-| `polling` | — | Default in the raw server; the kiosk script selects `sound` |
+| `hardware` | — | Opt-in: the OPS243's internal speed trigger starts the capture. Needs firmware v1.3.2+; see the [internal hardware trigger guide](../hardware-trigger.md). |
 
 ## Running as a service
 
