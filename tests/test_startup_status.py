@@ -331,6 +331,29 @@ def test_camera_shot_analysis_enables_capture_and_replaces_legacy_analysis(tmp_p
     assert states["camera"] == "ready"
 
 
+@pytest.mark.parametrize(("gc2", "use_gpio"), [(True, False), (False, True)])
+def test_camera_gpio_trigger_depends_on_gc2_mode(tmp_path, monkeypatch, gc2, use_gpio):
+    from openflight import server
+
+    init_calls = []
+    argv = ["openflight-server", "--no-logging", "--camera-capture"]
+    if gc2:
+        argv.append("--gc2")
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(server, "init_session_logger", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        server, "init_camera_capture", lambda **kwargs: init_calls.append(kwargs) or True
+    )
+    monkeypatch.setattr(server, "start_monitor", lambda **_kwargs: None)
+    monkeypatch.setattr(server.socketio, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(server, "_cleanup_hardware_for_shutdown", lambda: None)
+
+    server.main()
+
+    assert init_calls[0]["use_gpio_trigger"] is use_gpio
+    assert init_calls[0]["trigger_source"] == ("gc2" if gc2 else "gpio")
+
+
 def test_server_publishes_ops_failure_and_cleans_up(tmp_path, monkeypatch):
     from openflight import server
 
