@@ -265,14 +265,44 @@ def test_reconnect_after_server_drop(mock_sim):
         client.stop()
 
 
-def test_backoff_progression_capped():
+def test_backoff_progression_capped(monkeypatch):
+    # Refuse instantly instead of dialing a real closed port: how fast the OS
+    # rejects a connect to 127.0.0.1:1 is platform-dependent (slow enough on
+    # Windows that a fixed sleep captured fewer than two retries), and the
+    # backoff schedule under test doesn't need a real socket at all.
+    from openflight.sim import transport as transport_mod
+
+    class _InstantRefusalSocket:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def settimeout(self, _timeout):
+            pass
+
+        def connect(self, _addr):
+            raise ConnectionRefusedError("refused (test)")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(transport_mod.socket, "socket", _InstantRefusalSocket)
+
     client = TcpSimClient("127.0.0.1", 1, GSProCodec(), heartbeat_interval_s=60,
                           backoff_seconds=(0.05, 0.1, 0.1))
     statuses = []
     client.on_status = statuses.append
     client.start()
-    time.sleep(0.5)
-    client.stop()
+    try:
+        # Poll for the retries instead of sleeping a fixed interval.
+        deadline = time.time() + 3.0
+        while time.time() < deadline:
+            backoffs = [s.next_retry_in_s for s in statuses
+                        if s.state == ConnectionState.CONNECTING and s.next_retry_in_s > 0]
+            if len(backoffs) >= 3:
+                break
+            time.sleep(0.02)
+    finally:
+        client.stop()
     # Before the first successful connection the client reports CONNECTING during
     # the retry backoff (RECONNECT_BACKOFF is reserved for a connection that was
     # established and then dropped). The backoff schedule is still carried on
