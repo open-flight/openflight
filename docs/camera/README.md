@@ -423,3 +423,9 @@ processes. Reboot rather than hot-unloading the camera kernel module.
 - A kernel update requires rebuilding the custom module.
 - The tested down-the-line view cannot independently measure downrange speed;
   OPS remains necessary for converting image-plane motion into delivery angles.
+
+## Historical camera replay
+
+The History view can replay existing camera recordings without connected camera or radar hardware. Original recordings remain unchanged.
+
+Replay mirroring is automatic by default. Use `--camera-replay-no-mirror` to disable additional horizontal mirroring when recorded shots display in the wrong orientation.

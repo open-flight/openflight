@@ -13,3 +13,4 @@ export { StatsPanel } from './StatsPanel';
 export { ShotsPanel } from './ShotsPanel';
 export { CameraPanel } from './CameraPanel';
 export { PANEL_VIEWS, type PanelView } from './views';
+export { HistoryPanel } from './HistoryPanel';

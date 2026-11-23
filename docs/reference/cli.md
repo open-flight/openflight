@@ -141,6 +141,7 @@ Optional rolling-buffer capture and replay. See [camera setup](../camera/README.
 | Flag | Type / default | Description |
 | --- | --- | --- |
 | `--camera-capture` | flag | Enable high-speed rolling-buffer capture and replay |
+| `--camera-replay-no-mirror` | flag | Disable additional horizontal mirroring during replay; automatic mirroring remains the default |
 | `--camera-capture-width` | int; default `640` | Capture width |
 | `--camera-capture-height` | int; default `400` | Capture height |
 | `--camera-capture-fps` | float; default `300` | Capture frame rate |

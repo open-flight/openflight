@@ -178,6 +178,41 @@ def test_register_rejects_capture_outside_configured_root(tmp_path):
         manager.register(outside, {"frame_count": 6, "pre_trigger_frames": 4})
 
 
+def test_register_accepts_capture_under_explicit_allowed_root(tmp_path):
+    """Historical replay serves another location's camera directory."""
+    live_root = tmp_path / "range" / "camera"
+    live_root.mkdir(parents=True)
+    other_root = tmp_path / "trackman" / "camera"
+    other_root.mkdir(parents=True)
+    capture_dir = _write_capture(other_root)
+    calls = []
+    manager = CameraReplayManager(live_root, runner=_successful_runner(calls))
+    metadata = {"frame_count": 6, "pre_trigger_frames": 4}
+
+    with pytest.raises(ValueError, match="outside camera output directory"):
+        manager.register(capture_dir, metadata)
+
+    replay = manager.register(capture_dir, metadata, allowed_root=other_root)
+    prepared = manager.prepare(replay["id"])
+
+    assert prepared.video_path == capture_dir / "replay.mp4"
+    assert len(calls) == 1
+
+
+def test_register_rejects_capture_outside_explicit_allowed_root(tmp_path):
+    live_root = tmp_path / "range" / "camera"
+    live_root.mkdir(parents=True)
+    capture_dir = _write_capture(live_root)
+    manager = CameraReplayManager(live_root, runner=_successful_runner([]))
+
+    with pytest.raises(ValueError, match="outside camera output directory"):
+        manager.register(
+            capture_dir,
+            {"frame_count": 6, "pre_trigger_frames": 4},
+            allowed_root=tmp_path / "trackman" / "camera",
+        )
+
+
 def test_failed_encode_leaves_no_partial_replay_and_can_retry(tmp_path):
     capture_dir = _write_capture(tmp_path)
     attempts = 0
@@ -217,3 +252,26 @@ def test_unexpected_encoder_io_error_is_wrapped_and_retryable(tmp_path):
 
     assert not (capture_dir / "replay.mp4").exists()
     assert list(capture_dir.glob(".replay-*.mp4")) == []
+
+
+@pytest.mark.parametrize("saved_mirror_horizontal", [False, True])
+def test_register_can_disable_display_mirroring(
+    tmp_path, saved_mirror_horizontal
+):
+    capture_dir = _write_capture(tmp_path)
+    manager = CameraReplayManager(
+        tmp_path,
+        runner=_successful_runner([]),
+        mirror_display=False,
+    )
+
+    replay = manager.register(
+        capture_dir,
+        {
+            "frame_count": 6,
+            "pre_trigger_frames": 4,
+            "settings": {"mirror_horizontal": saved_mirror_horizontal},
+        },
+    )
+
+    assert replay["display_mirror_horizontal"] is False

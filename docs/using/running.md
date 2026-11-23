@@ -125,3 +125,21 @@ For auto-start on boot, kiosk fullscreen, and the over-SSH variant, see
 ```bash
 sudo systemctl stop openflight
 ```
+
+## Historical sessions
+
+The **History** view allows you to review previously recorded launch-monitor
+sessions without starting a new session.
+
+Select a session to see individual shots, including ball speed, club speed,
+estimated carry, smash factor, and other recorded measurements.
+
+- **Golf Performance Data** provides additional shot measurements.
+- **Technical & Raw Data** shows the underlying recorded shot information.
+- **Replay** opens an existing camera recording when one is available.
+- **Hide** removes a session from the normal History list without deleting it.
+- **Show hidden** reveals hidden sessions so they can be restored.
+- **Show empty** includes sessions that have no recorded shots.
+
+Historical measurements are read from the original session logs. Hiding a
+session does not delete or modify its original shot data or camera recordings.
