@@ -30,7 +30,7 @@ _DEFAULTS: Dict[str, dict] = {
         "heartbeat_interval_s": 5.0,
     },
     "opengolfsim": {
-        "port": 3111,
+        "port": 921,
         "units": "Yards",
         "device_id": "OpenFlight",
         "heartbeat_interval_s": 5.0,
