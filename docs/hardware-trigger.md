@@ -54,6 +54,10 @@ experimental analysis and UI work remain outside this focused change.
 | Sample rate | 30 ksps (required) |
 | Minimum accepted outbound ball speed | 35 mph |
 
+These defaults are the settings that proved reliable in field testing, so
+`--trigger hardware` alone is a good starting point; tweak from there. On a
+UART port, `--ops-baud` already defaults to 230400.
+
 Run the mode directly with:
 
 ```bash

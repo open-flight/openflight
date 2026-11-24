@@ -8,6 +8,13 @@ Use this guide only to evaluate a CSI camera such as the optional InnoMaker
 OV9281 global-shutter module. OpenFlight shot measurements still come from the
 radars.
 
+!!! tip "Looking for camera setup or shot replay?"
+
+    Mounting, the high-speed driver, `--camera-capture`, the Camera tab, and
+    slow-motion shot replay are covered in the
+    [OV9281 high-speed camera guide](../camera/README.md). Set the camera
+    up there first; this page only adds the separate YOLO experiment.
+
 ## Prerequisites
 
 The experiment script requires these modules in the Pi's Python environment:

@@ -31,6 +31,11 @@ it is done and verified.
 
     *Optional.* Geekworm X1202/X1206 UPS with native telemetry.
 
+- :material-camera-outline: **[High-speed camera](../camera/README.md)**
+
+    *Optional, experimental.* OV9281 global-shutter capture and slow-motion
+    shot replay.
+
 - :material-cube-outline: **[Enclosure & case](https://github.com/open-flight/openflight-enclosure)**
 
     The printed case, in its own repository. The older
