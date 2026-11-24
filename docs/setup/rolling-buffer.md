@@ -49,7 +49,7 @@ above.
 
 ## If the OPS243 is on the Pi GPIO UART
 
-Once you have completed the [UART migration](../build/ops243-uart.md), the same
+Once you have completed the [UART connection](../build/ops243-uart.md), the same
 procedure needs an explicit port, and the power cycle is the 5 V jumper on J3
 pin 9 rather than a USB cable. See
 [Re-running the one-time rolling-buffer setup](../build/ops243-uart.md#re-running-the-one-time-rolling-buffer-setup).

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`scripts/setup/setup.sh` offers the low-battery shutdown.** Answering yes
+  to the Geekworm X1202/X1206 question now also asks whether to install
+  `openflight-battery-guard.service` (default yes). A failed Geekworm step,
+  such as the taskbar package, warns instead of ending the setup run.
 - **Radar LED switch.** Debug > Tuning has a Radar LEDs Off/On switch, and
   `set_radar_config` accepts `{"leds": false}`, which sends the OPS243's `Ol`
   command (AN-010-AF p16). The choice is saved to
@@ -31,8 +35,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the calibration JSON. This is the first BLE command that writes persisted
   configuration; see
   [Security and scope](ios-ble.md#security-and-scope).
+- **Help Needed page** listing the testing and development work that would help
+  most: the IWR6843 self-trigger, TrackMan 4 comparison sessions, cheaper
+  OPS243 firmware updates, newer OPS firmware features, the new radar front,
+  radome tests, automatic setup measurement, camera sensor fusion, the mobile
+  app, the software (SQLite storage and the open profile, club and history
+  PRs), and azimuth calibration; see
+  [Help Needed](development/help-needed.md).
+- **Current OmniPreSense notes checked into `docs/radar/`:** AN-010-AF (API,
+  September 2026), AN-013-H (code update, November 2026, which adds a UART
+  update for firmware older than 1.3.3) and AN-027-C (rolling buffer,
+  September 2026). The older AN-010-AD and AN-027-A stay, since the code cites
+  their page numbers. Plus a history page on the OPS243 internal trigger and
+  firmware updates; see
+  [OPS243 internal trigger and firmware updates](reference/ops243-firmware-history.md).
 
 ### Changed
+- **The interactive setup can configure an OPS243 on the Pi GPIO UART.**
+  Pass `--ops-port /dev/ttyAMA0` to `scripts/setup/setup.sh`; the selected
+  device is used for both rolling-buffer setup and post-power-cycle verification.
+- **Parts list: the Raspberry Pi Touch Display 2 is the core display.** Its
+  200 mm DSI ribbon and the female/male header jumpers are listed with it. The
+  cheaper Hosyond 7" DSI panel is the alternative, with the screen front to print
+  for each. The micro-USB cable row is gone (the IWR6843LEVM
+  kit includes one), as are the internal-trigger programmer and the filament
+  estimate. The IWR6843LEVM is now $172.
+- **IWR6843 measuring guide:** the antenna center is shown on TI's antenna
+  figure, a side and top diagram shows what each geometry argument measures,
+  and a warning says the defaults come from the old enclosure and must be
+  measured on your own unit; see
+  [Mount, aim, and measure](iwr6843/mounting.md#measure-the-geometry)
+  ([#339](https://github.com/open-flight/openflight/issues/339)).
+- **"Moving the OPS243 from USB to the Pi GPIO UART" is now "Connecting the
+  OPS243 to the Pi"**, with a note at the top for builds still on USB.
 - **The OPS sound-trigger hardware test defaults to the Pi GPIO UART.**
   `scripts/hardware-test/test_sound_trigger.py` now uses `/dev/ttyAMA0`
   when `--port` is omitted. For USB, pass the device explicitly, for example

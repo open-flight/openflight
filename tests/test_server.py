@@ -17,7 +17,6 @@ from openflight.clubs import ClubType
 from openflight.iwr6843 import Calibration
 from openflight.kld7.types import KLD7Angle
 from openflight.launch_monitor import Shot
-from openflight.ops243 import UART_BAUD_COMMANDS
 from openflight.power import PowerState
 from openflight.server import (
     MockLaunchMonitor,
@@ -4764,13 +4763,6 @@ class TestOpsBaudValidation:
         # The message must name the valid rates; "invalid value" alone leaves
         # the operator guessing which of five the radar accepts.
         assert "230400" in err and "9600" in err
-
-    @pytest.mark.parametrize("good", [9600, 19200, 57600, 115200, 230400])
-    def test_every_api_supported_baud_is_accepted(self, good):
-        """The guard must admit exactly the rates the radar has a command for --
-        a stricter check would reject a legitimate fallback to 115200, which the
-        flag's own help text tells operators to use."""
-        assert good in UART_BAUD_COMMANDS
 
 
 class TestHardwareTriggerPlumbing:

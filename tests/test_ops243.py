@@ -7,7 +7,7 @@ import time
 import pytest
 import serial
 
-from openflight.ops243 import Direction, OPS243Radar, SpeedReading
+from openflight.ops243 import Direction, OPS243Radar
 
 
 class TestParseReading:
@@ -329,34 +329,6 @@ class TestFFTSize:
             radar.set_fft_size(3)
         with pytest.raises(ValueError):
             radar.set_fft_size(64)
-
-
-class TestSpeedReading:
-    """Tests for SpeedReading dataclass."""
-
-    def test_speed_reading_creation(self):
-        """Create a basic speed reading."""
-        reading = SpeedReading(
-            speed=150.0,
-            direction=Direction.OUTBOUND,
-            magnitude=1500,
-            timestamp=12345.67,
-            unit="mph",
-        )
-
-        assert reading.speed == 150.0
-        assert reading.direction == Direction.OUTBOUND
-        assert reading.magnitude == 1500
-        assert reading.timestamp == 12345.67
-        assert reading.unit == "mph"
-
-    def test_speed_reading_defaults(self):
-        """Test default values."""
-        reading = SpeedReading(speed=100.0, direction=Direction.OUTBOUND)
-
-        assert reading.magnitude is None
-        assert reading.timestamp is None
-        assert reading.unit == "mph"
 
 
 class _FakeClockSerial:

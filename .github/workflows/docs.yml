@@ -30,6 +30,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+      - name: Install lgpio build dependencies
+        # lgpio publishes wheels only up to CPython 3.12; newer Pythons build
+        # it from source, which links against the system liblgpio.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends liblgpio-dev swig
       - name: Build the docs site
         run: uv run --group docs zensical build --clean --strict
 
@@ -51,6 +55,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+      - name: Install lgpio build dependencies
+        # lgpio publishes wheels only up to CPython 3.12; newer Pythons build
+        # it from source, which links against the system liblgpio.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends liblgpio-dev swig
       - name: Build the docs site
         run: uv run --group docs zensical build --clean
       - uses: actions/upload-pages-artifact@v5

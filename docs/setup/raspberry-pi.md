@@ -8,14 +8,14 @@ Make sure you have all the hardware. See the **[Parts List](../get-started/parts
 
 **Required:**
 - Raspberry Pi 5 (4GB+ recommended)
-- 7" Touchscreen Display
+- Raspberry Pi Touch Display 2 (or the cheaper Hosyond 7" DSI display; see the [parts list](../get-started/parts.md#core-components))
 - MicroSD Card (32GB+)
 - 27W USB-C Power Supply (official Pi 5 PSU recommended)
 - OPS243-A Doppler Radar + USB cable
 - SparkFun SEN-14262 sound detector (wired per the [Sound Trigger Wiring Guide](../build/sound-trigger.md))
 
 **Optional:**
-- TI IWR6843LEVM + data-capable micro-USB cable — measured launch angle and experimental club path; see the [IWR6843 Operator Guide](../iwr6843/index.md)
+- TI IWR6843LEVM (its micro-USB cable comes in the kit) — measured launch angle and experimental club path; see the [IWR6843 Operator Guide](../iwr6843/index.md)
 - Geekworm X1202 or X1206 UPS HAT — portable Pi 5 power using four separately purchased 18650 or 21700 cells; see the [battery monitoring overview](../using/battery.md) and [Geekworm operator guide](../build/battery.md)
 - InnoMaker OV9281 global-shutter camera (~$30) — experimental vision work; see [Camera and YOLO Experiments](../development/camera-yolo.md)
 
@@ -97,9 +97,11 @@ configuration with prompts:
    plugging them in one at a time, so OpenFlight always knows which is which
 4. **Geekworm UPS** (optional) — enables native X1202/X1206 battery and
    external-power telemetry, Pi power settings, and desktop battery support
-5. **Auto-start on boot** — optional systemd service
-6. **Desktop shortcut** — optional
-7. **FlightWeb cloud sync** — optional uploader and device linking
+5. **RTC battery charging** (optional, rechargeable battery only) — keeps the
+   clock running while unplugged; see [RTC Backup Battery](#rtc-backup-battery)
+6. **Auto-start on boot** — optional systemd service
+7. **Desktop shortcut** — optional
+8. **FlightWeb cloud sync** — optional uploader and device linking
 
 Every step can be skipped and the script is **safe to re-run** any time —
 it picks up where you left off.
@@ -145,8 +147,8 @@ the board. That is covered end to end in the
 
 Do it in this order, and confirm each step works before starting the next:
 
-1. **Move the OPS243 to the Pi GPIO UART** —
-   [migration guide](../build/ops243-uart.md). The Pi cannot power both radars
+1. **Connect the OPS243 to the Pi GPIO UART** —
+   [Connecting the OPS243 to the Pi](../build/ops243-uart.md). The Pi cannot power both radars
    over USB, so the OPS243 has to vacate the USB port. Validate the OPS on its
    own after rewiring, before the TI board is involved at all.
 2. **Flash the IWR6843** — operator guide, *Flash The IWR6843 Firmware*. A
@@ -180,11 +182,30 @@ sudo reboot
 
 It enables I2C, native Linux battery and charger devices, the Pi 5 EEPROM power
 settings required by Geekworm, and the Raspberry Pi taskbar compatibility
-package. It does not install automatic shutdown or charging-control services.
+package. It does not install charging control or the low-battery shutdown.
+`scripts/setup/setup.sh` offers the
+[low-battery shutdown](../build/battery.md#low-battery-shutdown) right after the
+UPS step; on its own, install it with `scripts/battery/install_battery_guard.sh`.
 
 Cell type, board-revision power limits, physical installation, every system
 change, and troubleshooting are documented in the
 **[Geekworm X1202/X1206 Operator Guide](../build/battery.md)**.
+
+### RTC Backup Battery
+
+A battery on the Pi 5's **J5 (BAT)** connector keeps the clock running while
+unplugged, so logs have the correct time without a network or the phone app.
+Charging is off by default; turn it on with:
+
+```bash
+./scripts/setup/enable_rtc_battery_charging.sh   # --disable to undo
+sudo reboot
+```
+
+> [!WARNING]
+> **Rechargeable batteries only**, such as the
+> [official Raspberry Pi RTC battery](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#add-a-backup-battery).
+> Never charge a CR2032 or other non-rechargeable cell — it can leak or burst.
 
 ### K-LD7 Device Names (Deprecated Hardware)
 

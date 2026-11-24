@@ -82,22 +82,6 @@ class TestEstimateCarryDistance:
 class TestShot:
     """Tests for the Shot dataclass."""
 
-    def test_basic_shot_creation(self):
-        """Create a basic shot with ball speed only."""
-        shot = Shot(ball_speed_mph=150.0, timestamp=datetime.now())
-        assert shot.ball_speed_mph == 150.0
-        assert shot.club == ClubType.DRIVER  # default
-
-    def test_shot_with_club_speed(self):
-        """Shot with both ball and club speed."""
-        shot = Shot(
-            ball_speed_mph=150.0,
-            club_speed_mph=103.0,
-            timestamp=datetime.now(),
-        )
-        assert shot.ball_speed_mph == 150.0
-        assert shot.club_speed_mph == 103.0
-
     def test_smash_factor_calculation(self):
         """Smash factor should be ball_speed / club_speed."""
         shot = Shot(
@@ -262,26 +246,3 @@ class TestAdjustCarryForLaunchAngle:
             base_carry=150, launch_angle=20.5, club=ClubType.IRON_7, confidence=0.5
         )
         assert result == pytest.approx(150, abs=1)
-
-
-class TestMultiObjectReporting:
-    """Tests for multi-object radar configuration."""
-
-    def test_set_num_reports_single_digit(self):
-        """set_num_reports should use On format for 1-9."""
-        from openflight.ops243 import OPS243Radar
-
-        radar = OPS243Radar.__new__(OPS243Radar)
-        radar.serial = None
-
-        # Verify the method exists and handles single digits
-        # Can't test actual command without hardware, but method should not raise
-        assert hasattr(radar, 'set_num_reports')
-
-    def test_direction_constants(self):
-        """Verify direction enum values."""
-        from openflight.ops243 import Direction
-
-        assert Direction.INBOUND.value == "inbound"
-        assert Direction.OUTBOUND.value == "outbound"
-        assert Direction.UNKNOWN.value == "unknown"

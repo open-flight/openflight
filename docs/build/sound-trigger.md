@@ -6,7 +6,7 @@ Step-by-step instructions for wiring the sound trigger that enables spin detecti
 
 > **Running the OPS243 on the Pi GPIO UART instead of USB?** This trigger
 > wiring is unchanged — `GATE` still drives `HOST_INT` directly. See
-> [Moving the OPS243 from USB to the Pi GPIO UART](ops243-uart.md)
+> [Connecting the OPS243 to the Pi](ops243-uart.md)
 > for the data and power side.
 
 ## Overview
@@ -27,7 +27,7 @@ OPS243-A GND   → Raspberry Pi GND (J3 Pin 10, shared rail)
 
 *The OPS243 keeps its micro-USB connection for data and power here; only the
 trigger and ground are wired by hand. To take the radar off USB as well, see
-[the UART migration](ops243-uart.md).*
+[Connecting the OPS243 to the Pi](ops243-uart.md).*
 
 ## Before You Wire: Solder R17
 

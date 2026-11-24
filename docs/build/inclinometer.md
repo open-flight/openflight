@@ -20,7 +20,7 @@ The hardware used for the validated OpenFlight build is:
 |------|---------|
 | LIS3DH breakout | [Adafruit LIS3DH Triple-Axis Accelerometer, product 2809](https://www.adafruit.com/product/2809) |
 | Solderless cable kit | [4-pin JST SH 1.0 mm STEMMA QT/Qwiic cable kit on Amazon](https://www.amazon.com/Connector-Compatible-Development-Sensors-Drivers/dp/B0GJPRX4YT) |
-| Mounting | Thin double-sided mounting tape or nonconductive standoffs |
+| Mounting | 2 (or 4) M2.5 heat-set inserts and M2.5 screws, 6 mm long, for a floor bay of the [openflight-enclosure](https://github.com/open-flight/openflight-enclosure) shell |
 
 The Amazon cable kit is the exact cable product used in this build. It includes
 JST-SH-to-female-Dupont cables, so the breakout can connect directly to the
@@ -88,21 +88,63 @@ need a dedicated 3.3 V or ground pin as long as the shared connection is secure.
 
 ## Mounting And Axis Direction
 
-Mount the LIS3DH firmly and flat against the bottom of the enclosure. Avoid
-thick foam tape that lets the board flex independently from the enclosure.
+**Point the Y arrow on the board at the ball.** Then positive Y means the
+enclosure is tilting back, which is the sign OpenFlight uses. Nothing needs to
+be flipped in software.
 
-For the Adafruit board:
+![LIS3DH mounting: top view of the enclosure floor with downrange at the top. The LIS3DH sits in the left floor bay on M2.5 inserts, with its Y arrow and the I2, A1 to A3, SDO and CS pin row pointing at the ball. The IWR6843 on the new radar front overhangs the front pockets of the right bay and one pocket of the middle bay. A side view shows that lifting the front makes pitch go positive.](../assets/lis3dh-mounting.svg)
 
-- X runs along the long direction between the two STEMMA QT connectors.
-- Y runs across the short direction of the board.
-- Z points perpendicular to the board.
+### Where
 
-The validated installation aligns **Y with the radar tilt direction**. Positive
-Y must increase when the enclosure tilts backward. X/roll is recorded but is not
-currently applied to the launch-angle correction.
+Use the **left floor bay**, as seen from behind the rig looking downrange. The
+shell has three Adafruit bays. On the new radar front, the IWR6843 sits closer
+to the middle and leans back over the front pockets of the right bay and one
+pocket of the middle bay. The left bay is fully clear.
 
-Before fixing the board permanently, run the readout script and gently tilt the
-enclosure backward. Confirm that the reported pitch becomes more positive.
+Each bay has four Ø3.4 × 6 mm pockets on a 20.32 × 12.7 mm pattern, which
+matches the Adafruit board's holes. Press M2.5 heat-set inserts in flush with
+the floor. Two diagonal inserts hold the board; fill all four if you want.
+Screw the board down with M2.5 screws, 6 mm long.
+
+Screw it flat against the floor. Avoid thick foam tape that lets the board flex
+independently from the enclosure.
+
+### Which way round
+
+The Adafruit board has an axis mark printed next to the chip:
+
+- **Y** points at the long edge with the **I2 / A3 / A2 / A1 / SDO / CS** pins.
+  That edge faces the ball.
+- **X** points along the board, between the two STEMMA QT connectors. In the
+  left bay it points at the middle of the case.
+- **Z** points up, out of the component side.
+
+The **VIN / 3Vo / GND / SCL / SDA / INT** edge faces you. Plug the cable into
+the STEMMA QT port on the right-hand side, which is nearer the Pi. Both ports
+are identical.
+
+X/roll is recorded but is not currently applied to the launch-angle correction.
+
+![The prototype LIS3DH screwed to the enclosure floor, with its cable in a STEMMA QT port.](../assets/lis3dh-mounted-photo.jpg)
+
+### Check it
+
+`scripts/setup/setup.sh` asks about the LIS3DH, enables I2C and runs this check.
+To run it on its own:
+
+```bash
+uv run python scripts/hardware-test/check_lis3dh_orientation.py
+```
+
+It reads the sensor with the rig level, asks you to lift the front about
+2-3 cm, and reads it again. With +Y toward the ball, pitch rises:
+
+```text
+OK: +Y points at the ball (pitch rose +9.8 deg when the front was lifted). No sign flip is needed.
+```
+
+If the board is reversed, turned sideways, upside down or not flat, the script
+says so and how far to turn it.
 
 ## Enable I2C On The Pi
 
@@ -312,10 +354,10 @@ at a time with power removed.
 
 ### Pitch Sign Is Backward
 
-Tilt the enclosure backward while watching the readout. Pitch should become more
-positive. If it becomes negative, rotate the LIS3DH mounting so positive Y faces
-the required direction. A zero offset corrects bias; it should not be used to
-hide a reversed axis.
+Run `uv run python scripts/hardware-test/check_lis3dh_orientation.py`. If it
+reports that +Y points at the golfer, turn the board 180° so the Y arrow and the
+I2 / A1-A3 / SDO / CS pin row face the ball. A zero offset corrects bias; it
+should not be used to hide a reversed axis.
 
 ### Pitch Is Noisy Or Shots Report `moving`
 
