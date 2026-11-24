@@ -1,7 +1,7 @@
 # OpenGolfSim
 
 OpenFlight streams shots into [OpenGolfSim](https://opengolfsim.com/) through its
-built-in **Developer API** (TCP **3111**), which speaks the **OpenConnect V1**
+built-in **Developer API** (TCP **921**), which speaks the **OpenConnect V1**
 protocol — so the `opengolfsim` connector reuses the same shared codec as GSPro,
 just pointed at OGS and reported as "OpenGolfSim".
 
@@ -29,7 +29,7 @@ setup specific to OpenGolfSim.
    ```jsonc
    {
      "connectors": [
-       { "type": "opengolfsim", "enabled": true, "host": "192.168.1.60", "port": 3111 }
+       { "type": "opengolfsim", "enabled": true, "host": "192.168.1.60", "port": 921 }
      ]
    }
    ```
