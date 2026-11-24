@@ -62,12 +62,6 @@ def _dpss_tapers(length: int, time_bandwidth: float, taper_count: int) -> np.nda
     return tapers
 
 
-def _sine_columns(length: int, sample_rate_hz: float, frequency_hz: float) -> np.ndarray:
-    time_s = np.arange(length, dtype=np.float64) / sample_rate_hz
-    phase = 2.0 * np.pi * frequency_hz * time_s
-    return np.column_stack((np.sin(phase), np.cos(phase)))
-
-
 def _dominant_frequency(
     signal: np.ndarray,
     sample_rate_hz: float,
@@ -101,13 +95,17 @@ def _remove_multipath_fade(
     best_frequency = fade_hint_hz
     best_residual: np.ndarray | None = None
     best_sse = math.inf
-    for fade_hz in np.arange(fade_low, fade_high + grid_step_hz / 2.0, grid_step_hz):
+    fade_grid = np.arange(fade_low, fade_high + grid_step_hz / 2.0, grid_step_hz)
+    # Sine/cos columns for the whole grid in one broadcast; each row uses the
+    # same arithmetic as building the columns one candidate at a time.
+    time_s = np.arange(len(envelope), dtype=np.float64) / sample_rate_hz
+    phase_1 = 2.0 * np.pi * fade_grid[:, None] * time_s
+    phase_2 = 2.0 * np.pi * (2.0 * fade_grid)[:, None] * time_s
+    sin_1, cos_1 = np.sin(phase_1), np.cos(phase_1)
+    sin_2, cos_2 = np.sin(phase_2), np.cos(phase_2)
+    for index, fade_hz in enumerate(fade_grid):
         design = np.column_stack(
-            (
-                polynomial,
-                _sine_columns(len(envelope), sample_rate_hz, fade_hz),
-                _sine_columns(len(envelope), sample_rate_hz, 2.0 * fade_hz),
-            )
+            (polynomial, sin_1[index], cos_1[index], sin_2[index], cos_2[index])
         )
         coefficients = np.linalg.lstsq(design, envelope, rcond=None)[0]
         residual = envelope - design @ coefficients
