@@ -29,7 +29,7 @@ setup specific to OpenGolfSim.
    ```jsonc
    {
      "connectors": [
-       { "type": "opengolfsim", "enabled": true, "host": "192.168.1.60", "port": 3111 }
+       { "type": "opengolfsim", "enabled": true, "host": "192.168.1.60", "port": 921 }
      ]
    }
    ```
