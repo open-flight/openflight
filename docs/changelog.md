@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Measured camera lens calibration.** `--camera-lens-calibration` undistorts club-path
+  rays with measured OV9281 intrinsics, including the high-speed strip windows, instead
+  of assuming a distortion-free lens centered on the image.
 - **`scripts/setup/setup.sh` offers the low-battery shutdown.** Answering yes
   to the Geekworm X1202/X1206 question now also asks whether to install
   `openflight-battery-guard.service` (default yes). A failed Geekworm step,

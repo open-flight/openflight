@@ -364,6 +364,25 @@ The session JSONL contains a `camera_capture` entry linking the shot number to
 the camera directory. Keep the JSONL, OPS capture, IWR6843 dump, and camera
 directory together when copying a session for offline analysis.
 
+## Lens Calibration
+
+Club-path rays assume a distortion-free lens centered on the image unless you pass
+`--camera-lens-calibration /path/to/intrinsics.json`. The file holds OpenCV intrinsics
+measured at the full 1280x800 sensor size:
+
+```json
+{
+  "image_size": [1280, 800],
+  "raw_sensor": {"K": [[1115.4, 0, 656.1], [0, 1115.2, 430.2], [0, 0, 1]], "dist": [0, 0, 0, 0, 0]},
+  "rotated_180": {"K": [[1115.4, 0, 623.9], [0, 1115.2, 369.8], [0, 0, 1]], "dist": [0, 0, 0, 0, 0]}
+}
+```
+
+`K` is the camera matrix and `dist` holds `k1, k2, p1, p2, k3`; replace these example
+values with your own calibration. OpenFlight scales full-field modes and maps the
+high-speed 640-wide and 320x200 windows to the sensor. Custom scaler crops and mirrored
+frames fall back to the uncalibrated model.
+
 ## Troubleshooting
 
 ### No camera detected

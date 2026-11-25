@@ -1270,6 +1270,71 @@ def api_shutdown():
     return {"status": "shutting_down"}, 200
 
 
+_CAMERA_LENS_CACHE: dict = {}
+
+# OpenFlight high-speed OV9281 driver windows, as (x0, y0, step) in full-sensor pixels:
+# output pixel u maps to sensor x0 + step*u.
+#
+# 640-wide strips: full width, 2x binned. The driver starts the window at sensor row
+# HIGH_SPEED_640_BASE_ROW + 2 * strip_y_offset (clamped to +/-(800 - 2*height)/4).
+# Verified by registering 640x200 (offset 50 -> rows 300-699) against a 1280x800
+# frame and by the teed ball landing on its predicted row in 640x100.
+# Binned pixel u covers sensor columns 2u and 2u+1, so its centre is 2u + 0.5.
+HIGH_SPEED_640_BASE_ROW = {200: 200, 100: 300}
+# 320x200: registers 0x3800/0x3802 start the window at sensor (336, 150), ISP offset
+# 4 px, 2x subsampling.
+HIGH_SPEED_320_X0 = 344.0
+HIGH_SPEED_320_Y0 = 158.0
+OV9282_STRIP_OFFSET_PARAM = Path("/sys/module/ov9282/parameters/strip_y_offset")
+
+
+def _strip_y_offset() -> int:
+    try:
+        return int(OV9282_STRIP_OFFSET_PARAM.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return 0
+
+
+def _high_speed_sensor_window():
+    """(x0, y0, step) of the active high-speed driver window, or None for full-field modes."""
+    width, height = camera_capture_config.get("width"), camera_capture_config.get("height")
+    if width == 640 and height in HIGH_SPEED_640_BASE_ROW:
+        limit = (800 - 2 * height) // 4
+        offset = max(-limit, min(limit, _strip_y_offset()))
+        return (0.5, HIGH_SPEED_640_BASE_ROW[height] + 2.0 * offset + 0.5, 2.0)
+    if (width, height) != (320, 200):
+        return None
+    offset = max(-75, min(75, _strip_y_offset()))
+    return (HIGH_SPEED_320_X0, HIGH_SPEED_320_Y0 + 2.0 * offset, 2.0)
+
+
+def _camera_lens_calibration():
+    """LensCalibration for the active capture, or None (logged once) if unavailable."""
+    path = camera_capture_config.get("lens_calibration_path")
+    if not path:
+        return None
+    key = (path, camera_capture_config.get("width"), camera_capture_config.get("height"))
+    if key not in _CAMERA_LENS_CACHE:
+        from openflight.camera.club_delivery import load_lens_calibration  # noqa: PLC0415
+
+        try:
+            lens = load_lens_calibration(
+                path,
+                width=int(camera_capture_config["width"]),
+                height=int(camera_capture_config["height"]),
+                rotate_180=bool(camera_capture_config.get("rotate_180")),
+                mirror_horizontal=bool(camera_capture_config.get("mirror_horizontal")),
+                scaler_crop=camera_capture_config.get("scaler_crop"),
+                sensor_window=_high_speed_sensor_window(),
+            )
+            logger.info("[CAMERA] Lens calibration %s: %s", path, lens or "not applicable")
+        except (OSError, ValueError, KeyError) as error:
+            logger.warning("[CAMERA] Lens calibration %s unusable: %s", path, error)
+            lens = None
+        _CAMERA_LENS_CACHE[key] = lens
+    return _CAMERA_LENS_CACHE[key]
+
+
 def init_camera_capture(
     *,
     output_dir: str | Path,
@@ -1291,6 +1356,7 @@ def init_camera_capture(
     horizontal_offset_deg: float,
     use_gpio_trigger: bool,
     shot_analysis_enabled: bool = False,
+    lens_calibration_path: str | None = None,
 ) -> bool:
     """Initialize passive high-speed camera capture for offline alignment."""
     global camera_capture_runtime, camera_capture_config  # pylint: disable=global-statement
@@ -1355,6 +1421,7 @@ def init_camera_capture(
             "mirror_horizontal": settings.mirror_horizontal,
             "roll_correction_deg": settings.roll_correction_deg,
             "scaler_crop": settings.scaler_crop,
+            "lens_calibration_path": lens_calibration_path,
             "mount_height_m": mount_height_m,
             "lateral_offset_m": lateral_offset_m,
             "horizontal_offset_deg": horizontal_offset_deg,
@@ -3114,6 +3181,7 @@ def _fuse_camera_club_delivery(
                                         if camera_capture_config.get("mirror_horizontal")
                                         else 1.0
                                     ),
+                                    lens=_camera_lens_calibration(),
                                     roll_correction_deg=float(
                                         camera_capture_config.get("roll_correction_deg", 0.0)
                                     ),
@@ -5069,6 +5137,14 @@ def main():
         help="Optional Picamera2 ScalerCrop as X,Y,W,H.",
     )
     parser.add_argument(
+        "--camera-lens-calibration",
+        default=None,
+        help=(
+            "Measured lens intrinsics JSON (raw_sensor / rotated_180 at 1280x800). "
+            "Club-path rays are undistorted with it; without it a distortion-free lens is assumed"
+        ),
+    )
+    parser.add_argument(
         "--camera-capture-rotate-180",
         action="store_true",
         help="Rotate saved camera frames 180 degrees.",
@@ -5610,6 +5686,7 @@ def main():
             scaler_crop=camera_capture_scaler_crop,
             use_gpio_trigger=not args.iwr6843,
             shot_analysis_enabled=args.camera_shot_analysis,
+            lens_calibration_path=args.camera_lens_calibration,
         ):
             print("Camera capture unavailable - running without high-speed camera capture")
             startup_status.skip("camera", "High-speed camera unavailable; continuing")
