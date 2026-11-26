@@ -44,6 +44,7 @@ nav = [
     ] },
     "build/inclinometer.md",
     "build/battery.md",
+    "camera/README.md",
     "build/enclosure.md",
   ] },
 
@@ -51,6 +52,7 @@ nav = [
     "setup/index.md",
     "setup/raspberry-pi.md",
     "setup/rolling-buffer.md",
+    "hardware-trigger.md",
     "setup/auto-start.md",
     "setup/splash-screen.md",
     "electron-kiosk-shell.md",
@@ -91,6 +93,7 @@ nav = [
     "reference/constants.md",
     "reference/cloud-uploader-spec.md",
     "reference/datasheets.md",
+    "radar/README.md",
     "reference/ops243-firmware-history.md",
   ] },
 
@@ -112,6 +115,7 @@ nav = [
     "legacy/troubleshooting.md",
     "legacy/ball-detection-theory.md",
     "legacy/launch-angle-explained.md",
+    "iwr6843_vs_kld7_comparison.md",
   ] },
 
   { "Archive" = [

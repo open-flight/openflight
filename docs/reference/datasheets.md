@@ -5,7 +5,9 @@ icon: lucide/file-text
 # Datasheets
 
 Vendor documentation, checked into the repository so builds stay reproducible
-when vendor URLs move.
+when vendor URLs move. For each OPS243 PDF's revision, date, and source URL,
+and which sports note to read, see
+[OPS243 vendor documentation](../radar/README.md).
 
 ## OPS243-A Doppler radar
 

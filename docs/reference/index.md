@@ -34,4 +34,8 @@ Lookup material, not narrative. If you are trying to *do* something, the
 
     Vendor PDFs for the radars and their APIs.
 
+- :material-radar: **[OPS243 vendor documentation](../radar/README.md)**
+
+    Revisions, dates, and sources for the checked-in OPS243 PDFs.
+
 </div>

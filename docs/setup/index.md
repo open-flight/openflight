@@ -16,6 +16,13 @@ Software configuration, once the hardware is wired.
 
     The one-time flash-persist step. Hardware triggers do not work without it.
 
+- :material-radar: **[Internal hardware trigger](../hardware-trigger.md)**
+
+    *Opt-in.* Let the OPS243 start captures itself with `--trigger hardware`,
+    no sound sensor needed. The OPS243 is a Doppler radar, so it triggers on a
+    speed threshold (25 mph by default), not on the sound of impact. Needs
+    firmware v1.3.2 or newer.
+
 - :material-power: **[Auto-start & kiosk mode](auto-start.md)**
 
     Run as a systemd service on boot; fullscreen, manual, and SSH variants.
