@@ -43,6 +43,7 @@ export interface RadarConfig {
   max_speed: number;
   min_magnitude: number;
   transmit_power: number;
+  leds?: boolean;
 }
 
 export interface DebugShotLog {

@@ -196,3 +196,12 @@ def test_restore_rolling_buffer_uses_gc_and_no_flash_write(radar):
     for deprecated in DEPRECATED_MODE_COMMANDS:
         assert deprecated not in sent
     assert b"A!" not in sent, "mode switching must not write flash"
+
+
+@pytest.mark.parametrize(("enabled", "command"), [(True, b"OL"), (False, b"Ol")])
+def test_set_leds_sends_the_an010_led_command(radar, enabled, command):
+    """AN-010-AF (p16): OL turns the LEDs on, lowercase-L Ol turns them off."""
+    radar.set_leds(enabled)
+
+    assert _sent(radar).startswith(command)
+    assert b"A!" not in _sent(radar), "an LED toggle must not write flash"
