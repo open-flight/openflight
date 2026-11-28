@@ -41,10 +41,9 @@ _GSPRO_FIELDS = [
 
 
 class GSProCodec:
-    """OpenConnect V1 wire format (used by GSPro and by OpenGolfSim's
-    OpenConnect plugin, and by PAR-TEE). ``name`` is the connector/display
-    target — "gspro" for GSPro, "opengolfsim" when this codec drives OGS over its
-    OpenConnect plugin, "partee" when it drives the PAR-TEE app.
+    """OpenConnect V1 wire format (used by GSPro and PAR-TEE). ``name`` is the
+    connector/display target — "gspro" for GSPro, "partee" for the PAR-TEE app.
+    Current OpenGolfSim uses its own codec (openflight.opengolfsim).
     """
 
     def __init__(

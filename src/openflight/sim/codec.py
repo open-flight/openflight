@@ -80,13 +80,20 @@ def _codec_for(cfg: "ConnectorConfig") -> Codec:
     """Instantiate the codec for a connector type. Import is local to avoid an
     import cycle (the codec imports sim.types/resolver).
 
-    The OpenConnect V1 codec is shared: GSPro uses it on 921; OpenGolfSim uses it
-    on its Developer API (3111, which speaks OpenConnect), named "opengolfsim" so
-    the UI/logs/config say OpenGolfSim rather than GSPro; PAR-TEE listens for it
-    on the phone's Wi-Fi address (921), named "partee" for the same reason.
+    OpenGolfSim's Developer API (3111) speaks its own JSON, not OpenConnect: OGS
+    1.21.2 answers OpenConnect V1 with 400 "Unable to parse payload". It gets the
+    native codec. The OpenConnect V1 codec is shared by GSPro (921) and PAR-TEE
+    (the phone's Wi-Fi address, 921), named per product for the UI/logs/config.
+    (OGS can also take OpenConnect on 921 via its ogs-plugin-openconnect plugin:
+    configure that as type "gspro" pointed at the OGS machine.)
     """
     if cfg.type not in ("gspro", "opengolfsim", "partee"):
         raise ValueError(f"unknown simulator connector type: {cfg.type!r}")
+    if cfg.type == "opengolfsim":
+        # pylint: disable-next=import-outside-toplevel
+        from openflight.opengolfsim.codec import OpenGolfSimCodec
+
+        return OpenGolfSimCodec()
     from openflight.gspro.codec import GSProCodec  # pylint: disable=import-outside-toplevel
 
     return GSProCodec(device_id=cfg.device_id, units=cfg.units, name=cfg.type)

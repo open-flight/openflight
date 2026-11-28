@@ -23,7 +23,7 @@ def initial_shot_counter() -> int:
     """Seed for the shared shot counter: epoch *seconds*.
 
     Seeding from the clock keeps ShotNumber strictly increasing across server
-    restarts — some sims (e.g. OpenGolfSim's Developer API) reject any
+    restarts — some sims (e.g. OpenGolfSim 1.13's OpenConnect Developer API) reject any
     ShotNumber <= the highest they have seen, so a per-run reset to 1 would get
     every shot dropped. Seconds, not milliseconds: epoch millis (~1.78e12)
     overflow GSPro's 32-bit ShotNumber and trigger 501 "Bad format"; epoch

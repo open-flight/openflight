@@ -24,8 +24,7 @@ simulator. For setting up a specific simulator, see its page above.
    ```jsonc
    {
      "connectors": [
-       // OpenGolfSim via its Developer API on 3111 (speaks OpenConnect V1).
-       // Club sync needs the scripts/setup/opengolfsim patch; see opengolfsim.md.
+       // OpenGolfSim via its Developer API on 3111 (native OGS JSON); see opengolfsim.md.
        { "type": "opengolfsim", "enabled": true, "host": "127.0.0.1", "port": 3111 },
        // GSPro
        { "type": "gspro", "enabled": false, "host": "192.168.1.50", "port": 921 },
@@ -34,9 +33,9 @@ simulator. For setting up a specific simulator, see its page above.
      ]
    }
    ```
-   A connector's `type` is the *product*. All three ride the shared OpenConnect
-   V1 codec and differ only in name and default port (GSPro 921, OpenGolfSim's
-   Developer API 3111, PAR-TEE 921).
+   A connector's `type` is the *product*. GSPro (921) and PAR-TEE (921) share
+   the OpenConnect V1 codec; OpenGolfSim's Developer API (3111) has its own
+   native codec.
 2. **Enable the feature at launch with `--sim`** (off by default). Connectors
    marked `enabled` in the file then come up:
    ```bash

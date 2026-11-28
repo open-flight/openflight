@@ -34,7 +34,8 @@ _MAX_FRAME_BYTES = 64 * 1024
 
 class Codec(Protocol):
     """Wire format for one simulator. See gspro.codec (the shared OpenConnect V1
-    codec used by GSPro, OpenGolfSim, and PAR-TEE)."""
+    codec used by GSPro and PAR-TEE) and opengolfsim.codec (OpenGolfSim's
+    native Developer API)."""
 
     name: str
 

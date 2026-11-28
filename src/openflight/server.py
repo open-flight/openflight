@@ -173,7 +173,7 @@ ballistics_enabled: bool = True
 # shared across all of them.
 sim_connectors: List = []
 # Seed the shot counter from the clock so ShotNumber strictly increases across
-# server restarts. Some sims (e.g. OpenGolfSim's Developer API) reject any
+# server restarts. Some sims (e.g. OpenGolfSim 1.13's OpenConnect Developer API) reject any
 # ShotNumber <= the highest they've seen, and that counter persists across
 # reconnects — a per-run reset to 1 would get every shot dropped. Uses epoch
 # *seconds* (see initial_shot_counter): epoch millis overflow GSPro's 32-bit

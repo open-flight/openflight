@@ -4,9 +4,9 @@ A single file lists every connector; the server streams to all that are
 ``enabled`` — but only when the sim feature is turned on at launch (``--sim``).
 
 A connector's ``type`` is the *product*: gspro (OpenConnect V1 on 921),
-opengolfsim (reached via its Developer API on 3111, which speaks OpenConnect),
+opengolfsim (its Developer API on 3111, native OGS JSON),
 or partee (the PAR-TEE phone app, which listens for OpenConnect on 921).
-All ride the shared OpenConnect codec; they differ only in name + default port.
+gspro and partee share the OpenConnect codec; opengolfsim has its own.
 """
 
 import json

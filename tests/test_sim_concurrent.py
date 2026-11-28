@@ -67,14 +67,19 @@ def test_shot_reaches_both_sims():
                 c.send_shot(resolved)
 
             deadline = time.time() + 1.5
-            while time.time() < deadline and not (gspro_srv.received and ogs_srv.received):
+            def _got_ogs_shot():
+                return any(m.get("type") == "shot" for m in _frames(ogs_srv.received))
+
+            # OGS also receives the on-connect device-ready frame; wait for the shot itself.
+            while time.time() < deadline and not (gspro_srv.received and _got_ogs_shot()):
                 time.sleep(0.05)
 
-            # Both speak OpenConnect V1 — each endpoint gets the BallData shot.
-            for srv in (gspro_srv, ogs_srv):
-                shot_msg = next(m for m in _frames(srv.received) if "BallData" in m)
-                assert shot_msg["BallData"]["Speed"] == 135.0
-                assert shot_msg["APIversion"] == "1"
+            # GSPro gets OpenConnect V1; OpenGolfSim gets its native shot JSON.
+            gspro_msg = next(m for m in _frames(gspro_srv.received) if "BallData" in m)
+            assert gspro_msg["BallData"]["Speed"] == 135.0
+            assert gspro_msg["APIversion"] == "1"
+            ogs_msg = next(m for m in _frames(ogs_srv.received) if m.get("type") == "shot")
+            assert ogs_msg["shot"]["ballSpeed"] == 135.0
         finally:
             for c in connectors:
                 c.stop()

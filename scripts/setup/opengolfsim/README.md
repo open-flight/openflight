@@ -1,5 +1,11 @@
 # OpenGolfSim Developer API — club-sync patch
 
+> **Obsolete for OpenGolfSim 1.21.2 and later.** This patch targets 1.13.0's
+> OpenConnect `lib/launch/api.js`. In 1.21.2 that file is a thin wrapper over a
+> native-JSON Developer API that pushes the selected club itself (`type:
+> "player"`), and OpenFlight's `opengolfsim` connector uses the native codec.
+> See `docs/using/simulator/opengolfsim.md`. Do not apply it to 1.21.2.
+
 A tiny patch to OpenGolfSim's **bundled Developer API** driver
 (`lib/launch/api.js`, TCP **3111**) that makes it report the **real selected
 club** to a connected launch monitor — so OpenFlight's club picker follows the

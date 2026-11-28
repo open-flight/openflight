@@ -1,25 +1,34 @@
 # OpenGolfSim
 
 OpenFlight streams shots into [OpenGolfSim](https://opengolfsim.com/) through its
-built-in **Developer API** (TCP **921**), which speaks the **OpenConnect V1**
-protocol — so the `opengolfsim` connector reuses the same shared codec as GSPro,
-just pointed at OGS and reported as "OpenGolfSim".
+built-in **Developer API** on TCP **3111**. Current OpenGolfSim speaks its **own
+JSON format** there (not OpenConnect), so the `opengolfsim` connector uses a
+dedicated codec (`src/openflight/opengolfsim/`).
 
-See the connector architecture in [README.md](https://github.com/open-flight/openflight/blob/main/README.md). This page covers
-setup specific to OpenGolfSim.
+> **Version note.** OpenGolfSim **1.13.0**'s bundled Developer API accepted
+> OpenConnect V1 on 3111. **1.21.2 does not**: it answers OpenConnect with
+> `{"status":400,"error":"Unable to parse payload"}` and plays nothing
+> (verified against 1.21.2's `lib/developerAPI.js` and on hardware). If you are
+> stuck on an old build that only takes OpenConnect, use
+> `{"type": "gspro", "port": 3111, ...}` instead, which sends OpenConnect to
+> any port.
+
+See the connector architecture in [index.md](index.md). This page covers setup
+specific to OpenGolfSim.
 
 ## Requirements
 
-- **OpenGolfSim desktop app** with the **Developer API** launch-monitor device
-  selected (it listens on TCP 3111).
-- **Network reachability.** The machine running OpenFlight (e.g. the Raspberry
-  Pi) and the PC running OpenGolfSim must be on the same LAN, and OGS's 3111 must
-  be reachable (mind the host firewall). You need the OpenGolfSim PC's IP.
-- No account/credentials are sent by OpenFlight — the API has no auth.
+- **OpenGolfSim desktop app**, signed in (the Developer API only starts after
+  login), with the **Developer API** launch-monitor device selected. With any
+  other device (e.g. Mouse) OGS echoes API shots back but does not play them.
+- **Network reachability.** OGS listens on all interfaces on 3111 (its log says
+  "localhost", but the server binds every interface). The OpenFlight machine
+  must reach the OGS PC's IP on 3111; mind the host firewall.
+- No account/credentials are sent by OpenFlight. The API has no auth.
 
 ## Setup
 
-1. In OpenGolfSim, select the **Developer API** launch-monitor device (port 3111).
+1. In OpenGolfSim: **Settings → Shot Data → Developer API**.
 2. **Find the OpenGolfSim PC's IP** (e.g. `192.168.1.60`).
 3. **Configure OpenFlight.** Copy the example config if you haven't already:
    ```bash
@@ -29,7 +38,7 @@ setup specific to OpenGolfSim.
    ```jsonc
    {
      "connectors": [
-       { "type": "opengolfsim", "enabled": true, "host": "192.168.1.60", "port": 921 }
+       { "type": "opengolfsim", "enabled": true, "host": "192.168.1.60", "port": 3111 }
      ]
    }
    ```
@@ -41,58 +50,60 @@ setup specific to OpenGolfSim.
 5. **Hit a shot.** It appears in OpenGolfSim; with debug mode on, the "Sent to
    OpenGolfSim" panel shows the values sent with measured/estimated badges.
 
-## What gets sent
+## Wire format
 
-OpenConnect V1 ball data (OGS computes carry itself; club/face data isn't sent):
+On connect, OpenFlight sends `{"type":"device","status":"ready"}`. Each shot:
 
 ```json
-{ "DeviceID": "OpenFlight", "Units": "Yards", "ShotNumber": 1, "APIversion": "1",
-  "BallData": { "Speed": 135.0, "VLA": 11.1, "HLA": 1.2, "TotalSpin": 4800, "SpinAxis": -2.5, ... } }
+{"type":"shot","shot":{"ballSpeed":135.0,"verticalLaunchAngle":11.1,
+ "horizontalLaunchAngle":1.2,"spinAxis":-2.5,"spinSpeed":4800}}
 ```
 
-`TotalSpin` uses the measured value when high-confidence, otherwise a per-club
-model — the "Sent to OpenGolfSim" badges (debug mode) show which.
+- Speeds are always sent in **mph** with no `unit` field (OGS's default). OGS
+  multiplies `ballSpeed` by 2.237 when `"unit":"metric"`, so the codec never
+  sets it.
+- OGS computes carry itself and takes no club or face data.
+- OGS parses each TCP read as one JSON document, so frames are never batched.
 
-## Club sync (needs a small OGS patch)
+OGS sends back (newline-terminated, to **every** connected client):
 
-OGS's Developer API already replies with an OpenConnect `201 Player` block, but
-ships with a hardcoded `Club:"DR"` — the real club reaches the bundled driver
-via `setClub(clubId)` but isn't wired into the reply (confirmed against OGS's own
-source). A small local patch finishes it:
+| Message | Meaning | OpenFlight event |
+|---|---|---|
+| `{"type":"shot","shot":{...}}` | shot accepted (echo) | `ShotAck` |
+| `{"type":"result","data":{"result":{carry, height, roll, total, lateral},"club","shot","sessionId"}}` | ball came to rest; distances in **meters** | ignored |
+| `{"type":"player","data":{"player":{...},"club":{"name":...}}}` | player or club changed in OGS | `PlayerUpdate` (club sync) |
+| `{"status":400,"error":"Unable to parse payload"}` | payload rejected | `SimError` |
 
-1. Apply **`scripts/setup/opengolfsim/`** (this repo) to your local OGS — it
-   makes the Developer API send the *real* club in the `201`. See that folder's
-   `README.md` for `apply.sh` and the re-apply-after-update note.
-2. Relaunch OGS (with the Developer API device selected).
+`spinSpeed` uses the measured total spin when high-confidence, otherwise a
+per-club model. The "Sent to OpenGolfSim" badges (debug mode) show which.
 
-With the patch, changing the club in OpenGolfSim pushes a `201 Player` that
-OpenFlight applies to its club picker and carry/spin model. Without it, shots
-still stream fine — you just set the club manually in OpenFlight.
+## Club sync
 
-> Club sync is **one-way: OGS → OpenFlight.** OGS's API has no command for a
-> device to set the club, so OpenFlight can't push its club choice to the sim;
-> the sim is the source of truth. The durable fix is upstreaming the ~3-line
-> Developer-API change to OGS so no local patch is needed.
+OGS 1.21.2 pushes a `player` message with the selected club whenever it
+changes, and OpenFlight applies it to its club picker and carry/spin model. No
+OGS patch is needed. (This is read from OGS's source, `lib/launch/index.js`;
+the club `name` values OGS uses have not yet been checked against
+`ogs_club_to_club` on hardware.) The `scripts/setup/opengolfsim/` patch targets
+1.13.0's OpenConnect `api.js` and does not apply to 1.21.2.
+
+> Club sync is **one-way: OGS → OpenFlight.** The Developer API accepts a
+> `club` message from the device, but OpenFlight does not send one; the sim is
+> the source of truth.
 
 ## Troubleshooting
 
 - **Pill stays amber (connecting / reconnecting):** OpenFlight can't reach
-  `host:port`. Verify the Developer API device is selected in OGS, the IP is
-  correct, 3111 isn't firewalled, and you launched with `--sim`. ("Connecting"
-  means it has never connected yet; "reconnecting" means an established
-  connection dropped.)
-- **Shots don't appear:** confirm OGS is on a hittable screen with the Developer
-  API connected. Check `sim_send` entries in the session log.
-- **First shot after connecting sometimes doesn't register:** the first shot on a
-  fresh connection occasionally doesn't play in OGS while later shots do. This
-  appears to depend on OpenGolfSim's screen/round state (it must be on a hittable
-  screen), not on OpenFlight — OpenFlight sends the shot correctly (confirm the
-  `sim_send` entry in the session log; OGS replies, e.g. `Code 200 "Club Data
-  received"`). Workaround: make sure OGS is on a hittable screen before you start,
-  and/or hit a throwaway first shot.
-- **Club shows "DR" / doesn't follow OGS:** the club-sync patch isn't applied (or
-  an OGS update reverted it) — re-run `scripts/setup/opengolfsim/apply.sh`.
+  `host:port`. Check that OGS is signed in (3111 only opens after login), the IP
+  is correct, 3111 isn't firewalled, and you launched with `--sim`.
+- **Shots don't appear, but OGS echoes them:** OGS's launch-monitor device is
+  not **Developer API**. Select it in Settings → Shot Data.
+- **`SimError` "400 Unable to parse payload":** something sent a non-native
+  payload, e.g. a connector typed `gspro` pointed at 3111 on a current OGS.
+  Use `"type": "opengolfsim"`.
+- **Shots echo but nothing flies:** OGS must be on a hittable screen (range or a
+  course loaded).
 
 ## References
 
 - [OpenGolfSim Developer API](https://help.opengolfsim.com/desktop/apis/)
+- [Shot data format](https://help.opengolfsim.com/desktop/apis/shot-data/)

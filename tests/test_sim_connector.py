@@ -141,12 +141,12 @@ def test_build_connector_gspro():
     assert c.codec.device_id == "Bay7"
 
 
-def test_build_connector_opengolfsim_uses_shared_codec_named_ogs():
-    from openflight.gspro.codec import GSProCodec
+def test_build_connector_opengolfsim_uses_native_codec():
+    from openflight.opengolfsim.codec import OpenGolfSimCodec
 
     c = build_connector(ConnectorConfig(type="opengolfsim", host="127.0.0.1", port=3111))
-    # OpenGolfSim reuses the shared OpenConnect (GSPro) codec, named "opengolfsim".
-    assert isinstance(c.codec, GSProCodec)
+    # OGS 1.21.2's Developer API rejects OpenConnect; it needs its native JSON.
+    assert isinstance(c.codec, OpenGolfSimCodec)
     assert c.name == "opengolfsim"
 
 
